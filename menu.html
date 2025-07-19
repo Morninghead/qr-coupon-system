@@ -101,22 +101,18 @@
 
     <div class="menu-grid" id="menu-grid">
         <!-- Menu items will be dynamically shown here based on user role -->
-
         <a href="/add-employee.html" class="menu-item" id="menu-add-employee">
             <h2>📝 เพิ่มรายชื่อพนักงานใหม่</h2>
             <p>สำหรับเพิ่มข้อมูลพนักงานใหม่เข้าสู่ระบบ</p>
         </a>
-
         <a href="/grant-coupons.html" class="menu-item" id="menu-grant-coupons">
             <h2>🎁 ให้สิทธิ์คูปอง</h2>
             <p>นำเข้ารายชื่อพนักงานเพื่อให้สิทธิ์คูปองรายวัน/OT</p>
         </a>
-
         <a href="/scanner.html" class="menu-item" id="menu-scanner">
             <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
             <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
         </a>
-
         <a href="/reports.html" class="menu-item" id="menu-reports">
             <h2>📊 หน้าจอแสดงรายงาน</h2>
             <p>ดูสรุปและสถิติการใช้งานคูปองทั้งหมด</p>
@@ -124,24 +120,41 @@
     </div>
 
     <script>
-        // --- CONFIGURATION ---
-        const SUPABASE_URL = process.env.SUPABASE_URL;
-        const SUPABASE_KEY = process.env.SUPABASE_KEY;
-        // -------------------
-
-        const { createClient } = supabase;
-        const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
         const userEmailSpan = document.getElementById('user-email');
         const logoutButton = document.getElementById('logout-btn');
         const menuGrid = document.getElementById('menu-grid');
         const loadingState = document.getElementById('loading-state');
+        let _supabase; // Declare supabase client variable
 
+        async function initializeApp() {
+            try {
+                // Fetch configuration from our serverless function
+                const response = await fetch('/.netlify/functions/get-config');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const config = await response.json();
+
+                if (!config.supabaseUrl || !config.supabaseKey) {
+                    throw new Error('Supabase configuration is missing from server.');
+                }
+
+                // Initialize Supabase client
+                const { createClient } = supabase;
+                _supabase = createClient(config.supabaseUrl, config.supabaseKey);
+
+                // Now that supabase is initialized, proceed with page logic
+                await initializeMenu();
+
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                loadingState.textContent = 'ไม่สามารถโหลดการตั้งค่าระบบได้';
+            }
+        }
+        
         async function initializeMenu() {
             // 1. Check for active session
-            const { data: { session } } = await _supabase.auth.getSession();
+            const { data: { session }, error: sessionError } = await _supabase.auth.getSession();
 
-            if (!session) {
+            if (sessionError || !session) {
                 // If no session, redirect to login page
                 window.location.href = '/index.html';
                 return;
@@ -193,6 +206,7 @@
         }
 
         logoutButton.addEventListener('click', async () => {
+            if (!_supabase) return; // Guard against uninitialized client
             const { error } = await _supabase.auth.signOut();
             if (!error) {
                 // Redirect to login page after logout
@@ -202,8 +216,8 @@
             }
         });
 
-        // Initialize the page
-        initializeMenu();
+        // Start the application
+        initializeApp();
     </script>
 
 </body>
