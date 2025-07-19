@@ -1,8 +1,15 @@
-// ส่วน import และ const supabase = createClient(...) เหมือนเดิม
+// Import Supabase client library
+import { createClient } from '@supabase/supabase-js';
 
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Main function handler
 export const handler = async (event) => {
     // 1. รับค่า Input จาก URL (อาจจะเป็น token หรือ employee_id)
-    const inputValue = event.queryStringParameters.token; // ตั้งชื่อตัวแปรเหมือนเดิมเพื่อง่าย
+    const inputValue = event.queryStringParameters.token; 
 
     if (!inputValue) {
         return {
@@ -12,24 +19,19 @@ export const handler = async (event) => {
     }
 
     try {
-        // --- ส่วนที่แก้ไข ---
         // 2. ตรวจสอบว่า Input เป็น UUID (token) หรือ Employee ID
-        // Regex to check for UUID format
         const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(inputValue);
         
         let query = supabase.from('Employees').select('id, name, is_active');
         
         if (isUuid) {
-            // ถ้าเป็น UUID ให้ค้นหาจาก permanent_token
             query = query.eq('permanent_token', inputValue);
         } else {
-            // ถ้าไม่ใช่ ให้ค้นหาจาก employee_id
             query = query.eq('employee_id', inputValue);
         }
 
         const { data: employee, error: employeeError } = await query.single();
-        // ------------------
-
+        
         if (employeeError || !employee) {
             return {
                 statusCode: 404,
@@ -44,7 +46,7 @@ export const handler = async (event) => {
             };
         }
 
-        // 3. ค้นหาคูปองที่พร้อมใช้งานสำหรับวันนี้ (เหมือนเดิม)
+        // 3. ค้นหาคูปองที่พร้อมใช้งานสำหรับวันนี้
         const today = new Date().toISOString().split('T')[0];
 
         const { data: availableCoupon, error: couponError } = await supabase
@@ -67,7 +69,7 @@ export const handler = async (event) => {
             };
         }
 
-        // 4. อัปเดตสถานะคูปองเป็น USED (เหมือนเดิม)
+        // 4. อัปเดตสถานะคูปองเป็น USED
         const { error: updateError } = await supabase
             .from('Daily_Coupons')
             .update({
@@ -78,7 +80,7 @@ export const handler = async (event) => {
 
         if (updateError) throw updateError;
 
-        // 5. ส่งผลลัพธ์ว่า "อนุมัติ" (เหมือนเดิม)
+        // 5. ส่งผลลัพธ์ว่า "อนุมัติ"
         return {
             statusCode: 200,
             body: JSON.stringify({
