@@ -2,7 +2,6 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
-// คุณต้องไปที่ Project Settings > API ใน Supabase เพื่อเอาค่าเหล่านี้มาใส่
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -11,6 +10,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export const handler = async (event) => {
     // 1. รับ Token จาก URL
     const token = event.queryStringParameters.token;
+    
+    // --- DEBUG LOG #1 ---
+    console.log('Received token:', token);
 
     if (!token) {
         return {
@@ -20,12 +22,18 @@ export const handler = async (event) => {
     }
 
     try {
-        // 2. ค้นหาพนักงานจาก Token
+        // --- ส่วนที่แก้ไข ---
+        // 2. ค้นหาพนักงานจาก Token (แบบ Query ง่ายๆ)
         const { data: employee, error: employeeError } = await supabase
             .from('Employees')
-            .select('id, name, is_active, Departments(name)') // ดึงข้อมูลแผนกมาด้วย
+            .select('*') // <--- แก้ไขจุดที่ 1: เลือกทุกอย่าง ไม่ join
             .eq('permanent_token', token)
             .single();
+
+        // --- DEBUG LOG #2 ---
+        console.log('Supabase data result:', employee);
+        console.log('Supabase error result:', employeeError);
+        // ------------------
 
         if (employeeError || !employee) {
             return {
@@ -55,12 +63,12 @@ export const handler = async (event) => {
 
         if (usageLog.length > 0) {
             return {
-                statusCode: 409, // 409 Conflict
+                statusCode: 409,
                 body: JSON.stringify({
                     success: false,
                     message: 'ใช้สิทธิ์สำหรับวันนี้ไปแล้ว',
                     name: employee.name,
-                    department: employee.Departments.name,
+                    // department: employee.Departments.name, // เอาออกชั่วคราว
                 }),
             };
         }
@@ -79,12 +87,13 @@ export const handler = async (event) => {
                 success: true,
                 message: 'อนุมัติ',
                 name: employee.name,
-                department: employee.Departments.name,
+                // department: employee.Departments.name, // เอาออกชั่วคราว
             }),
         };
 
     } catch (error) {
-        console.error('Error:', error);
+        // --- DEBUG LOG #3 ---
+        console.error('Function crashed with error:', error);
         return {
             statusCode: 500,
             body: JSON.stringify({ success: false, message: 'เกิดข้อผิดพลาดในระบบ' }),
