@@ -1,30 +1,34 @@
-// Import Supabase client library
-import { createClient } from '@supabase/supabase-js';
+// ส่วน import และ const supabase = createClient(...) เหมือนเดิม
 
-// Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Main function handler
 export const handler = async (event) => {
-    // 1. รับ Token จาก URL
-    const token = event.queryStringParameters.token;
+    // 1. รับค่า Input จาก URL (อาจจะเป็น token หรือ employee_id)
+    const inputValue = event.queryStringParameters.token; // ตั้งชื่อตัวแปรเหมือนเดิมเพื่อง่าย
 
-    if (!token) {
+    if (!inputValue) {
         return {
             statusCode: 400,
-            body: JSON.stringify({ success: false, message: 'ไม่พบ Token ใน QR Code' }),
+            body: JSON.stringify({ success: false, message: 'ไม่พบข้อมูล Input' }),
         };
     }
 
     try {
-        // 2. ค้นหาพนักงานจาก Token
-        const { data: employee, error: employeeError } = await supabase
-            .from('Employees')
-            .select('id, name, is_active')
-            .eq('permanent_token', token)
-            .single();
+        // --- ส่วนที่แก้ไข ---
+        // 2. ตรวจสอบว่า Input เป็น UUID (token) หรือ Employee ID
+        // Regex to check for UUID format
+        const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(inputValue);
+        
+        let query = supabase.from('Employees').select('id, name, is_active');
+        
+        if (isUuid) {
+            // ถ้าเป็น UUID ให้ค้นหาจาก permanent_token
+            query = query.eq('permanent_token', inputValue);
+        } else {
+            // ถ้าไม่ใช่ ให้ค้นหาจาก employee_id
+            query = query.eq('employee_id', inputValue);
+        }
+
+        const { data: employee, error: employeeError } = await query.single();
+        // ------------------
 
         if (employeeError || !employee) {
             return {
@@ -40,8 +44,8 @@ export const handler = async (event) => {
             };
         }
 
-        // 3. ค้นหาคูปองที่พร้อมใช้งานสำหรับวันนี้
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        // 3. ค้นหาคูปองที่พร้อมใช้งานสำหรับวันนี้ (เหมือนเดิม)
+        const today = new Date().toISOString().split('T')[0];
 
         const { data: availableCoupon, error: couponError } = await supabase
             .from('Daily_Coupons')
@@ -49,7 +53,7 @@ export const handler = async (event) => {
             .eq('employee_id', employee.id)
             .eq('coupon_date', today)
             .eq('status', 'READY')
-            .limit(1) // เอาใบแรกที่เจอ
+            .limit(1)
             .single();
 
         if (couponError || !availableCoupon) {
@@ -63,7 +67,7 @@ export const handler = async (event) => {
             };
         }
 
-        // 4. อัปเดตสถานะคูปองเป็น USED
+        // 4. อัปเดตสถานะคูปองเป็น USED (เหมือนเดิม)
         const { error: updateError } = await supabase
             .from('Daily_Coupons')
             .update({
@@ -72,11 +76,9 @@ export const handler = async (event) => {
             })
             .eq('id', availableCoupon.id);
 
-        if (updateError) {
-            throw updateError;
-        }
+        if (updateError) throw updateError;
 
-        // 5. ส่งผลลัพธ์ว่า "อนุมัติ"
+        // 5. ส่งผลลัพธ์ว่า "อนุมัติ" (เหมือนเดิม)
         return {
             statusCode: 200,
             body: JSON.stringify({
