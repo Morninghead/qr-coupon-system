@@ -89,17 +89,16 @@
             padding: 12px;
             border-radius: 8px;
             font-weight: 500;
-            display: none; /* Hidden by default */
+            display: block; /* Always visible */
+            min-height: 48px;
         }
         .message-success {
             background-color: #D1FAE5;
             color: #065F46;
-            display: block;
         }
         .message-error {
             background-color: #FEE2E2;
             color: #991B1B;
-            display: block;
         }
     </style>
 </head>
@@ -117,70 +116,92 @@
                 <label for="password">รหัสผ่าน</label>
                 <input type="password" id="password" required>
             </div>
-            <button type="submit" class="login-btn" id="login-btn">
-                เข้าสู่ระบบ
+            <button type="submit" class="login-btn" id="login-btn" disabled>
+                กำลังโหลด...
             </button>
         </form>
         <div id="message"></div>
     </div>
 
     <script>
-        // --- CONFIGURATION ---
-        // !!! สำคัญ: กรุณากรอก SUPABASE URL และ KEY ของคุณที่นี่ !!!
-        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-        const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-        // -------------------
-
-        const { createClient } = supabase;
-        const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
         const loginForm = document.getElementById('login-form');
         const loginButton = document.getElementById('login-btn');
         const messageDiv = document.getElementById('message');
+        let _supabase; // Declare supabase client variable
 
-        // Redirect to menu if already logged in
-        _supabase.auth.onAuthStateChange((event, session) => {
-            if (session) {
-                window.location.href = '/menu.html'; 
-            }
-        });
-
-        loginForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-
-            // Disable button and show loading state
-            loginButton.disabled = true;
-            loginButton.textContent = 'กำลังตรวจสอบ...';
-            messageDiv.className = '';
-            messageDiv.textContent = '';
-
+        async function initializeApp() {
             try {
-                const { data, error } = await _supabase.auth.signInWithPassword({
-                    email: email,
-                    password: password,
-                });
+                // Fetch configuration from our new serverless function
+                const response = await fetch('/.netlify/functions/get-config');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const config = await response.json();
 
-                if (error) {
-                    throw error;
+                if (!config.supabaseUrl || !config.supabaseKey) {
+                    throw new Error('Supabase configuration is missing from server.');
                 }
 
-                // On success, the onAuthStateChange listener will handle the redirect
-                messageDiv.className = 'message-success';
-                messageDiv.textContent = 'เข้าสู่ระบบสำเร็จ! กำลังไปยังหน้าเมนู...';
+                // Initialize Supabase client
+                const { createClient } = supabase;
+                _supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
-            } catch (error) {
-                messageDiv.className = 'message-error';
-                messageDiv.textContent = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
-                console.error('Login Error:', error.message);
-
-                // Re-enable button
+                // Now that supabase is initialized, set up auth listeners and form handlers
+                setupAuth();
+                
+                // Enable the login button
                 loginButton.disabled = false;
                 loginButton.textContent = 'เข้าสู่ระบบ';
+                messageDiv.textContent = '';
+
+
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                messageDiv.className = 'message-error';
+                messageDiv.textContent = 'ไม่สามารถโหลดการตั้งค่าระบบได้';
             }
-        });
+        }
+
+        function setupAuth() {
+            // Redirect to menu if already logged in
+            _supabase.auth.onAuthStateChange((event, session) => {
+                if (session) {
+                    window.location.href = '/menu.html'; 
+                }
+            });
+
+            loginForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                loginButton.disabled = true;
+                loginButton.textContent = 'กำลังตรวจสอบ...';
+                messageDiv.className = '';
+                messageDiv.textContent = '';
+
+                try {
+                    const { data, error } = await _supabase.auth.signInWithPassword({
+                        email: email,
+                        password: password,
+                    });
+
+                    if (error) throw error;
+
+                    messageDiv.className = 'message-success';
+                    messageDiv.textContent = 'เข้าสู่ระบบสำเร็จ! กำลังไปยังหน้าเมนู...';
+
+                } catch (error) {
+                    messageDiv.className = 'message-error';
+                    messageDiv.textContent = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+                    console.error('Login Error:', error.message);
+                    loginButton.disabled = false;
+                    loginButton.textContent = 'เข้าสู่ระบบ';
+                }
+            });
+        }
+
+        // Start the application
+        initializeApp();
     </script>
 
 </body>
