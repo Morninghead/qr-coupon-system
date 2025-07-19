@@ -67,50 +67,66 @@
         </div>
     </div>
 
-    <script>
-        const tokenInput = document.getElementById('tokenInput');
-        const resultDiv = document.getElementById('result');
-        const functionUrl = 'https://ssth-ecoupon.netlify.app/.netlify/functions/scan'; // URL ของฟังก์ชัน
-        let isProcessing = false;
+<script>
+    const tokenInput = document.getElementById('tokenInput');
+    const resultDiv = document.getElementById('result');
+    const functionUrl = '/.netlify/functions/scan'; // ใช้ Relative URL
+    let isProcessing = false;
 
-        // ทำให้ Input พร้อมรับข้อมูลเสมอ
-        window.onload = () => tokenInput.focus();
-        document.body.addEventListener('click', () => tokenInput.focus());
+    // ทำให้ Input พร้อมรับข้อมูลเสมอ
+    window.onload = () => tokenInput.focus();
+    document.body.addEventListener('click', () => tokenInput.focus());
 
-        tokenInput.addEventListener('change', async (event) => {
-            const token = event.target.value.trim();
-            if (!token || isProcessing) return;
+    tokenInput.addEventListener('change', async (event) => {
+        const inputValue = event.target.value.trim();
+        if (!inputValue || isProcessing) return;
 
-            isProcessing = true;
-            resultDiv.className = 'loading';
-            resultDiv.innerHTML = '<p>กำลังประมวลผล...</p>';
+        let token = inputValue;
 
-            try {
-                const response = await fetch(`${functionUrl}?token=${token}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    resultDiv.className = 'success';
-                    resultDiv.innerHTML = `✅ อนุมัติ<br><small>${data.name}</small>`;
-                } else {
-                    resultDiv.className = 'error';
-                    resultDiv.innerHTML = `❌ ${data.message}<br><small>${data.name || ''}</small>`;
-                }
-            } catch (err) {
-                resultDiv.className = 'error';
-                resultDiv.innerHTML = '<p>เกิดข้อผิดพลาดในการเชื่อมต่อ</p>';
+        // --- ส่วนที่เพิ่มเข้ามา ---
+        // ตรวจสอบว่าค่าที่รับมาเป็น URL หรือไม่
+        try {
+            const url = new URL(inputValue);
+            // ถ้าใช่ ให้ดึงค่า parameter 'token' ออกมา
+            if (url.searchParams.has('token')) {
+                token = url.searchParams.get('token');
             }
+        } catch (e) {
+            // ถ้าไม่ใช่ URL ก็ให้ใช้ค่าที่รับมาตรงๆ (กรณีพิมพ์ token เอง)
+            token = inputValue;
+        }
+        // -----------------------
 
-            // รีเซ็ตหลังจากแสดงผล 3 วินาที
-            setTimeout(() => {
-                tokenInput.value = '';
-                resultDiv.className = '';
-                resultDiv.innerHTML = '<p>กรุณาสแกน QR Code</p>';
-                isProcessing = false;
-                tokenInput.focus();
-            }, 3000);
-        });
-    </script>
+        isProcessing = true;
+        resultDiv.className = 'loading';
+        resultDiv.innerHTML = '<p>กำลังประมวลผล...</p>';
+
+        try {
+            const response = await fetch(`${functionUrl}?token=${token}`);
+            const data = await response.json();
+
+            if (data.success) {
+                resultDiv.className = 'success';
+                resultDiv.innerHTML = `✅ ${data.message}<br><small>${data.name}</small>`;
+            } else {
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = `❌ ${data.message}<br><small>${data.name || ''}</small>`;
+            }
+        } catch (err) {
+            resultDiv.className = 'error';
+            resultDiv.innerHTML = '<p>เกิดข้อผิดพลาดในการเชื่อมต่อ</p>';
+        }
+
+        // รีเซ็ตหลังจากแสดงผล 3 วินาที
+        setTimeout(() => {
+            tokenInput.value = '';
+            resultDiv.className = '';
+            resultDiv.innerHTML = '<p>กรุณาสแกน QR Code</p>';
+            isProcessing = false;
+            tokenInput.focus();
+        }, 3000);
+    });
+</script>
 
 </body>
 </html>
