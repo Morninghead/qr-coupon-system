@@ -1,0 +1,14 @@
+# Netlify Build & Deploy Settings
+
+[build]
+  # Directory to publish (root of the project)
+  publish = "."
+  # Directory where our serverless functions live
+  functions = "netlify/functions"
+
+# Redirect rule for Single Page Applications (SPA)
+# This ensures that all paths are handled by index.html, which is essential for our login/menu system.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
