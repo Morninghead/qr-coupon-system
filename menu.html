@@ -17,6 +17,10 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: var(--light-gray);
             margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
             padding: 24px;
         }
         .header {
@@ -30,6 +34,7 @@
         .header h1 {
             color: var(--dark-gray);
             font-size: 28px;
+            margin: 0;
         }
         .user-info {
             text-align: right;
@@ -46,7 +51,11 @@
             font-weight: 600;
             cursor: pointer;
             font-size: 16px;
-            padding-top: 4px;
+            padding: 4px 0 0 0;
+            transition: opacity 0.2s;
+        }
+        #logout-btn:hover {
+            opacity: 0.8;
         }
         .menu-grid {
             display: grid;
@@ -70,12 +79,18 @@
         .menu-item h2 {
             margin-top: 0;
             margin-bottom: 8px;
-            font-size: 20px;
+            font-size: 18px; /* ปรับขนาด Font */
+            white-space: nowrap; /* ไม่ให้ขึ้นบรรทัดใหม่ */
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .menu-item p {
             margin: 0;
             color: var(--text-gray);
-            font-size: 15px;
+            font-size: 14px; /* ปรับขนาด Font */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         #loading-state {
             text-align: center;
@@ -83,40 +98,72 @@
             color: var(--text-gray);
             padding: 40px;
         }
+
+        /* Responsive Styles for Mobile */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            .header h1 {
+                font-size: 24px;
+            }
+            .user-info {
+                text-align: left;
+                width: 100%;
+            }
+            .menu-grid {
+                gap: 16px;
+            }
+            .menu-item {
+                padding: 20px;
+            }
+            .menu-item h2 {
+                font-size: 17px;
+            }
+            .menu-item p {
+                font-size: 13px;
+            }
+        }
     </style>
 </head>
 <body>
-
-    <div class="header">
-        <h1>เมนูหลัก</h1>
-        <div class="user-info">
-            <span id="user-email"></span>
-            <button id="logout-btn">ออกจากระบบ</button>
+    <div class="container">
+        <div class="header">
+            <h1>เมนูหลัก</h1>
+            <div class="user-info">
+                <span id="user-email"></span>
+                <button id="logout-btn">ออกจากระบบ</button>
+            </div>
         </div>
-    </div>
 
-    <div id="loading-state">
-        <p>กำลังโหลดข้อมูลผู้ใช้...</p>
-    </div>
+        <div id="loading-state">
+            <p>กำลังโหลดข้อมูลผู้ใช้...</p>
+        </div>
 
-    <div class="menu-grid" id="menu-grid">
-        <!-- Menu items will be dynamically shown here based on user role -->
-        <a href="/add-employee.html" class="menu-item" id="menu-add-employee">
-            <h2>📝 เพิ่มรายชื่อพนักงานใหม่</h2>
-            <p>สำหรับเพิ่มข้อมูลพนักงานใหม่เข้าสู่ระบบ</p>
-        </a>
-        <a href="/grant-coupons.html" class="menu-item" id="menu-grant-coupons">
-            <h2>🎁 ให้สิทธิ์คูปอง</h2>
-            <p>นำเข้ารายชื่อพนักงานเพื่อให้สิทธิ์คูปองรายวัน/OT</p>
-        </a>
-        <a href="/scanner.html" class="menu-item" id="menu-scanner">
-            <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
-            <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
-        </a>
-        <a href="/reports.html" class="menu-item" id="menu-reports">
-            <h2>📊 หน้าจอแสดงรายงาน</h2>
-            <p>ดูสรุปและสถิติการใช้งานคูปองทั้งหมด</p>
-        </a>
+        <div class="menu-grid" id="menu-grid">
+            <!-- Menu items will be dynamically shown here based on user role -->
+            <a href="/add-employee.html" class="menu-item" id="menu-add-employee">
+                <h2>📝 เพิ่มรายชื่อพนักงานใหม่</h2>
+                <p>สำหรับเพิ่มข้อมูลพนักงานใหม่เข้าสู่ระบบ</p>
+            </a>
+            <a href="/grant-coupons.html" class="menu-item" id="menu-grant-coupons">
+                <h2>🎁 ให้สิทธิ์คูปอง</h2>
+                <p>นำเข้ารายชื่อพนักงานเพื่อให้สิทธิ์รายวัน/OT</p>
+            </a>
+            <a href="/scanner.html" class="menu-item" id="menu-scanner">
+                <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
+                <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
+            </a>
+            <a href="/reports.html" class="menu-item" id="menu-reports">
+                <h2>📊 หน้าจอแสดงรายงาน</h2>
+                <p>ดูสรุปและสถิติการใช้งานคูปองทั้งหมด</p>
+            </a>
+        </div>
     </div>
 
     <script>
