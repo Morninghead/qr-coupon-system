@@ -83,19 +83,13 @@
 
         let token = inputValue;
 
-        // --- ส่วนที่เพิ่มเข้ามา ---
-        // ตรวจสอบว่าค่าที่รับมาเป็น URL หรือไม่
-        try {
-            const url = new URL(inputValue);
-            // ถ้าใช่ ให้ดึงค่า parameter 'token' ออกมา
-            if (url.searchParams.has('token')) {
-                token = url.searchParams.get('token');
-            }
-        } catch (e) {
-            // ถ้าไม่ใช่ URL ก็ให้ใช้ค่าที่รับมาตรงๆ (กรณีพิมพ์ token เอง)
-            token = inputValue;
+        // --- ส่วนที่แก้ไขให้ฉลาดขึ้น ---
+        // ตรวจสอบว่ามี "?token=" อยู่ในข้อความที่สแกนมาหรือไม่
+        if (inputValue.includes('?token=')) {
+            // ถ้ามี ให้ตัดเอาข้อความทุกอย่างที่อยู่หลัง "?token=" มาใช้
+            token = inputValue.split('?token=')[1];
         }
-        // -----------------------
+        // -----------------------------
 
         isProcessing = true;
         resultDiv.className = 'loading';
@@ -117,7 +111,7 @@
             resultDiv.innerHTML = '<p>เกิดข้อผิดพลาดในการเชื่อมต่อ</p>';
         }
 
-        // รีเซ็ตหลังจากแสดงผล 3 วินาที
+        // รีเซ็ตหลังจากแสดงผล
         setTimeout(() => {
             tokenInput.value = '';
             resultDiv.className = '';
