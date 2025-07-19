@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main Menu - Employee Coupon System</title>
+    <!-- Import Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary-color: #6366F1;
+            --light-gray: #F3F4F6;
+            --dark-gray: #1F2937;
+            --text-gray: #4B5563;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+            padding: 24px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        .header h1 {
+            color: var(--dark-gray);
+            font-size: 28px;
+        }
+        .user-info {
+            text-align: right;
+        }
+        .user-info span {
+            display: block;
+            color: var(--text-gray);
+            font-weight: 500;
+        }
+        #logout-btn {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 16px;
+            padding-top: 4px;
+        }
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 24px;
+        }
+        .menu-item {
+            background-color: white;
+            border-radius: 16px;
+            padding: 24px;
+            text-decoration: none;
+            color: var(--dark-gray);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: none; /* Hidden by default, shown by JS */
+        }
+        .menu-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+        .menu-item h2 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 20px;
+        }
+        .menu-item p {
+            margin: 0;
+            color: var(--text-gray);
+            font-size: 15px;
+        }
+        #loading-state {
+            text-align: center;
+            font-size: 18px;
+            color: var(--text-gray);
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>เมนูหลัก</h1>
+        <div class="user-info">
+            <span id="user-email"></span>
+            <button id="logout-btn">ออกจากระบบ</button>
+        </div>
+    </div>
+
+    <div id="loading-state">
+        <p>กำลังโหลดข้อมูลผู้ใช้...</p>
+    </div>
+
+    <div class="menu-grid" id="menu-grid">
+        <!-- Menu items will be dynamically shown here based on user role -->
+
+        <a href="/add-employee.html" class="menu-item" id="menu-add-employee">
+            <h2>📝 เพิ่มรายชื่อพนักงานใหม่</h2>
+            <p>สำหรับเพิ่มข้อมูลพนักงานใหม่เข้าสู่ระบบ</p>
+        </a>
+
+        <a href="/grant-coupons.html" class="menu-item" id="menu-grant-coupons">
+            <h2>🎁 ให้สิทธิ์คูปอง</h2>
+            <p>นำเข้ารายชื่อพนักงานเพื่อให้สิทธิ์คูปองรายวัน/OT</p>
+        </a>
+
+        <a href="/scanner.html" class="menu-item" id="menu-scanner">
+            <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
+            <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
+        </a>
+
+        <a href="/reports.html" class="menu-item" id="menu-reports">
+            <h2>📊 หน้าจอแสดงรายงาน</h2>
+            <p>ดูสรุปและสถิติการใช้งานคูปองทั้งหมด</p>
+        </a>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const SUPABASE_URL = process.env.SUPABASE_URL;
+        const SUPABASE_KEY = process.env.SUPABASE_KEY;
+        // -------------------
+
+        const { createClient } = supabase;
+        const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const userEmailSpan = document.getElementById('user-email');
+        const logoutButton = document.getElementById('logout-btn');
+        const menuGrid = document.getElementById('menu-grid');
+        const loadingState = document.getElementById('loading-state');
+
+        async function initializeMenu() {
+            // 1. Check for active session
+            const { data: { session } } = await _supabase.auth.getSession();
+
+            if (!session) {
+                // If no session, redirect to login page
+                window.location.href = '/index.html';
+                return;
+            }
+
+            // Display user email
+            userEmailSpan.textContent = session.user.email;
+
+            // 2. Fetch user role from 'profiles' table
+            try {
+                const { data: profile, error } = await _supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (error) throw error;
+                
+                if (profile) {
+                    displayMenus(profile.role);
+                } else {
+                    loadingState.textContent = 'ไม่พบข้อมูลโปรไฟล์ผู้ใช้';
+                }
+
+            } catch (error) {
+                console.error('Error fetching profile:', error.message);
+                loadingState.textContent = 'เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้';
+            }
+        }
+
+        function displayMenus(role) {
+            loadingState.style.display = 'none'; // Hide loading message
+
+            const menuItems = {
+                superuser: ['menu-add-employee', 'menu-grant-coupons', 'menu-scanner', 'menu-reports'],
+                department_admin: ['menu-grant-coupons', 'menu-reports'],
+                shop: ['menu-scanner', 'menu-reports']
+            };
+
+            const userMenus = menuItems[role] || [];
+            
+            // Show menus based on role
+            userMenus.forEach(menuId => {
+                const menuItem = document.getElementById(menuId);
+                if (menuItem) {
+                    menuItem.style.display = 'block';
+                }
+            });
+        }
+
+        logoutButton.addEventListener('click', async () => {
+            const { error } = await _supabase.auth.signOut();
+            if (!error) {
+                // Redirect to login page after logout
+                window.location.href = '/index.html';
+            } else {
+                console.error('Logout Error:', error.message);
+            }
+        });
+
+        // Initialize the page
+        initializeMenu();
+    </script>
+
+</body>
+</html>
