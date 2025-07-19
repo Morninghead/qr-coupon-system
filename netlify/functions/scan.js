@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
 // คุณต้องไปที่ Project Settings > API ใน Supabase เพื่อเอาค่าเหล่านี้มาใส่
-const supabaseUrl = 'https://mhwpcesxodqunzwotggz.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1od3BjZXN4b2RxdW56d290Z2d6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4OTc3MzIsImV4cCI6MjA2ODQ3MzczMn0.jvSjkkxPcQQanpdvnRQKTilw-M-ntKabbuC72S4kiME';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Main function handler
