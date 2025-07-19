@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Coupon Scanner</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .scanner-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        #tokenInput {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        #tokenInput:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 8px;
+            min-height: 80px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .loading { background-color: #e2e3e5; color: #383d41; }
+    </style>
+</head>
+<body>
+
+    <div class="scanner-container">
+        <h1>🎫 ระบบสแกนคูปองพนักงาน</h1>
+        <input type="text" id="tokenInput" placeholder="พร้อมสแกน..." autofocus>
+        <div id="result">
+            <p>กรุณาสแกน QR Code</p>
+        </div>
+    </div>
+
+    <script>
+        const tokenInput = document.getElementById('tokenInput');
+        const resultDiv = document.getElementById('result');
+        const functionUrl = 'https://ssth-ecoupon.netlify.app/.netlify/functions/scan'; // URL ของฟังก์ชัน
+        let isProcessing = false;
+
+        // ทำให้ Input พร้อมรับข้อมูลเสมอ
+        window.onload = () => tokenInput.focus();
+        document.body.addEventListener('click', () => tokenInput.focus());
+
+        tokenInput.addEventListener('change', async (event) => {
+            const token = event.target.value.trim();
+            if (!token || isProcessing) return;
+
+            isProcessing = true;
+            resultDiv.className = 'loading';
+            resultDiv.innerHTML = '<p>กำลังประมวลผล...</p>';
+
+            try {
+                const response = await fetch(`${functionUrl}?token=${token}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    resultDiv.className = 'success';
+                    resultDiv.innerHTML = `✅ อนุมัติ<br><small>${data.name}</small>`;
+                } else {
+                    resultDiv.className = 'error';
+                    resultDiv.innerHTML = `❌ ${data.message}<br><small>${data.name || ''}</small>`;
+                }
+            } catch (err) {
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = '<p>เกิดข้อผิดพลาดในการเชื่อมต่อ</p>';
+            }
+
+            // รีเซ็ตหลังจากแสดงผล 3 วินาที
+            setTimeout(() => {
+                tokenInput.value = '';
+                resultDiv.className = '';
+                resultDiv.innerHTML = '<p>กรุณาสแกน QR Code</p>';
+                isProcessing = false;
+                tokenInput.focus();
+            }, 3000);
+        });
+    </script>
+
+</body>
+</html>
