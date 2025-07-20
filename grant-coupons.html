@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grant Coupons - Employee Coupon System</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Library for reading Excel/CSV files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary-color: #6366F1;
@@ -51,16 +53,26 @@
             padding-bottom: 16px;
             margin-bottom: 24px;
         }
-        textarea {
-            width: 100%;
-            height: 200px;
-            padding: 12px;
-            border: 1px solid var(--border-color);
+        .file-upload-area {
+            border: 2px dashed var(--border-color);
             border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-            resize: vertical;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
             margin-bottom: 16px;
+            transition: background-color 0.2s;
+        }
+        .file-upload-area:hover {
+            background-color: #F9FAFB;
+        }
+        .file-upload-area input[type="file"] {
+            display: none;
+        }
+        .file-preview {
+            font-size: 14px;
+            color: var(--text-gray);
+            margin-top: 8px;
+            font-weight: 500;
         }
         button {
             padding: 12px 24px;
@@ -94,23 +106,29 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>ให้สิทธิ์คูปองรายวัน (โหมดทดสอบ)</h1>
+            <h1>ให้สิทธิ์คูปองรายวัน</h1>
             <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
         </div>
 
         <div class="grant-container">
             <div class="form-section">
                 <h2>คูปองทำงานปกติ (NORMAL)</h2>
-                <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) จาก Excel ที่นี่</p>
-                <textarea id="normal-ids" placeholder="18096\n24062\n25077"></textarea>
-                <button id="normal-btn">ให้สิทธิ์ NORMAL</button>
+                <label for="normal-file-input" class="file-upload-area">
+                    <p>คลิกเพื่อเลือกไฟล์ CSV หรือ Excel (.xlsx)</p>
+                    <input type="file" id="normal-file-input" accept=".csv, .xlsx">
+                </label>
+                <div class="file-preview" id="normal-preview"></div>
+                <button id="normal-btn" disabled>ให้สิทธิ์ NORMAL</button>
             </div>
 
             <div class="form-section">
                 <h2>คูปองโอที (OT)</h2>
-                 <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) จาก Excel ที่นี่</p>
-                <textarea id="ot-ids" placeholder="18023\n25050"></textarea>
-                <button id="ot-btn">ให้สิทธิ์ OT</button>
+                <label for="ot-file-input" class="file-upload-area">
+                     <p>คลิกเพื่อเลือกไฟล์ CSV หรือ Excel (.xlsx)</p>
+                    <input type="file" id="ot-file-input" accept=".csv, .xlsx">
+                </label>
+                <div class="file-preview" id="ot-preview"></div>
+                <button id="ot-btn" disabled>ให้สิทธิ์ OT</button>
             </div>
 
             <div id="result-message"></div>
@@ -119,15 +137,33 @@
 
     <script>
         let _supabase;
-        const normalIdsTextarea = document.getElementById('normal-ids');
-        const otIdsTextarea = document.getElementById('ot-ids');
+        const normalFileInput = document.getElementById('normal-file-input');
+        const otFileInput = document.getElementById('ot-file-input');
         const normalBtn = document.getElementById('normal-btn');
         const otBtn = document.getElementById('ot-btn');
+        const normalPreview = document.getElementById('normal-preview');
+        const otPreview = document.getElementById('ot-preview');
         const resultMessageDiv = document.getElementById('result-message');
+        const baseUrl = window.location.origin;
+
+        let normalEmployeeIds = [];
+        let otEmployeeIds = [];
 
         async function initializeApp() {
             try {
-                const response = await fetch('/.netlify/functions/get-config');
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+                
+                // Check if the response is successful
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}. Make sure the get-config function is deployed correctly.`);
+                }
+                
+                // Check if the response is JSON before parsing
+                const contentType = response.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    throw new Error("Received an invalid response from the server. Expected JSON, but got HTML or another format. This might mean the function was not found (404).");
+                }
+
                 const config = await response.json();
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
@@ -137,17 +173,62 @@
                 }
             } catch (error) {
                 console.error("Initialization Error:", error);
-                showResult("ไม่สามารถเชื่อมต่อระบบได้", "error");
+                showResult(`ไม่สามารถเชื่อมต่อระบบได้: ${error.message}`, "error");
             }
         }
 
+        function handleFile(file, previewElement, buttonElement, idStore) {
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (json.length === 0) {
+                        throw new Error('ไฟล์ว่างเปล่า');
+                    }
+                    
+                    // Find the employee_id column (case-insensitive)
+                    const header = Object.keys(json[0]);
+                    const idColumn = header.find(h => h.toLowerCase() === 'employee_id');
+
+                    if (!idColumn) {
+                        throw new Error('ไม่พบคอลัมน์ "employee_id" ในไฟล์');
+                    }
+
+                    const employeeIds = json.map(row => String(row[idColumn]).trim()).filter(Boolean);
+                    
+                    if (idStore === 'normal') {
+                        normalEmployeeIds = employeeIds;
+                    } else {
+                        otEmployeeIds = employeeIds;
+                    }
+
+                    previewElement.textContent = `พบ ${employeeIds.length} รหัสพนักงานในไฟล์ "${file.name}"`;
+                    buttonElement.disabled = false;
+
+                } catch (err) {
+                    previewElement.textContent = `ผิดพลาด: ${err.message}`;
+                    buttonElement.disabled = true;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        normalFileInput.addEventListener('change', (e) => handleFile(e.target.files[0], normalPreview, normalBtn, 'normal'));
+        otFileInput.addEventListener('change', (e) => handleFile(e.target.files[0], otPreview, otBtn, 'ot'));
+
         async function grantCoupons(couponType, employeeIds) {
             if (employeeIds.length === 0) {
-                showResult('กรุณาใส่รหัสพนักงาน', 'error');
+                showResult('ไม่มีรหัสพนักงานให้ดำเนินการ', 'error');
                 return;
             }
 
-            // Disable buttons
             normalBtn.disabled = true;
             otBtn.disabled = true;
             showResult('กำลังดำเนินการ...', 'info');
@@ -156,7 +237,7 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (!session) throw new Error('Not authenticated');
 
-                const response = await fetch('/.netlify/functions/grant-coupons', {
+                const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${session.access_token}`,
@@ -183,7 +264,6 @@
             } catch (error) {
                 showResult(`ผิดพลาด: ${error.message}`, 'error');
             } finally {
-                // Re-enable buttons
                 normalBtn.disabled = false;
                 otBtn.disabled = false;
             }
@@ -201,15 +281,8 @@
             }
         }
 
-        normalBtn.addEventListener('click', () => {
-            const ids = normalIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
-            grantCoupons('NORMAL', ids);
-        });
-
-        otBtn.addEventListener('click', () => {
-            const ids = otIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
-            grantCoupons('OT', ids);
-        });
+        normalBtn.addEventListener('click', () => grantCoupons('NORMAL', normalEmployeeIds));
+        otBtn.addEventListener('click', () => grantCoupons('OT', otEmployeeIds));
 
         initializeApp();
     </script>
