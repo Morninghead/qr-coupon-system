@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Employees - Coupon System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #6366F1;
+            --secondary-color: #F97316;
+            --light-gray: #F3F4F6;
+            --dark-gray: #1F2937;
+            --text-gray: #4B5563;
+            --border-color: #E5E7EB;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header h1 {
+            color: var(--dark-gray);
+            font-size: 28px;
+            margin: 0;
+        }
+        .back-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .form-container {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .form-section {
+            margin-bottom: 24px;
+        }
+        .form-section label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+        select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 150px;
+            resize: vertical;
+            margin-bottom: 16px;
+        }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-top: 16px;
+        }
+        .submit-btn, .import-btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .submit-btn { background-color: var(--primary-color); }
+        .submit-btn:disabled { background-color: #A5B4FC; cursor: not-allowed; }
+        .import-btn { background-color: var(--secondary-color); }
+        input[type="file"] { display: none; }
+        .file-preview {
+            font-size: 14px;
+            color: var(--text-gray);
+            margin-top: 12px;
+            font-weight: 500;
+            min-height: 20px;
+        }
+        #result-message {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+            white-space: pre-wrap;
+        }
+        .result-success { background-color: #D1FAE5; color: #065F46; }
+        .result-error { background-color: #FEE2E2; color: #991B1B; }
+        .result-info { background-color: #E0E7FF; color: #3730A3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>เพิ่มพนักงานใหม่</h1>
+            <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+        </div>
+
+        <div class="form-container">
+            <div class="form-section">
+                <label for="department-select">1. เลือกแผนกสำหรับพนักงานใหม่ทั้งหมด</label>
+                <select id="department-select">
+                    <option value="">กำลังโหลดแผนก...</option>
+                </select>
+            </div>
+
+            <div class="form-section">
+                <label>2. เพิ่มข้อมูลพนักงาน (วางข้อมูล หรือ นำเข้าไฟล์)</label>
+                <textarea id="employees-textarea" placeholder="วางข้อมูลจาก Excel ที่นี่ (คอลัมน์ Employee_ID และ Name)"></textarea>
+                <div class="file-preview" id="file-preview"></div>
+                 <div class="button-group">
+                    <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
+                    <input type="file" id="file-input" accept=".csv, .xlsx">
+                </div>
+            </div>
+
+            <button id="submit-btn" class="submit-btn" disabled>เพิ่มพนักงาน</button>
+            <div id="result-message"></div>
+        </div>
+    </div>
+
+    <script>
+        let _supabase;
+        const departmentSelect = document.getElementById('department-select');
+        const employeesTextarea = document.getElementById('employees-textarea');
+        const fileInput = document.getElementById('file-input');
+        const filePreview = document.getElementById('file-preview');
+        const submitBtn = document.getElementById('submit-btn');
+        const resultMessageDiv = document.getElementById('result-message');
+        const baseUrl = window.location.origin;
+
+        let employeesToSubmit = [];
+
+        async function initializeApp() {
+            try {
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+                const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (!session) {
+                    window.location.href = '/index.html';
+                    return;
+                }
+                
+                await loadDepartments();
+
+            } catch (error) {
+                console.error("Initialization Error:", error);
+                showResult(`ไม่สามารถเชื่อมต่อระบบได้: ${error.message}`, "error");
+            }
+        }
+
+        async function loadDepartments() {
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
+                    headers: { 'Authorization': `Bearer ${session.access_token}` }
+                });
+                const departments = await response.json();
+                
+                departmentSelect.innerHTML = '<option value="">-- กรุณาเลือกแผนก --</option>';
+                departments.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept.id;
+                    option.textContent = dept.name;
+                    departmentSelect.appendChild(option);
+                });
+            } catch (error) {
+                departmentSelect.innerHTML = '<option value="">ไม่สามารถโหลดแผนกได้</option>';
+                console.error("Failed to load departments:", error);
+            }
+        }
+
+        function parseEmployeeData(data) {
+            if (data.length < 2) throw new Error('ไฟล์/ข้อมูลว่างเปล่าหรือมีแค่หัวข้อ');
+            
+            const header = data[0].map(h => String(h).toLowerCase().trim());
+            const idIndex = header.indexOf('employee_id');
+            const nameIndex = header.indexOf('name');
+
+            if (idIndex === -1 || nameIndex === -1) {
+                throw new Error('ไม่พบคอลัมน์ "employee_id" และ/หรือ "name"');
+            }
+
+            return data.slice(1).map(row => ({
+                employee_id: String(row[idIndex]).trim(),
+                name: String(row[nameIndex]).trim()
+            })).filter(emp => emp.employee_id && emp.name);
+        }
+
+        function handleFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    employeesToSubmit = parseEmployeeData(jsonData);
+                    filePreview.textContent = `พบ ${employeesToSubmit.length} รายการในไฟล์ "${file.name}"`;
+                    employeesTextarea.value = '';
+                    submitBtn.disabled = false;
+                } catch (err) {
+                    filePreview.textContent = `ผิดพลาด: ${err.message}`;
+                    submitBtn.disabled = true;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+        
+        employeesTextarea.addEventListener('input', () => {
+             try {
+                const textData = employeesTextarea.value.trim();
+                if (!textData) {
+                    employeesToSubmit = [];
+                    submitBtn.disabled = true;
+                    return;
+                }
+                const rows = textData.split('\n').map(row => row.split('\t'));
+                employeesToSubmit = parseEmployeeData(rows);
+                filePreview.textContent = `พบ ${employeesToSubmit.length} รายการจากที่วาง`;
+                fileInput.value = '';
+                submitBtn.disabled = false;
+             } catch(err) {
+                 filePreview.textContent = `ผิดพลาด: ${err.message}`;
+                 submitBtn.disabled = true;
+             }
+        });
+
+        submitBtn.addEventListener('click', async () => {
+            const departmentId = departmentSelect.value;
+            if (!departmentId) {
+                showResult('กรุณาเลือกแผนก', 'error');
+                return;
+            }
+            if (employeesToSubmit.length === 0) {
+                showResult('ไม่มีข้อมูลพนักงานให้เพิ่ม', 'error');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'กำลังบันทึก...';
+            showResult('กำลังดำเนินการ...', 'info');
+
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/add-employees`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ employees: employeesToSubmit, department_id: departmentId })
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+
+                let finalMessage = result.message;
+                if (result.duplicates && result.duplicates.length > 0) {
+                    finalMessage += `\nรหัสซ้ำ (ไม่ถูกเพิ่ม): ${result.duplicates.join(', ')}`;
+                }
+                showResult(finalMessage, 'success');
+                // Clear inputs on success
+                employeesTextarea.value = '';
+                fileInput.value = '';
+                filePreview.textContent = '';
+                employeesToSubmit = [];
+
+            } catch (error) {
+                showResult(`ผิดพลาด: ${error.message}`, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'เพิ่มพนักงาน';
+            }
+        });
+        
+        function showResult(message, type) {
+            resultMessageDiv.style.display = 'block';
+            resultMessageDiv.textContent = message;
+            if (type === 'success') resultMessageDiv.className = 'result-success';
+            else if (type === 'error') resultMessageDiv.className = 'result-error';
+            else resultMessageDiv.className = 'result-info';
+        }
+
+        initializeApp();
+    </script>
+</body>
+</html>
