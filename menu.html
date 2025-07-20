@@ -134,7 +134,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>เมนูหลัก</h1>
+            <h1>เมนูหลัก (โหมดทดสอบ)</h1>
             <div class="user-info">
                 <span id="user-email"></span>
                 <button id="logout-btn">ออกจากระบบ</button>
@@ -175,20 +175,10 @@
 
         async function initializeApp() {
             try {
-                // Fetch configuration from our serverless function
                 const response = await fetch('/.netlify/functions/get-config');
-                if (!response.ok) throw new Error('Network response was not ok');
                 const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
-                if (!config.supabaseUrl || !config.supabaseKey) {
-                    throw new Error('Supabase configuration is missing from server.');
-                }
-
-                // Initialize Supabase client
-                const { createClient } = supabase;
-                _supabase = createClient(config.supabaseUrl, config.supabaseKey);
-
-                // Now that supabase is initialized, proceed with page logic
                 await initializeMenu();
 
             } catch (error) {
@@ -198,53 +188,25 @@
         }
         
         async function initializeMenu() {
-            // 1. Check for active session
-            const { data: { session }, error: sessionError } = await _supabase.auth.getSession();
-
-            if (sessionError || !session) {
-                // If no session, redirect to login page
+            const { data: { session } } = await _supabase.auth.getSession();
+            if (!session) {
                 window.location.href = '/index.html';
                 return;
             }
-
-            // Display user email
             userEmailSpan.textContent = session.user.email;
-
-            // 2. Fetch user role from 'profiles' table
-            try {
-                const { data: profile, error } = await _supabase
-                    .from('profiles')
-                    .select('role')
-                    .eq('id', session.user.id)
-                    .single();
-
-                if (error) throw error;
-                
-                if (profile) {
-                    displayMenus(profile.role);
-                } else {
-                    loadingState.textContent = 'ไม่พบข้อมูลโปรไฟล์ผู้ใช้';
-                }
-
-            } catch (error) {
-                console.error('Error fetching profile:', error.message);
-                loadingState.textContent = 'เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้';
-            }
+            
+            // --- ROLE CHECK DISABLED FOR TESTING ---
+            // This function will now always show all menus
+            displayAllMenus();
+            // ------------------------------------
         }
 
-        function displayMenus(role) {
+        function displayAllMenus() {
             loadingState.style.display = 'none'; // Hide loading message
 
-            const menuItems = {
-                superuser: ['menu-add-employee', 'menu-grant-coupons', 'menu-scanner', 'menu-reports'],
-                department_admin: ['menu-grant-coupons', 'menu-reports'],
-                shop: ['menu-scanner', 'menu-reports']
-            };
-
-            const userMenus = menuItems[role] || [];
+            const allMenuIds = ['menu-add-employee', 'menu-grant-coupons', 'menu-scanner', 'menu-reports'];
             
-            // Show menus based on role
-            userMenus.forEach(menuId => {
+            allMenuIds.forEach(menuId => {
                 const menuItem = document.getElementById(menuId);
                 if (menuItem) {
                     menuItem.style.display = 'block';
@@ -253,10 +215,9 @@
         }
 
         logoutButton.addEventListener('click', async () => {
-            if (!_supabase) return; // Guard against uninitialized client
+            if (!_supabase) return;
             const { error } = await _supabase.auth.signOut();
             if (!error) {
-                // Redirect to login page after logout
                 window.location.href = '/index.html';
             } else {
                 console.error('Logout Error:', error.message);
