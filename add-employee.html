@@ -116,23 +116,23 @@
 
         <div class="form-container">
             <div class="form-section">
-                <label for="department-select">1. เลือกแผนกสำหรับพนักงานใหม่ทั้งหมด</label>
+                <label for="department-select">เลือกแผนกสำหรับพนักงานใหม่ทั้งหมด</label>
                 <select id="department-select">
                     <option value="">กำลังโหลดแผนก...</option>
                 </select>
             </div>
 
             <div class="form-section">
-                <label>2. เพิ่มข้อมูลพนักงาน (วางข้อมูล หรือ นำเข้าไฟล์)</label>
+                <label>เพิ่มข้อมูลพนักงาน (วางข้อมูล หรือ นำเข้าไฟล์)</label>
                 <textarea id="employees-textarea" placeholder="วางข้อมูลจาก Excel ที่นี่ (คอลัมน์ Employee_ID และ Name)"></textarea>
                 <div class="file-preview" id="file-preview"></div>
-                 <div class="button-group">
-                    <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
-                    <input type="file" id="file-input" accept=".csv, .xlsx">
-                </div>
             </div>
 
-            <button id="submit-btn" class="submit-btn" disabled>เพิ่มพนักงาน</button>
+            <div class="button-group">
+                <button id="submit-btn" class="submit-btn" disabled>เพิ่มพนักงาน</button>
+                <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
+                <input type="file" id="file-input" accept=".csv, .xlsx">
+            </div>
             <div id="result-message"></div>
         </div>
     </div>
