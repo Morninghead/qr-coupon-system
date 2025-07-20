@@ -5,11 +5,24 @@
  * without hardcoding them in the HTML file.
  */
 export const handler = async () => {
+    // Check if the environment variables are set
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                message: "Supabase environment variables are not set on the server."
+            })
+        };
+    }
+
     return {
         statusCode: 200,
+        headers: {
+            'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
             supabaseUrl: process.env.SUPABASE_URL,
-            supabaseKey: process.env.SUPABASE_KEY, // This should be the ANON_KEY
+            supabaseKey: process.env.SUPABASE_KEY, // This is the ANON_KEY
         }),
     };
 };
