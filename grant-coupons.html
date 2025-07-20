@@ -10,6 +10,7 @@
     <style>
         :root {
             --primary-color: #6366F1;
+            --secondary-color: #F97316; /* Orange */
             --light-gray: #F3F4F6;
             --dark-gray: #1F2937;
             --text-gray: #4B5563;
@@ -53,40 +54,54 @@
             padding-bottom: 16px;
             margin-bottom: 24px;
         }
-        .file-upload-area {
-            border: 2px dashed var(--border-color);
-            border-radius: 8px;
-            padding: 24px;
-            text-align: center;
-            cursor: pointer;
-            margin-bottom: 16px;
-            transition: background-color 0.2s;
-        }
-        .file-upload-area:hover {
-            background-color: #F9FAFB;
-        }
-        .file-upload-area input[type="file"] {
-            display: none;
-        }
         .file-preview {
             font-size: 14px;
             color: var(--text-gray);
-            margin-top: 8px;
+            margin-top: 12px;
             font-weight: 500;
+            min-height: 20px;
         }
-        button {
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+            resize: vertical;
+            margin-bottom: 16px;
+        }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .submit-btn, .import-btn {
             padding: 12px 24px;
             font-size: 16px;
             font-weight: 600;
             color: white;
-            background-color: var(--primary-color);
             border: none;
             border-radius: 8px;
             cursor: pointer;
+            transition: background-color 0.2s;
         }
-        button:disabled {
+        .submit-btn {
+            background-color: var(--primary-color);
+        }
+        .submit-btn:disabled {
             background-color: #A5B4FC;
             cursor: not-allowed;
+        }
+        .import-btn {
+            background-color: var(--secondary-color);
+        }
+        .import-btn:hover {
+            background-color: #EA580C;
+        }
+        input[type="file"] {
+            display: none;
         }
         .form-section {
             margin-bottom: 40px;
@@ -96,7 +111,7 @@
             padding: 16px;
             border-radius: 8px;
             display: none;
-            white-space: pre-wrap; /* Allows line breaks in the message */
+            white-space: pre-wrap;
         }
         .result-success { background-color: #D1FAE5; color: #065F46; }
         .result-error { background-color: #FEE2E2; color: #991B1B; }
@@ -113,22 +128,26 @@
         <div class="grant-container">
             <div class="form-section">
                 <h2>คูปองทำงานปกติ (NORMAL)</h2>
-                <label for="normal-file-input" class="file-upload-area">
-                    <p>คลิกเพื่อเลือกไฟล์ CSV หรือ Excel (.xlsx)</p>
-                    <input type="file" id="normal-file-input" accept=".csv, .xlsx">
-                </label>
+                <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) หรือนำเข้าจากไฟล์</p>
+                <textarea id="normal-ids-textarea" placeholder="18096\n24062\n25077"></textarea>
                 <div class="file-preview" id="normal-preview"></div>
-                <button id="normal-btn" disabled>ให้สิทธิ์ NORMAL</button>
+                <div class="button-group">
+                    <button id="normal-btn" class="submit-btn">ให้สิทธิ์ NORMAL</button>
+                    <button class="import-btn" onclick="document.getElementById('normal-file-input').click()">📁 Import File</button>
+                    <input type="file" id="normal-file-input" accept=".csv, .xlsx">
+                </div>
             </div>
 
             <div class="form-section">
                 <h2>คูปองโอที (OT)</h2>
-                <label for="ot-file-input" class="file-upload-area">
-                     <p>คลิกเพื่อเลือกไฟล์ CSV หรือ Excel (.xlsx)</p>
-                    <input type="file" id="ot-file-input" accept=".csv, .xlsx">
-                </label>
+                <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) หรือนำเข้าจากไฟล์</p>
+                <textarea id="ot-ids-textarea" placeholder="18023\n25050"></textarea>
                 <div class="file-preview" id="ot-preview"></div>
-                <button id="ot-btn" disabled>ให้สิทธิ์ OT</button>
+                <div class="button-group">
+                    <button id="ot-btn" class="submit-btn">ให้สิทธิ์ OT</button>
+                    <button class="import-btn" onclick="document.getElementById('ot-file-input').click()">📁 Import File</button>
+                    <input type="file" id="ot-file-input" accept=".csv, .xlsx">
+                </div>
             </div>
 
             <div id="result-message"></div>
@@ -143,27 +162,18 @@
         const otBtn = document.getElementById('ot-btn');
         const normalPreview = document.getElementById('normal-preview');
         const otPreview = document.getElementById('ot-preview');
+        const normalIdsTextarea = document.getElementById('normal-ids-textarea');
+        const otIdsTextarea = document.getElementById('ot-ids-textarea');
         const resultMessageDiv = document.getElementById('result-message');
         const baseUrl = window.location.origin;
 
-        let normalEmployeeIds = [];
-        let otEmployeeIds = [];
+        let normalEmployeeIdsFromFile = [];
+        let otEmployeeIdsFromFile = [];
 
         async function initializeApp() {
             try {
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
-                
-                // Check if the response is successful
-                if (!response.ok) {
-                    throw new Error(`Server responded with status: ${response.status}. Make sure the get-config function is deployed correctly.`);
-                }
-                
-                // Check if the response is JSON before parsing
-                const contentType = response.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    throw new Error("Received an invalid response from the server. Expected JSON, but got HTML or another format. This might mean the function was not found (404).");
-                }
-
+                if (!response.ok) throw new Error(`Server responded with status: ${response.status}`);
                 const config = await response.json();
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
@@ -177,7 +187,7 @@
             }
         }
 
-        function handleFile(file, previewElement, buttonElement, idStore) {
+        function handleFile(file, previewElement, idStore) {
             if (!file) return;
 
             const reader = new FileReader();
@@ -187,41 +197,35 @@
                     const workbook = XLSX.read(data, { type: 'array' });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    const json = XLSX.utils.sheet_to_json(worksheet);
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-                    if (json.length === 0) {
-                        throw new Error('ไฟล์ว่างเปล่า');
-                    }
+                    if (json.length < 2) throw new Error('ไฟล์ว่างเปล่าหรือมีแค่หัวข้อ');
                     
-                    // Find the employee_id column (case-insensitive)
-                    const header = Object.keys(json[0]);
-                    const idColumn = header.find(h => h.toLowerCase() === 'employee_id');
+                    const header = json[0].map(h => String(h).toLowerCase());
+                    const idColumnIndex = header.indexOf('employee_id');
 
-                    if (!idColumn) {
-                        throw new Error('ไม่พบคอลัมน์ "employee_id" ในไฟล์');
-                    }
+                    if (idColumnIndex === -1) throw new Error('ไม่พบคอลัมน์ "employee_id" ในไฟล์');
 
-                    const employeeIds = json.map(row => String(row[idColumn]).trim()).filter(Boolean);
+                    const employeeIds = json.slice(1).map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
                     
                     if (idStore === 'normal') {
-                        normalEmployeeIds = employeeIds;
+                        normalEmployeeIdsFromFile = employeeIds;
+                        normalIdsTextarea.value = ''; // Clear textarea if file is selected
                     } else {
-                        otEmployeeIds = employeeIds;
+                        otEmployeeIdsFromFile = employeeIds;
+                        otIdsTextarea.value = ''; // Clear textarea if file is selected
                     }
 
                     previewElement.textContent = `พบ ${employeeIds.length} รหัสพนักงานในไฟล์ "${file.name}"`;
-                    buttonElement.disabled = false;
-
                 } catch (err) {
                     previewElement.textContent = `ผิดพลาด: ${err.message}`;
-                    buttonElement.disabled = true;
                 }
             };
             reader.readAsArrayBuffer(file);
         }
 
-        normalFileInput.addEventListener('change', (e) => handleFile(e.target.files[0], normalPreview, normalBtn, 'normal'));
-        otFileInput.addEventListener('change', (e) => handleFile(e.target.files[0], otPreview, otBtn, 'ot'));
+        normalFileInput.addEventListener('change', (e) => handleFile(e.target.files[0], normalPreview, 'normal'));
+        otFileInput.addEventListener('change', (e) => handleFile(e.target.files[0], otPreview, 'ot'));
 
         async function grantCoupons(couponType, employeeIds) {
             if (employeeIds.length === 0) {
@@ -248,9 +252,7 @@
 
                 const result = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(result.message || 'เกิดข้อผิดพลาดจาก Server');
-                }
+                if (!response.ok) throw new Error(result.message || 'เกิดข้อผิดพลาดจาก Server');
                 
                 let finalMessage = result.message;
                 if (result.notFound && result.notFound.length > 0) {
@@ -272,17 +274,22 @@
         function showResult(message, type) {
             resultMessageDiv.style.display = 'block';
             resultMessageDiv.textContent = message;
-            if (type === 'success') {
-                resultMessageDiv.className = 'result-success';
-            } else if (type === 'error') {
-                resultMessageDiv.className = 'result-error';
-            } else {
-                resultMessageDiv.className = 'result-info';
-            }
+            if (type === 'success') resultMessageDiv.className = 'result-success';
+            else if (type === 'error') resultMessageDiv.className = 'result-error';
+            else resultMessageDiv.className = 'result-info';
         }
 
-        normalBtn.addEventListener('click', () => grantCoupons('NORMAL', normalEmployeeIds));
-        otBtn.addEventListener('click', () => grantCoupons('OT', otEmployeeIds));
+        normalBtn.addEventListener('click', () => {
+            const idsFromText = normalIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
+            const idsToProcess = idsFromText.length > 0 ? idsFromText : normalEmployeeIdsFromFile;
+            grantCoupons('NORMAL', idsToProcess);
+        });
+
+        otBtn.addEventListener('click', () => {
+            const idsFromText = otIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
+            const idsToProcess = idsFromText.length > 0 ? idsFromText : otEmployeeIdsFromFile;
+            grantCoupons('OT', idsToProcess);
+        });
 
         initializeApp();
     </script>
