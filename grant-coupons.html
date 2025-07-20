@@ -1,88 +1,217 @@
-import { createClient } from '@supabase/supabase-js';
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grant Coupons - Employee Coupon System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary-color: #6366F1;
+            --light-gray: #F3F4F6;
+            --dark-gray: #1F2937;
+            --text-gray: #4B5563;
+            --border-color: #E5E7EB;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header h1 {
+            color: var(--dark-gray);
+            font-size: 28px;
+            margin: 0;
+        }
+        .back-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .grant-container {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .grant-container h2 {
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+            resize: vertical;
+            margin-bottom: 16px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #A5B4FC;
+            cursor: not-allowed;
+        }
+        .form-section {
+            margin-bottom: 40px;
+        }
+        #result-message {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+            white-space: pre-wrap; /* Allows line breaks in the message */
+        }
+        .result-success { background-color: #D1FAE5; color: #065F46; }
+        .result-error { background-color: #FEE2E2; color: #991B1B; }
+        .result-info { background-color: #E0E7FF; color: #3730A3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ให้สิทธิ์คูปองรายวัน (โหมดทดสอบ)</h1>
+            <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+        </div>
 
-// This function requires the Admin client to bypass RLS for role checking
-const supabaseUrl = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Use the SERVICE_ROLE_KEY for admin actions
-const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+        <div class="grant-container">
+            <div class="form-section">
+                <h2>คูปองทำงานปกติ (NORMAL)</h2>
+                <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) จาก Excel ที่นี่</p>
+                <textarea id="normal-ids" placeholder="18096\n24062\n25077"></textarea>
+                <button id="normal-btn">ให้สิทธิ์ NORMAL</button>
+            </div>
 
-export const handler = async (event, context) => {
-    // 1. Check if it's a POST request
-    if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
-    }
+            <div class="form-section">
+                <h2>คูปองโอที (OT)</h2>
+                 <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) จาก Excel ที่นี่</p>
+                <textarea id="ot-ids" placeholder="18023\n25050"></textarea>
+                <button id="ot-btn">ให้สิทธิ์ OT</button>
+            </div>
 
-    try {
-        // 2. Get user from JWT (sent by the client)
-        const { user } = context.clientContext;
-        if (!user) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
+            <div id="result-message"></div>
+        </div>
+    </div>
+
+    <script>
+        let _supabase;
+        const normalIdsTextarea = document.getElementById('normal-ids');
+        const otIdsTextarea = document.getElementById('ot-ids');
+        const normalBtn = document.getElementById('normal-btn');
+        const otBtn = document.getElementById('ot-btn');
+        const resultMessageDiv = document.getElementById('result-message');
+
+        async function initializeApp() {
+            try {
+                const response = await fetch('/.netlify/functions/get-config');
+                const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (!session) {
+                    window.location.href = '/index.html';
+                }
+            } catch (error) {
+                console.error("Initialization Error:", error);
+                showResult("ไม่สามารถเชื่อมต่อระบบได้", "error");
+            }
         }
 
-        // 3. Verify user's role using their ID
-        const { data: profile, error: profileError } = await supabaseAdmin
-            .from('profiles')
-            .select('role')
-            .eq('id', user.sub) // user.sub is the user ID from the JWT
-            .single();
+        async function grantCoupons(couponType, employeeIds) {
+            if (employeeIds.length === 0) {
+                showResult('กรุณาใส่รหัสพนักงาน', 'error');
+                return;
+            }
 
-        if (profileError || !profile) {
-            return { statusCode: 403, body: JSON.stringify({ message: 'Could not verify user role' }) };
+            // Disable buttons
+            normalBtn.disabled = true;
+            otBtn.disabled = true;
+            showResult('กำลังดำเนินการ...', 'info');
+
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (!session) throw new Error('Not authenticated');
+
+                const response = await fetch('/.netlify/functions/grant-coupons', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ employeeIds, couponType })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || 'เกิดข้อผิดพลาดจาก Server');
+                }
+                
+                let finalMessage = result.message;
+                if (result.notFound && result.notFound.length > 0) {
+                    finalMessage += `\nไม่พบรหัส: ${result.notFound.join(', ')}`;
+                }
+                if (result.alreadyExists && result.alreadyExists.length > 0) {
+                    finalMessage += `\nมีสิทธิ์แล้ว (ซ้ำ): ${result.alreadyExists.join(', ')}`;
+                }
+                showResult(finalMessage, 'success');
+
+            } catch (error) {
+                showResult(`ผิดพลาด: ${error.message}`, 'error');
+            } finally {
+                // Re-enable buttons
+                normalBtn.disabled = false;
+                otBtn.disabled = false;
+            }
         }
 
-        if (!['superuser', 'department_admin'].includes(profile.role)) {
-            return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied' }) };
+        function showResult(message, type) {
+            resultMessageDiv.style.display = 'block';
+            resultMessageDiv.textContent = message;
+            if (type === 'success') {
+                resultMessageDiv.className = 'result-success';
+            } else if (type === 'error') {
+                resultMessageDiv.className = 'result-error';
+            } else {
+                resultMessageDiv.className = 'result-info';
+            }
         }
 
-        // 4. Parse the incoming data
-        const { employeeIds, couponType } = JSON.parse(event.body);
-        if (!employeeIds || !couponType || employeeIds.length === 0) {
-            return { statusCode: 400, body: JSON.stringify({ message: 'Missing employee IDs or coupon type' }) };
-        }
+        normalBtn.addEventListener('click', () => {
+            const ids = normalIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
+            grantCoupons('NORMAL', ids);
+        });
 
-        // 5. Find the corresponding employee UUIDs from the provided employee_id numbers
-        const { data: employees, error: employeesError } = await supabaseAdmin
-            .from('Employees')
-            .select('id, employee_id')
-            .in('employee_id', employeeIds);
+        otBtn.addEventListener('click', () => {
+            const ids = otIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
+            grantCoupons('OT', ids);
+        });
 
-        if (employeesError) throw employeesError;
-
-        const foundIds = new Set(employees.map(e => e.employee_id));
-        const notFoundIds = employeeIds.filter(id => !foundIds.has(id));
-
-        if (employees.length === 0) {
-            return { statusCode: 404, body: JSON.stringify({ message: 'No valid employees found.', notFound: notFoundIds }) };
-        }
-
-        // 6. Prepare the coupon data for insertion
-        const today = new Date().toISOString().split('T')[0];
-        const couponsToInsert = employees.map(emp => ({
-            employee_id: emp.id, // This is the UUID
-            coupon_date: today,
-            coupon_type: couponType,
-            status: 'READY'
-        }));
-
-        // 7. Insert the new coupons into the database
-        const { error: insertError } = await supabaseAdmin
-            .from('Daily_Coupons')
-            .insert(couponsToInsert);
-
-        if (insertError) throw insertError;
-
-        return {
-            statusCode: 200,
-            body: JSON.stringify({
-                message: `Successfully granted coupons for ${employees.length} employees.`,
-                notFound: notFoundIds
-            }),
-        };
-
-    } catch (error) {
-        console.error('Grant Coupon Error:', error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ message: 'An internal server error occurred.', error: error.message }),
-        };
-    }
-};
+        initializeApp();
+    </script>
+</body>
+</html>
