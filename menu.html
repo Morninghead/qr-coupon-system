@@ -5,7 +5,84 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Main Menu - Employee Coupon System</title>
     <!-- Import Supabase Client Library -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    const userEmailSpan = document.getElementById('user-email');
+        const logoutButton = document.getElementById('logout-btn');
+        const menuGrid = document.getElementById('menu-grid');
+        const loadingState = document.getElementById('loading-state');
+        let _supabase;
+
+        // ฟังก์ชันสำหรับดึง Role ของผู้ใช้ปัจจุบัน
+        async function getCurrentUserRole() {
+            if (!_supabase) return null;
+            const { data: { user } } = await _supabase.auth.getUser();
+            if (!user) return null;
+
+            const { data: profile } = await _supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+            return profile ? profile.role : null;
+        }
+
+        // ฟังก์ชันสำหรับแสดงเมนูตาม Role
+        function displayMenusByRole(role) {
+            loadingState.style.display = 'none'; // ซ่อนข้อความ "กำลังโหลด"
+
+            // เมนูที่ทุกคนเห็นได้
+            const publicMenus = ['menu-scanner', 'menu-reports'];
+            
+            // เมนูเฉพาะ Superuser
+            const adminMenus = ['menu-add-employee', 'menu-grant-coupons'];
+
+            publicMenus.forEach(id => {
+                const menuItem = document.getElementById(id);
+                if (menuItem) menuItem.style.display = 'block';
+            });
+
+            if (role === 'superuser') {
+                adminMenus.forEach(id => {
+                    const menuItem = document.getElementById(id);
+                    if (menuItem) menuItem.style.display = 'block';
+                });
+            }
+        }
+
+        async function initializeApp() {
+            try {
+                const response = await fetch('/.netlify/functions/get-config');
+                const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (!session) {
+                    window.location.href = '/index.html';
+                    return;
+                }
+                userEmailSpan.textContent = session.user.email;
+
+                // **ส่วนที่แก้ไข: ตรวจสอบ Role แล้วค่อยแสดงเมนู**
+                const userRole = await getCurrentUserRole();
+                displayMenusByRole(userRole);
+
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                loadingState.textContent = 'ไม่สามารถโหลดการตั้งค่าระบบได้';
+            }
+        }
+        
+        logoutButton.addEventListener('click', async () => {
+            if (!_supabase) return;
+            const { error } = await _supabase.auth.signOut();
+            if (!error) {
+                window.location.href = '/index.html';
+            } else {
+                console.error('Logout Error:', error.message);
+            }
+        });
+
+        // เริ่มต้นการทำงานของแอป
+        initializeApp();
     <style>
         :root {
             --primary-color: #6366F1;
