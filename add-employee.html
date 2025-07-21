@@ -63,7 +63,7 @@
             transition: background-color 0.2s;
         }
         .unauthorized-button:hover { background-color: #4F46E5; }
-        
+
         /* CSS เดิมของหน้า */
         .container { max-width: 900px; margin: 0 auto; padding: 24px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
@@ -92,17 +92,15 @@
         <div class="unauthorized-box">
             <h1>กรุณาลงชื่อเข้าใช้</h1>
             <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
-            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
+            <a class='unauthorized-button' href='/'>ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
     </div>
-
     <div id="main-content" class="hidden">
         <div class="container">
             <div class="header">
                 <h1>เพิ่มพนักงานใหม่</h1>
-                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+                <a class='back-link' href='/menu'>กลับสู่เมนูหลัก</a>
             </div>
-    
             <div class="form-container">
                 <div class="form-section">
                     <label for="department-select">เลือกแผนกสำหรับพนักงานใหม่ทั้งหมด</label>
@@ -110,13 +108,11 @@
                         <option value="">กำลังโหลดแผนก...</option>
                     </select>
                 </div>
-    
                 <div class="form-section">
                     <label>เพิ่มข้อมูลพนักงาน (วางข้อมูล หรือ นำเข้าไฟล์)</label>
                     <textarea id="employees-textarea" placeholder="วางข้อมูลจาก Excel ที่นี่ (คอลัมน์ Employee_ID และ Name)"></textarea>
                     <div class="file-preview" id="file-preview"></div>
                 </div>
-    
                 <div class="button-group">
                     <button id="submit-btn" class="submit-btn" disabled>เพิ่มพนักงาน</button>
                     <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
@@ -126,12 +122,11 @@
             </div>
         </div>
     </div>
-
     <script>
         const mainContent = document.getElementById('main-content');
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
-        
+
         const departmentSelect = document.getElementById('department-select');
         const employeesTextarea = document.getElementById('employees-textarea');
         const fileInput = document.getElementById('file-input');
@@ -172,7 +167,7 @@
                 if (!response.ok) throw new Error('Failed to fetch departments from server.');
 
                 const departments = await response.json();
-                
+
                 departmentSelect.innerHTML = '<option value="">-- กรุณาเลือกแผนก --</option>';
                 departments.forEach(dept => {
                     const option = document.createElement('option');
@@ -211,7 +206,7 @@
                     const workbook = XLSX.read(data, { type: 'array' });
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                    
+
                     employeesToSubmit = parseEmployeeData(jsonData);
                     filePreview.textContent = `พบ ${employeesToSubmit.length} รายการในไฟล์ "${file.name}"`;
                     employeesTextarea.value = '';
@@ -225,7 +220,7 @@
         }
 
         fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-        
+
         employeesTextarea.addEventListener('input', () => {
              try {
                 const textData = employeesTextarea.value.trim();
@@ -279,11 +274,15 @@
                     finalMessage += `\nรหัสซ้ำ (ไม่ถูกเพิ่ม): ${result.duplicates.join(', ')}`;
                 }
                 showResult(finalMessage, 'success');
-                
-                employeesTextarea.value = '';
-                fileInput.value = '';
-                filePreview.textContent = '';
-                employeesToSubmit = [];
+
+                // Delay clearing inputs and hiding message to allow user to read
+                setTimeout(() => {
+                    employeesTextarea.value = '';
+                    fileInput.value = '';
+                    filePreview.textContent = '';
+                    employeesToSubmit = [];
+                    resultMessageDiv.style.display = 'none'; // Hide the message after clearing
+                }, 5000); // 5 seconds delay
 
             } catch (error) {
                 showResult(`ผิดพลาด: ${error.message}`, 'error');
@@ -292,7 +291,7 @@
                 submitBtn.textContent = 'เพิ่มพนักงาน';
             }
         });
-        
+
         function showResult(message, type) {
             resultMessageDiv.style.display = 'block';
             resultMessageDiv.textContent = message;
