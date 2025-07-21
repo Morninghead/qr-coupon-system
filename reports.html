@@ -234,7 +234,7 @@
 
             const dateRange = datePicker.selectedDates;
             if (dateRange.length < 2) {
-                alert('กรุณาเลือกช่วงวันที่');
+                console.log('Please select a date range.');
                 showReportBtn.disabled = false;
                 showReportBtn.textContent = 'แสดงรายงาน';
                 return;
@@ -245,6 +245,13 @@
             const departmentId = departmentSelect.value;
             const { data: { session } } = await _supabase.auth.getSession();
 
+            if (!session) {
+                console.error("No active session to fetch report data.");
+                showReportBtn.disabled = false;
+                showReportBtn.textContent = 'แสดงรายงาน';
+                return;
+            }
+
             const endpoint = `${baseUrl}/.netlify/functions/get-report-data?startDate=${startDate}&endDate=${endDate}&departmentId=${departmentId}`;
             
             try {
@@ -253,7 +260,7 @@
                 });
                 if (!response.ok) {
                     const errorResult = await response.json();
-                    throw new Error(errorResult.message || "โหลดข้อมูลรายงานไม่สำเร็จ");
+                    throw new Error(errorResult.message || "Failed to load report data");
                 }
                 const report = await response.json();
 
@@ -262,7 +269,7 @@
                 updateSummary(report);
 
             } catch (e) {
-                alert(`เกิดข้อผิดพลาด: ${e.message}`);
+                console.error(`Error fetching report data: ${e.message}`);
             } finally {
                 showReportBtn.disabled = false;
                 showReportBtn.textContent = 'แสดงรายงาน';
