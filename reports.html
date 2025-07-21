@@ -139,7 +139,6 @@
         const baseUrl = window.location.origin;
         const departmentSelect = document.getElementById('department-select');
 
-        // ... (โค้ดของ Chart.js plugin ไม่เปลี่ยนแปลง) ...
         const centerTextPlugin = {
             id: 'centerText',
             afterDraw: (chart) => {
@@ -275,6 +274,8 @@
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
+                if (!response.ok) throw new Error('Failed to load departments');
+                
                 const departments = await response.json();
                 
                 departments.forEach(dept => {
@@ -292,26 +293,22 @@
             try {
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
                 const config = await response.json();
-                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+                
+                const { createClient } = supabase;
+                _supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
                     
-                    // ตั้งค่าปฏิทิน
                     datePicker = flatpickr("#date-picker", {
                         mode: "range",
                         dateFormat: "Y-m-d",
                         defaultDate: [new Date(), new Date()]
                     });
 
-                    // โหลดข้อมูลแผนก
                     await loadDepartments();
-                    
-                    // โหลดรายงานเริ่มต้น
                     await fetchReportData(); 
-
-                    // ตั้งค่า Event Listener ให้ปุ่ม
                     document.getElementById('show-report-btn').addEventListener('click', fetchReportData);
 
                 } else {
