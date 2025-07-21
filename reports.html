@@ -98,6 +98,10 @@
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 16px;
         }
+        /* Added style for chart depth */
+        .chart-card canvas {
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+        }
         .summary-card {
             grid-column: 1 / -1; /* Span full width */
             background: var(--dark-gray);
@@ -193,34 +197,70 @@
         };
         // ------------------------------------
 
+        // --- Chart.js Plugin to draw text in the center ---
+        const centerTextPlugin = {
+            id: 'centerText',
+            afterDraw: (chart) => {
+                if (chart.config.type !== 'doughnut') return;
+                
+                const ctx = chart.ctx;
+                const { width, height } = chart;
+                const total = chart.config.options.plugins.centerText.total;
+
+                ctx.restore();
+                const fontSize = (height / 114).toFixed(2);
+                ctx.font = `${fontSize}em sans-serif`;
+                ctx.textBaseline = 'middle';
+
+                // Main number
+                const text = total.toLocaleString('th-TH');
+                const textX = Math.round((width - ctx.measureText(text).width) / 2);
+                const textY = height / 2;
+                
+                ctx.fillStyle = '#1F2937'; // dark-gray
+                ctx.fillText(text, textX, textY - 10);
+
+                // Sub-label
+                const subText = 'สิทธิ์ทั้งหมด';
+                const subFontSize = (height / 200).toFixed(2);
+                ctx.font = `bold ${subFontSize}em sans-serif`;
+                const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
+                
+                ctx.fillStyle = '#6B7280'; // text-gray
+                ctx.fillText(subText, subTextX, textY + 20);
+                
+                ctx.save();
+            }
+        };
+        // ----------------------------------------------------
+
         function createPieChart(canvasId, data) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             const notUsed = data.totalGranted - data.totalUsed;
 
             new Chart(ctx, {
-                type: 'pie',
+                type: 'doughnut',
                 data: {
                     labels: [`ใช้สิทธิ์ (${data.totalUsed})`, `ไม่ใช้สิทธิ์ (${notUsed})`],
                     datasets: [{
                         data: [data.totalUsed, notUsed],
                         backgroundColor: [
-                            'rgba(16, 185, 129, 0.7)', // success
-                            'rgba(245, 158, 11, 0.7)'  // warning
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(245, 158, 11, 0.8)'
                         ],
-                        borderColor: [
-                            'rgba(16, 185, 129, 1)',
-                            'rgba(245, 158, 11, 1)'
-                        ],
-                        borderWidth: 1,
-                        // --- 3D Effect Added Here ---
-                        // This will "explode" or offset the second slice (Not Used)
+                        borderColor: ['#ffffff'],
+                        borderWidth: 4,
                         offset: [0, 20] 
-                        // --------------------------
                     }]
                 },
                 options: {
                     responsive: true,
+                    cutout: '60%',
                     plugins: {
+                        // Pass data to our custom plugin
+                        centerText: {
+                            total: data.totalGranted
+                        },
                         legend: {
                             position: 'top',
                         },
@@ -232,7 +272,8 @@
                                         label += ': ';
                                     }
                                     if (context.parsed !== null) {
-                                        const percentage = (context.parsed / data.totalGranted * 100).toFixed(1);
+                                        const total = data.totalGranted > 0 ? data.totalGranted : 1;
+                                        const percentage = (context.parsed / total * 100).toFixed(1);
                                         label += `${context.raw} คน (${percentage}%)`;
                                     }
                                     return label;
@@ -240,7 +281,8 @@
                             }
                         }
                     }
-                }
+                },
+                plugins: [centerTextPlugin] // Register our custom plugin
             });
         }
 
