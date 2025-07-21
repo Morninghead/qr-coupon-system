@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายงาน - ระบบคูปองพนักงาน</title>
+    <!-- Library for creating charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Library for date range picker (optional but recommended) -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        :root {
+            --primary-color: #6366F1;
+            --light-gray: #F3F4F6;
+            --dark-gray: #1F2937;
+            --text-gray: #4B5563;
+            --border-color: #E5E7EB;
+            --success-color: #10B981;
+            --warning-color: #F59E0B;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header h1 {
+            color: var(--dark-gray);
+            font-size: 28px;
+            margin: 0;
+        }
+        .back-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .filters-card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin-bottom: 32px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            align-items: end;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .filter-group label {
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+        .filter-group select, .filter-group input {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        .filter-group button {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .report-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+        }
+        .chart-card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .chart-card h2 {
+            margin-top: 0;
+            color: var(--dark-gray);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+        .summary-card {
+            grid-column: 1 / -1; /* Span full width */
+            background: var(--dark-gray);
+            color: white;
+            padding: 32px;
+            border-radius: 16px;
+            text-align: center;
+        }
+        .summary-card h2 {
+            margin-top: 0;
+            font-size: 20px;
+            opacity: 0.8;
+        }
+        .summary-card .total-amount {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--success-color);
+        }
+
+        @media (max-width: 900px) {
+            .report-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>หน้าจอแสดงรายงาน</h1>
+            <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+        </div>
+
+        <div class="filters-card">
+            <div class="filter-group">
+                <label for="time-range">ช่วงเวลา</label>
+                <select id="time-range">
+                    <option value="daily">รายวัน</option>
+                    <option value="weekly">รายสัปดาห์</option>
+                    <option value="monthly">รายเดือน</option>
+                    <option value="custom">เลือกเอง</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="date-picker">เลือกวันที่</label>
+                <input type="text" id="date-picker" placeholder="เลือกช่วงวันที่...">
+            </div>
+            <div class="filter-group">
+                <label for="department">แผนก</label>
+                <select id="department">
+                    <option value="all">ทุกแผนก</option>
+                    <option value="it">IT</option>
+                    <option value="hr">HR</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <button>แสดงรายงาน</button>
+            </div>
+        </div>
+
+        <div class="report-grid">
+            <div class="chart-card">
+                <h2>คูปองทำงานปกติ (NORMAL)</h2>
+                <canvas id="normal-chart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h2>คูปองโอที (OT)</h2>
+                <canvas id="ot-chart"></canvas>
+            </div>
+            <div class="summary-card">
+                <h2>สรุปยอดเงินรวมทั้งหมด</h2>
+                <p class="total-amount" id="total-amount">฿ 0.00</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Date Picker
+        flatpickr("#date-picker", {
+            mode: "range",
+            dateFormat: "Y-m-d",
+        });
+
+        // --- DUMMY DATA FOR UI PROTOTYPING ---
+        const normalCouponData = {
+            totalGranted: 100,
+            totalUsed: 85
+        };
+
+        const otCouponData = {
+            totalGranted: 50,
+            totalUsed: 40
+        };
+        // ------------------------------------
+
+        function createPieChart(canvasId, data) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const notUsed = data.totalGranted - data.totalUsed;
+
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: [`ใช้สิทธิ์ (${data.totalUsed})`, `ไม่ใช้สิทธิ์ (${notUsed})`],
+                    datasets: [{
+                        data: [data.totalUsed, notUsed],
+                        backgroundColor: [
+                            'rgba(16, 185, 129, 0.7)', // success
+                            'rgba(245, 158, 11, 0.7)'  // warning
+                        ],
+                        borderColor: [
+                            'rgba(16, 185, 129, 1)',
+                            'rgba(245, 158, 11, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        const percentage = (context.parsed / data.totalGranted * 100).toFixed(1);
+                                        label += `${context.raw} คน (${percentage}%)`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function calculateTotal() {
+            const totalUsed = normalCouponData.totalUsed + otCouponData.totalUsed;
+            const totalAmount = totalUsed * 45;
+            document.getElementById('total-amount').textContent = `฿ ${totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+        }
+
+        // Create charts with dummy data on page load
+        window.onload = () => {
+            createPieChart('normal-chart', normalCouponData);
+            createPieChart('ot-chart', otCouponData);
+            calculateTotal();
+        };
+
+    </script>
+</body>
+</html>
