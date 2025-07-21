@@ -4,35 +4,141 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Main Menu - Employee Coupon System</title>
-    <!-- Import Supabase Client Library -->
-    const userEmailSpan = document.getElementById('user-email');
-        const logoutButton = document.getElementById('logout-btn');
-        const menuGrid = document.getElementById('menu-grid');
-        const loadingState = document.getElementById('loading-state');
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary-color: #6366F1;
+            --light-gray: #F3F4F6;
+            --dark-gray: #1F2937;
+            --text-gray: #4B5563;
+            --border-color: #E5E7EB;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+        }
+        /* CSS สำหรับซ่อน/แสดง และหน้าแจ้งเตือน */
+        .hidden { display: none !important; }
+        .unauthorized-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100%;
+            position: fixed; top: 0; left: 0;
+            background-color: var(--light-gray);
+        }
+        .unauthorized-box {
+            background: white;
+            padding: 40px 48px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 450px;
+        }
+        .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
+        .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
+        .unauthorized-button {
+            display: inline-block;
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+        .unauthorized-button:hover { background-color: #4F46E5; }
+
+        /* CSS เดิมของหน้า */
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
+        .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
+        .user-info { text-align: right; }
+        .user-info span { display: block; color: var(--text-gray); font-weight: 500; }
+        #logout-btn { background: none; border: none; color: var(--primary-color); font-weight: 600; cursor: pointer; font-size: 16px; padding: 4px 0 0 0; transition: opacity 0.2s; }
+        #logout-btn:hover { opacity: 0.8; }
+        .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+        .menu-item { background-color: white; border-radius: 16px; padding: 24px; text-decoration: none; color: var(--dark-gray); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); transition: transform 0.2s ease, box-shadow 0.2s ease; display: none; /* ซ่อนไว้ก่อนเสมอ */ }
+        .menu-item:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); }
+        .menu-item h2 { margin-top: 0; margin-bottom: 8px; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .menu-item p { margin: 0; color: var(--text-gray); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        @media (max-width: 768px) {
+            .container { padding: 16px; }
+            .header { flex-direction: column; align-items: flex-start; gap: 8px; }
+            .header h1 { font-size: 24px; }
+            .user-info { text-align: left; width: 100%; }
+            .menu-grid { gap: 16px; }
+            .menu-item { padding: 20px; }
+            .menu-item h2 { font-size: 17px; }
+            .menu-item p { font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="unauthorized-message" class="unauthorized-container hidden">
+        <div class="unauthorized-box">
+            <h1>กรุณาลงชื่อเข้าใช้</h1>
+            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
+        </div>
+    </div>
+
+    <div id="main-content" class="hidden">
+        <div class="container">
+            <div class="header">
+                <h1>เมนูหลัก</h1>
+                <div class="user-info">
+                    <span id="user-email"></span>
+                    <button id="logout-btn">ออกจากระบบ</button>
+                </div>
+            </div>
+    
+            <div class="menu-grid" id="menu-grid">
+                <a href="/add-employee.html" class="menu-item" id="menu-add-employee">
+                    <h2>📝 เพิ่มรายชื่อพนักงานใหม่</h2>
+                    <p>สำหรับเพิ่มข้อมูลพนักงานใหม่เข้าสู่ระบบ</p>
+                </a>
+                <a href="/grant-coupons.html" class="menu-item" id="menu-grant-coupons">
+                    <h2>🎁 ให้สิทธิ์คูปอง</h2>
+                    <p>นำเข้ารายชื่อพนักงานเพื่อให้สิทธิ์รายวัน/OT</p>
+                </a>
+                <a href="/scanner.html" class="menu-item" id="menu-scanner">
+                    <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
+                    <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
+                </a>
+                <a href="/reports.html" class="menu-item" id="menu-reports">
+                    <h2>📊 หน้าจอแสดงรายงาน</h2>
+                    <p>ดูสรุปและสถิติการใช้งานคูปองทั้งหมด</p>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const mainContent = document.getElementById('main-content');
+        const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
 
-        // ฟังก์ชันสำหรับดึง Role ของผู้ใช้ปัจจุบัน
+        const userEmailSpan = document.getElementById('user-email');
+        const logoutButton = document.getElementById('logout-btn');
+
         async function getCurrentUserRole() {
             if (!_supabase) return null;
             const { data: { user } } = await _supabase.auth.getUser();
             if (!user) return null;
-
-            const { data: profile } = await _supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single();
+            const { data: profile } = await _supabase.from('profiles').select('role').eq('id', user.id).single();
             return profile ? profile.role : null;
         }
 
-        // ฟังก์ชันสำหรับแสดงเมนูตาม Role
         function displayMenusByRole(role) {
-            loadingState.style.display = 'none'; // ซ่อนข้อความ "กำลังโหลด"
-
-            // เมนูที่ทุกคนเห็นได้
             const publicMenus = ['menu-scanner', 'menu-reports'];
-            
-            // เมนูเฉพาะ Superuser
             const adminMenus = ['menu-add-employee', 'menu-grant-coupons'];
 
             publicMenus.forEach(id => {
@@ -40,7 +146,7 @@
                 if (menuItem) menuItem.style.display = 'block';
             });
 
-            if (role === 'superuser') {
+            if (role === 'superuser' || role === 'department_admin') { // อนุญาตให้ department_admin เห็นเมนู admin ด้วย
                 adminMenus.forEach(id => {
                     const menuItem = document.getElementById(id);
                     if (menuItem) menuItem.style.display = 'block';
@@ -55,19 +161,17 @@
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
-                if (!session) {
-                    window.location.href = '/index.html';
-                    return;
+                if (session) {
+                    mainContent.classList.remove('hidden');
+                    userEmailSpan.textContent = session.user.email;
+                    const userRole = await getCurrentUserRole();
+                    displayMenusByRole(userRole);
+                } else {
+                    unauthorizedMessage.classList.remove('hidden');
                 }
-                userEmailSpan.textContent = session.user.email;
-
-                // **ส่วนที่แก้ไข: ตรวจสอบ Role แล้วค่อยแสดงเมนู**
-                const userRole = await getCurrentUserRole();
-                displayMenusByRole(userRole);
-
             } catch (error) {
-                console.error('Failed to initialize app:', error);
-                loadingState.textContent = 'ไม่สามารถโหลดการตั้งค่าระบบได้';
+                console.error('Initialization failed:', error);
+                unauthorizedMessage.classList.remove('hidden');
             }
         }
         
@@ -81,229 +185,7 @@
             }
         });
 
-        // เริ่มต้นการทำงานของแอป
-        initializeApp();
-    <style>
-        :root {
-            --primary-color: #6366F1;
-            --light-gray: #F3F4F6;
-            --dark-gray: #1F2937;
-            --text-gray: #4B5563;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--light-gray);
-            margin: 0;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 24px;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 32px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #E5E7EB;
-        }
-        .header h1 {
-            color: var(--dark-gray);
-            font-size: 28px;
-            margin: 0;
-        }
-        .user-info {
-            text-align: right;
-        }
-        .user-info span {
-            display: block;
-            color: var(--text-gray);
-            font-weight: 500;
-        }
-        #logout-btn {
-            background: none;
-            border: none;
-            color: var(--primary-color);
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 16px;
-            padding: 4px 0 0 0;
-            transition: opacity 0.2s;
-        }
-        #logout-btn:hover {
-            opacity: 0.8;
-        }
-        .menu-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 24px;
-        }
-        .menu-item {
-            background-color: white;
-            border-radius: 16px;
-            padding: 24px;
-            text-decoration: none;
-            color: var(--dark-gray);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            display: none; /* Hidden by default, shown by JS */
-        }
-        .menu-item:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-        }
-        .menu-item h2 {
-            margin-top: 0;
-            margin-bottom: 8px;
-            font-size: 18px; /* ปรับขนาด Font */
-            white-space: nowrap; /* ไม่ให้ขึ้นบรรทัดใหม่ */
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .menu-item p {
-            margin: 0;
-            color: var(--text-gray);
-            font-size: 14px; /* ปรับขนาด Font */
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        #loading-state {
-            text-align: center;
-            font-size: 18px;
-            color: var(--text-gray);
-            padding: 40px;
-        }
-
-        /* Responsive Styles for Mobile */
-        @media (max-width: 768px) {
-            .container {
-                padding: 16px;
-            }
-            .header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
-            }
-            .header h1 {
-                font-size: 24px;
-            }
-            .user-info {
-                text-align: left;
-                width: 100%;
-            }
-            .menu-grid {
-                gap: 16px;
-            }
-            .menu-item {
-                padding: 20px;
-            }
-            .menu-item h2 {
-                font-size: 17px;
-            }
-            .menu-item p {
-                font-size: 13px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>เมนูหลัก (โหมดทดสอบ)</h1>
-            <div class="user-info">
-                <span id="user-email"></span>
-                <button id="logout-btn">ออกจากระบบ</button>
-            </div>
-        </div>
-
-        <div id="loading-state">
-            <p>กำลังโหลดข้อมูลผู้ใช้...</p>
-        </div>
-
-        <div class="menu-grid" id="menu-grid">
-            <!-- Menu items will be dynamically shown here based on user role -->
-            <a href="/add-employee.html" class="menu-item" id="menu-add-employee">
-                <h2>📝 เพิ่มรายชื่อพนักงานใหม่</h2>
-                <p>สำหรับเพิ่มข้อมูลพนักงานใหม่เข้าสู่ระบบ</p>
-            </a>
-            <a href="/grant-coupons.html" class="menu-item" id="menu-grant-coupons">
-                <h2>🎁 ให้สิทธิ์คูปอง</h2>
-                <p>นำเข้ารายชื่อพนักงานเพื่อให้สิทธิ์รายวัน/OT</p>
-            </a>
-            <a href="/scanner.html" class="menu-item" id="menu-scanner">
-                <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
-                <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
-            </a>
-            <a href="/reports.html" class="menu-item" id="menu-reports">
-                <h2>📊 หน้าจอแสดงรายงาน</h2>
-                <p>ดูสรุปและสถิติการใช้งานคูปองทั้งหมด</p>
-            </a>
-        </div>
-    </div>
-
-    <script>
-        const userEmailSpan = document.getElementById('user-email');
-        const logoutButton = document.getElementById('logout-btn');
-        const menuGrid = document.getElementById('menu-grid');
-        const loadingState = document.getElementById('loading-state');
-        let _supabase; // Declare supabase client variable
-
-        async function initializeApp() {
-            try {
-                const response = await fetch('/.netlify/functions/get-config');
-                const config = await response.json();
-                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
-
-                await initializeMenu();
-
-            } catch (error) {
-                console.error('Failed to initialize app:', error);
-                loadingState.textContent = 'ไม่สามารถโหลดการตั้งค่าระบบได้';
-            }
-        }
-        
-        async function initializeMenu() {
-            const { data: { session } } = await _supabase.auth.getSession();
-            if (!session) {
-                window.location.href = '/index.html';
-                return;
-            }
-            userEmailSpan.textContent = session.user.email;
-            
-            // --- ROLE CHECK DISABLED FOR TESTING ---
-            // This function will now always show all menus
-            displayAllMenus();
-            // ------------------------------------
-        }
-
-        function displayAllMenus() {
-            loadingState.style.display = 'none'; // Hide loading message
-
-            const allMenuIds = ['menu-add-employee', 'menu-grant-coupons', 'menu-scanner', 'menu-reports'];
-            
-            allMenuIds.forEach(menuId => {
-                const menuItem = document.getElementById(menuId);
-                if (menuItem) {
-                    menuItem.style.display = 'block';
-                }
-            });
-        }
-
-        logoutButton.addEventListener('click', async () => {
-            if (!_supabase) return;
-            const { error } = await _supabase.auth.signOut();
-            if (!error) {
-                window.location.href = '/index.html';
-            } else {
-                console.error('Logout Error:', error.message);
-            }
-        });
-
-        // Start the application
         initializeApp();
     </script>
-
 </body>
 </html>

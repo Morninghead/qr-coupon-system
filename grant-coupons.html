@@ -5,12 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grant Coupons - Employee Coupon System</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Library for reading Excel/CSV files -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary-color: #6366F1;
-            --secondary-color: #F97316; /* Orange */
+            --secondary-color: #F97316;
             --light-gray: #F3F4F6;
             --dark-gray: #1F2937;
             --text-gray: #4B5563;
@@ -21,141 +20,118 @@
             background-color: var(--light-gray);
             margin: 0;
         }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 24px;
-        }
-        .header {
+        /* CSS สำหรับซ่อน/แสดง และหน้าแจ้งเตือน */
+        .hidden { display: none !important; }
+        .unauthorized-container {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-            margin-bottom: 24px;
-        }
-        .header h1 {
-            color: var(--dark-gray);
-            font-size: 28px;
-            margin: 0;
-        }
-        .back-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 600;
-        }
-        .grant-container {
-            background: white;
-            padding: 32px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-        .grant-container h2 {
-            margin-top: 0;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 16px;
-            margin-bottom: 24px;
-        }
-        .file-preview {
-            font-size: 14px;
-            color: var(--text-gray);
-            margin-top: 12px;
-            font-weight: 500;
-            min-height: 20px;
-        }
-        textarea {
+            height: 100vh;
             width: 100%;
-            height: 150px;
+            position: fixed; top: 0; left: 0;
+            background-color: var(--light-gray);
+        }
+        .unauthorized-box {
+            background: white;
+            padding: 40px 48px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 450px;
+        }
+        .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
+        .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
+        .unauthorized-button {
+            display: inline-block;
+            width: 100%;
             padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-            resize: vertical;
-            margin-bottom: 16px;
-        }
-        .button-group {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-        .submit-btn, .import-btn {
-            padding: 12px 24px;
             font-size: 16px;
             font-weight: 600;
             color: white;
+            background-color: var(--primary-color);
             border: none;
             border-radius: 8px;
             cursor: pointer;
+            text-decoration: none;
             transition: background-color 0.2s;
         }
-        .submit-btn {
-            background-color: var(--primary-color);
-        }
-        .submit-btn:disabled {
-            background-color: #A5B4FC;
-            cursor: not-allowed;
-        }
-        .import-btn {
-            background-color: var(--secondary-color);
-        }
-        .import-btn:hover {
-            background-color: #EA580C;
-        }
-        input[type="file"] {
-            display: none;
-        }
-        .form-section {
-            margin-bottom: 40px;
-        }
-        #result-message {
-            margin-top: 24px;
-            padding: 16px;
-            border-radius: 8px;
-            display: none;
-            white-space: pre-wrap;
-        }
+        .unauthorized-button:hover { background-color: #4F46E5; }
+
+        /* CSS เดิมของหน้า */
+        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
+        .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+        .grant-container { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
+        .grant-container h2 { margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; margin-bottom: 24px; }
+        .file-preview { font-size: 14px; color: var(--text-gray); margin-top: 12px; font-weight: 500; min-height: 20px; }
+        textarea { width: 100%; height: 150px; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; resize: vertical; margin-bottom: 16px; }
+        .button-group { display: flex; gap: 12px; align-items: center; }
+        .submit-btn, .import-btn { padding: 12px 24px; font-size: 16px; font-weight: 600; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background-color 0.2s; }
+        .submit-btn { background-color: var(--primary-color); }
+        .submit-btn:disabled { background-color: #A5B4FC; cursor: not-allowed; }
+        .import-btn { background-color: var(--secondary-color); }
+        .import-btn:hover { background-color: #EA580C; }
+        input[type="file"] { display: none; }
+        .form-section { margin-bottom: 40px; }
+        #result-message { margin-top: 24px; padding: 16px; border-radius: 8px; display: none; white-space: pre-wrap; }
         .result-success { background-color: #D1FAE5; color: #065F46; }
         .result-error { background-color: #FEE2E2; color: #991B1B; }
         .result-info { background-color: #E0E7FF; color: #3730A3; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>ให้สิทธิ์คูปองรายวัน</h1>
-            <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+
+    <div id="unauthorized-message" class="unauthorized-container hidden">
+        <div class="unauthorized-box">
+            <h1>กรุณาลงชื่อเข้าใช้</h1>
+            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
+    </div>
 
-        <div class="grant-container">
-            <div class="form-section">
-                <h2>คูปองทำงานปกติ (NORMAL)</h2>
-                <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) หรือนำเข้าจากไฟล์</p>
-                <textarea id="normal-ids-textarea" placeholder="18096\n24062\n25077"></textarea>
-                <div class="file-preview" id="normal-preview"></div>
-                <div class="button-group">
-                    <button id="normal-btn" class="submit-btn">ให้สิทธิ์ NORMAL</button>
-                    <button class="import-btn" onclick="document.getElementById('normal-file-input').click()">📁 Import File</button>
-                    <input type="file" id="normal-file-input" accept=".csv, .xlsx">
-                </div>
+    <div id="main-content" class="hidden">
+        <div class="container">
+            <div class="header">
+                <h1>ให้สิทธิ์คูปองรายวัน</h1>
+                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
             </div>
-
-            <div class="form-section">
-                <h2>คูปองโอที (OT)</h2>
-                <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) หรือนำเข้าจากไฟล์</p>
-                <textarea id="ot-ids-textarea" placeholder="18023\n25050"></textarea>
-                <div class="file-preview" id="ot-preview"></div>
-                <div class="button-group">
-                    <button id="ot-btn" class="submit-btn">ให้สิทธิ์ OT</button>
-                    <button class="import-btn" onclick="document.getElementById('ot-file-input').click()">📁 Import File</button>
-                    <input type="file" id="ot-file-input" accept=".csv, .xlsx">
+    
+            <div class="grant-container">
+                <div class="form-section">
+                    <h2>คูปองทำงานปกติ (NORMAL)</h2>
+                    <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) หรือนำเข้าจากไฟล์</p>
+                    <textarea id="normal-ids-textarea" placeholder="18096\n24062\n25077"></textarea>
+                    <div class="file-preview" id="normal-preview"></div>
+                    <div class="button-group">
+                        <button id="normal-btn" class="submit-btn">ให้สิทธิ์ NORMAL</button>
+                        <button class="import-btn" onclick="document.getElementById('normal-file-input').click()">📁 Import File</button>
+                        <input type="file" id="normal-file-input" accept=".csv, .xlsx">
+                    </div>
                 </div>
+    
+                <div class="form-section">
+                    <h2>คูปองโอที (OT)</h2>
+                    <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) หรือนำเข้าจากไฟล์</p>
+                    <textarea id="ot-ids-textarea" placeholder="18023\n25050"></textarea>
+                    <div class="file-preview" id="ot-preview"></div>
+                    <div class="button-group">
+                        <button id="ot-btn" class="submit-btn">ให้สิทธิ์ OT</button>
+                        <button class="import-btn" onclick="document.getElementById('ot-file-input').click()">📁 Import File</button>
+                        <input type="file" id="ot-file-input" accept=".csv, .xlsx">
+                    </div>
+                </div>
+    
+                <div id="result-message"></div>
             </div>
-
-            <div id="result-message"></div>
         </div>
     </div>
 
     <script>
+        const mainContent = document.getElementById('main-content');
+        const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
+
         const normalFileInput = document.getElementById('normal-file-input');
         const otFileInput = document.getElementById('ot-file-input');
         const normalBtn = document.getElementById('normal-btn');
@@ -173,17 +149,19 @@
         async function initializeApp() {
             try {
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
-                if (!response.ok) throw new Error(`Server responded with status: ${response.status}`);
                 const config = await response.json();
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
-                if (!session) {
-                    window.location.href = '/index.html';
+                if (session) {
+                    mainContent.classList.remove('hidden');
+                    // ไม่มีฟังก์ชันที่ต้องโหลดเริ่มต้นในหน้านี้
+                } else {
+                    unauthorizedMessage.classList.remove('hidden');
                 }
             } catch (error) {
                 console.error("Initialization Error:", error);
-                showResult(`ไม่สามารถเชื่อมต่อระบบได้: ${error.message}`, "error");
+                unauthorizedMessage.classList.remove('hidden');
             }
         }
 
@@ -210,10 +188,10 @@
                     
                     if (idStore === 'normal') {
                         normalEmployeeIdsFromFile = employeeIds;
-                        normalIdsTextarea.value = ''; // Clear textarea if file is selected
+                        normalIdsTextarea.value = '';
                     } else {
                         otEmployeeIdsFromFile = employeeIds;
-                        otIdsTextarea.value = ''; // Clear textarea if file is selected
+                        otIdsTextarea.value = '';
                     }
 
                     previewElement.textContent = `พบ ${employeeIds.length} รหัสพนักงานในไฟล์ "${file.name}"`;
@@ -239,7 +217,7 @@
 
             try {
                 const { data: { session } } = await _supabase.auth.getSession();
-                if (!session) throw new Error('Not authenticated');
+                if (!session) throw new Error('Not authenticated. Please login again.');
 
                 const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons`, {
                     method: 'POST',
@@ -274,9 +252,7 @@
         function showResult(message, type) {
             resultMessageDiv.style.display = 'block';
             resultMessageDiv.textContent = message;
-            if (type === 'success') resultMessageDiv.className = 'result-success';
-            else if (type === 'error') resultMessageDiv.className = 'result-error';
-            else resultMessageDiv.className = 'result-info';
+            resultMessageDiv.className = type === 'success' ? 'result-success' : (type === 'error' ? 'result-error' : 'result-info');
         }
 
         normalBtn.addEventListener('click', () => {

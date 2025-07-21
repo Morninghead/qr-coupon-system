@@ -88,7 +88,7 @@
             padding: 12px;
             border-radius: 8px;
             font-weight: 500;
-            display: block; /* Always visible */
+            display: block;
             min-height: 48px;
             text-align: center;
         }
@@ -132,7 +132,8 @@
         <button id="toggle-btn" class="toggle-form">ยังไม่มีบัญชี? สร้างบัญชีใหม่</button>
     </div>
 
-   const authForm = document.getElementById('auth-form');
+    <script>
+        const authForm = document.getElementById('auth-form');
         const submitButton = document.getElementById('submit-btn');
         const messageDiv = document.getElementById('message');
         const toggleButton = document.getElementById('toggle-btn');
@@ -145,17 +146,10 @@
                 const response = await fetch('/.netlify/functions/get-config');
                 if (!response.ok) throw new Error('Network response was not ok');
                 const config = await response.json();
-
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
-
-                // **[ส่วนที่แก้ไข]** เราจะไม่มี onAuthStateChange ที่นี่อีกต่อไป
-                // การตรวจสอบ session จะทำที่หน้า menu.html
-                // เพื่อให้หน้านี้เป็นแค่หน้าสำหรับ Login/Signup เท่านั้น
-
                 submitButton.disabled = false;
                 submitButton.textContent = 'เข้าสู่ระบบ';
                 messageDiv.textContent = '';
-
             } catch (error) {
                 console.error('Failed to initialize app:', error);
                 messageDiv.className = 'message-error';
@@ -168,6 +162,7 @@
             isLoginMode = !isLoginMode;
             messageDiv.textContent = '';
             messageDiv.className = '';
+            authForm.reset();
             
             if (isLoginMode) {
                 formTitle.textContent = 'ลงชื่อเข้าใช้';
@@ -182,7 +177,6 @@
 
         authForm.addEventListener('submit', async (event) => {
             event.preventDefault();
-
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
@@ -205,28 +199,24 @@
                 if (isLoginMode) {
                      messageDiv.className = 'message-success';
                      messageDiv.textContent = 'เข้าสู่ระบบสำเร็จ! กำลังไปยังหน้าเมนู...';
-                     // เมื่อสำเร็จ ให้ redirect ไปหน้าเมนู
                      window.location.href = '/menu.html';
                 } else {
                      messageDiv.className = 'message-success';
                      messageDiv.textContent = 'สมัครสมาชิกสำเร็จ! กรุณายืนยันอีเมลของคุณก่อนเข้าสู่ระบบ';
-                     setTimeout(toggleMode, 3000); 
+                     setTimeout(toggleMode, 4000); 
                 }
-
             } catch (error) {
                 messageDiv.className = 'message-error';
                 messageDiv.textContent = error.message;
-                console.error('Auth Error:', error.message);
             } finally {
-                if(isLoginMode) { // เฉพาะกรณี login ที่อาจไม่สำเร็จ
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'เข้าสู่ระบบ';
-                }
+                submitButton.disabled = false;
+                submitButton.textContent = isLoginMode ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก';
             }
         });
 
         toggleButton.addEventListener('click', toggleMode);
         initializeApp();
+    </script>
 
 </body>
 </html>

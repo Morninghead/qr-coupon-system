@@ -20,145 +20,116 @@
             background-color: var(--light-gray);
             margin: 0;
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 24px;
-        }
-        .header {
+        /* CSS สำหรับซ่อน/แสดง และหน้าแจ้งเตือน */
+        .hidden { display: none !important; }
+        .unauthorized-container {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-            margin-bottom: 24px;
-        }
-        .header h1 {
-            color: var(--dark-gray);
-            font-size: 28px;
-            margin: 0;
-        }
-        .back-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 600;
-        }
-        .scanner-section {
-            background: white;
-            padding: 32px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            margin-bottom: 32px;
-        }
-        #scanInput {
+            height: 100vh;
             width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            box-sizing: border-box;
+            position: fixed; top: 0; left: 0;
+            background-color: var(--light-gray);
+        }
+        .unauthorized-box {
+            background: white;
+            padding: 40px 48px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
             text-align: center;
+            max-width: 450px;
         }
-        #scanResult {
-            margin-top: 16px;
-            padding: 16px;
-            font-size: 20px;
-            font-weight: bold;
-            border-radius: 8px;
-            min-height: 40px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .report-section h2 {
-            color: var(--dark-gray);
-            margin-bottom: 16px;
-        }
-        .table-container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            overflow-x: auto;
-        }
-        table {
+        .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
+        .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
+        .unauthorized-button {
+            display: inline-block;
             width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 16px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-        th {
-            background-color: #F9FAFB;
+            padding: 12px;
+            font-size: 16px;
             font-weight: 600;
-            color: var(--text-gray);
-        }
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 24px;
-            gap: 8px;
-        }
-        .pagination button {
-            padding: 8px 16px;
-            border: 1px solid var(--border-color);
-            background-color: white;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
             border-radius: 8px;
             cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.2s;
         }
-        .pagination button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .pagination button.active {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
+        .unauthorized-button:hover { background-color: #4F46E5; }
+
+        /* CSS เดิมของหน้า */
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
+        .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+        .scanner-section { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); margin-bottom: 32px; }
+        #scanInput { width: 100%; padding: 15px; font-size: 18px; border: 2px solid var(--border-color); border-radius: 8px; box-sizing: border-box; text-align: center; }
+        #scanResult { margin-top: 16px; padding: 16px; font-size: 20px; font-weight: bold; border-radius: 8px; min-height: 40px; display: flex; justify-content: center; align-items: center; }
+        .report-section h2 { color: var(--dark-gray); margin-bottom: 16px; }
+        .table-container { background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 16px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { background-color: #F9FAFB; font-weight: 600; color: var(--text-gray); }
+        .pagination { display: flex; justify-content: center; align-items: center; padding: 24px; gap: 8px; }
+        .pagination button { padding: 8px 16px; border: 1px solid var(--border-color); background-color: white; border-radius: 8px; cursor: pointer; }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pagination button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>หน้าจอร้านค้า</h1>
-            <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
-        </div>
 
-        <div class="scanner-section">
-            <input type="text" id="scanInput" placeholder="พร้อมสแกน..." autofocus>
-            <div id="scanResult"><p>กรุณาสแกน QR Code หรือกรอกรหัส</p></div>
+    <div id="unauthorized-message" class="unauthorized-container hidden">
+        <div class="unauthorized-box">
+            <h1>กรุณาลงชื่อเข้าใช้</h1>
+            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
+    </div>
 
-        <div class="report-section">
-            <h2>รายงานการสแกนวันนี้</h2>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>เวลา</th>
-                            <th>รหัสพนักงาน</th>
-                            <th>ชื่อ-สกุล</th>
-                            <th>ประเภทคูปอง</th>
-                        </tr>
-                    </thead>
-                    <tbody id="report-table-body">
-                        <!-- Report data will be inserted here by JS -->
-                    </tbody>
-                </table>
+    <div id="main-content" class="hidden">
+        <div class="container">
+            <div class="header">
+                <h1>หน้าจอร้านค้า</h1>
+                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
             </div>
-            <div class="pagination" id="pagination-controls">
-                <!-- Pagination controls will be inserted here by JS -->
+    
+            <div class="scanner-section">
+                <input type="text" id="scanInput" placeholder="พร้อมสแกน..." autofocus>
+                <div id="scanResult"><p>กรุณาสแกน QR Code หรือกรอกรหัส</p></div>
+            </div>
+    
+            <div class="report-section">
+                <h2>รายงานการสแกนวันนี้</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>เวลา</th>
+                                <th>รหัสพนักงาน</th>
+                                <th>ชื่อ-สกุล</th>
+                                <th>ประเภทคูปอง</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-table-body">
+                            </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="pagination-controls">
+                    </div>
             </div>
         </div>
     </div>
 
     <script>
+        const mainContent = document.getElementById('main-content');
+        const unauthorizedMessage = document.getElementById('unauthorized-message');
+        let _supabase;
+
         const scanInput = document.getElementById('scanInput');
         const scanResultDiv = document.getElementById('scanResult');
         const reportTableBody = document.getElementById('report-table-body');
         const paginationControls = document.getElementById('pagination-controls');
         
-        let _supabase;
         let isProcessing = false;
 
         async function initializeApp() {
@@ -168,21 +139,23 @@
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
-                if (!session) {
-                    window.location.href = '/index.html';
-                    return;
+                if (session) {
+                    mainContent.classList.remove('hidden');
+                    // เมื่อล็อกอินสำเร็จ ให้โหลดรายงานหน้าแรก
+                    await fetchReport(1);
+                } else {
+                    unauthorizedMessage.classList.remove('hidden');
                 }
-
-                await fetchReport(1); // Fetch the first page of the report on load
             } catch (error) {
                 console.error('Initialization failed:', error);
-                scanResultDiv.innerHTML = `<p style="color:red;">ไม่สามารถเชื่อมต่อระบบได้</p>`;
+                unauthorizedMessage.classList.remove('hidden');
             }
         }
 
         async function fetchReport(page = 1) {
             try {
                 const response = await fetch(`/.netlify/functions/get-scan-report?page=${page}`);
+                if (!response.ok) throw new Error('Could not fetch the scan report.');
                 const report = await response.json();
                 renderReport(report.data);
                 renderPagination(report.currentPage, report.totalPages);
@@ -226,8 +199,13 @@
             if (!inputValue || isProcessing) return;
 
             let token = inputValue;
-            if (inputValue.includes('?token=')) {
-                token = inputValue.split('?token=')[1];
+            try {
+                 // รองรับทั้งการสแกนจาก QR Code ที่เป็น URL และการพิมพ์รหัสโดยตรง
+                const url = new URL(inputValue);
+                token = url.searchParams.get('token') || inputValue;
+            } catch (e) {
+                // ไม่ใช่ URL, ใช้ inputValue ตรงๆ
+                token = inputValue;
             }
 
             isProcessing = true;
@@ -238,10 +216,10 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    scanResultDiv.innerHTML = `<p style="color:green;">✅ ${data.message}</p>`;
+                    scanResultDiv.innerHTML = `<p style="color:green;">✅ ${data.name} - ${data.message}</p>`;
                     await fetchReport(1); // Refresh report to the first page
                 } else {
-                    scanResultDiv.innerHTML = `<p style="color:red;">❌ ${data.message}</p>`;
+                    scanResultDiv.innerHTML = `<p style="color:red;">❌ ${data.name ? data.name + ' - ' : ''}${data.message}</p>`;
                 }
             } catch (err) {
                 scanResultDiv.innerHTML = `<p style="color:red;">เกิดข้อผิดพลาดในการเชื่อมต่อ</p>`;
@@ -256,10 +234,15 @@
         });
 
         // Auto-focus input
-        window.onload = () => scanInput.focus();
-        document.body.addEventListener('click', () => scanInput.focus());
-
-        initializeApp();
+        document.addEventListener('DOMContentLoaded', () => {
+             initializeApp().then(() => {
+                const scanInputEl = document.getElementById('scanInput');
+                if(scanInputEl) {
+                    scanInputEl.focus();
+                    document.body.addEventListener('click', () => scanInputEl.focus());
+                }
+             });
+        });
     </script>
 </body>
 </html>

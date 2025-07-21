@@ -20,125 +20,118 @@
             background-color: var(--light-gray);
             margin: 0;
         }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 24px;
-        }
-        .header {
+        /* CSS สำหรับซ่อน/แสดง และหน้าแจ้งเตือน */
+        .hidden { display: none !important; }
+        .unauthorized-container {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-            margin-bottom: 24px;
+            height: 100vh;
+            width: 100%;
+            position: fixed; top: 0; left: 0;
+            background-color: var(--light-gray);
         }
-        .header h1 {
-            color: var(--dark-gray);
-            font-size: 28px;
-            margin: 0;
-        }
-        .back-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 600;
-        }
-        .form-container {
+        .unauthorized-box {
             background: white;
-            padding: 32px;
+            padding: 40px 48px;
             border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 450px;
         }
-        .form-section {
+        .unauthorized-box h1 {
+            color: var(--dark-gray);
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .unauthorized-box p {
+            color: var(--text-gray);
             margin-bottom: 24px;
         }
-        .form-section label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: var(--dark-gray);
-        }
-        select, textarea {
+        .unauthorized-button {
+            display: inline-block;
             width: 100%;
             padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-        textarea {
-            height: 150px;
-            resize: vertical;
-            margin-bottom: 16px;
-        }
-        .button-group {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            margin-top: 16px;
-        }
-        .submit-btn, .import-btn {
-            padding: 12px 24px;
             font-size: 16px;
             font-weight: 600;
             color: white;
+            background-color: var(--primary-color);
             border: none;
             border-radius: 8px;
             cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.2s;
         }
+        .unauthorized-button:hover { background-color: #4F46E5; }
+        
+        /* CSS เดิมของหน้า */
+        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
+        .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+        .form-container { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
+        .form-section { margin-bottom: 24px; }
+        .form-section label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark-gray); }
+        select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        textarea { height: 150px; resize: vertical; margin-bottom: 16px; }
+        .button-group { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
+        .submit-btn, .import-btn { padding: 12px 24px; font-size: 16px; font-weight: 600; color: white; border: none; border-radius: 8px; cursor: pointer; }
         .submit-btn { background-color: var(--primary-color); }
         .submit-btn:disabled { background-color: #A5B4FC; cursor: not-allowed; }
         .import-btn { background-color: var(--secondary-color); }
         input[type="file"] { display: none; }
-        .file-preview {
-            font-size: 14px;
-            color: var(--text-gray);
-            margin-top: 12px;
-            font-weight: 500;
-            min-height: 20px;
-        }
-        #result-message {
-            margin-top: 24px;
-            padding: 16px;
-            border-radius: 8px;
-            display: none;
-            white-space: pre-wrap;
-        }
+        .file-preview { font-size: 14px; color: var(--text-gray); margin-top: 12px; font-weight: 500; min-height: 20px; }
+        #result-message { margin-top: 24px; padding: 16px; border-radius: 8px; display: none; white-space: pre-wrap; }
         .result-success { background-color: #D1FAE5; color: #065F46; }
         .result-error { background-color: #FEE2E2; color: #991B1B; }
         .result-info { background-color: #E0E7FF; color: #3730A3; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>เพิ่มพนักงานใหม่</h1>
-            <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+    <div id="unauthorized-message" class="unauthorized-container hidden">
+        <div class="unauthorized-box">
+            <h1>กรุณาลงชื่อเข้าใช้</h1>
+            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
+    </div>
 
-        <div class="form-container">
-            <div class="form-section">
-                <label for="department-select">เลือกแผนกสำหรับพนักงานใหม่ทั้งหมด</label>
-                <select id="department-select">
-                    <option value="">กำลังโหลดแผนก...</option>
-                </select>
+    <div id="main-content" class="hidden">
+        <div class="container">
+            <div class="header">
+                <h1>เพิ่มพนักงานใหม่</h1>
+                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
             </div>
-
-            <div class="form-section">
-                <label>เพิ่มข้อมูลพนักงาน (วางข้อมูล หรือ นำเข้าไฟล์)</label>
-                <textarea id="employees-textarea" placeholder="วางข้อมูลจาก Excel ที่นี่ (คอลัมน์ Employee_ID และ Name)"></textarea>
-                <div class="file-preview" id="file-preview"></div>
+    
+            <div class="form-container">
+                <div class="form-section">
+                    <label for="department-select">เลือกแผนกสำหรับพนักงานใหม่ทั้งหมด</label>
+                    <select id="department-select">
+                        <option value="">กำลังโหลดแผนก...</option>
+                    </select>
+                </div>
+    
+                <div class="form-section">
+                    <label>เพิ่มข้อมูลพนักงาน (วางข้อมูล หรือ นำเข้าไฟล์)</label>
+                    <textarea id="employees-textarea" placeholder="วางข้อมูลจาก Excel ที่นี่ (คอลัมน์ Employee_ID และ Name)"></textarea>
+                    <div class="file-preview" id="file-preview"></div>
+                </div>
+    
+                <div class="button-group">
+                    <button id="submit-btn" class="submit-btn" disabled>เพิ่มพนักงาน</button>
+                    <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
+                    <input type="file" id="file-input" accept=".csv, .xlsx">
+                </div>
+                <div id="result-message"></div>
             </div>
-
-            <div class="button-group">
-                <button id="submit-btn" class="submit-btn" disabled>เพิ่มพนักงาน</button>
-                <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
-                <input type="file" id="file-input" accept=".csv, .xlsx">
-            </div>
-            <div id="result-message"></div>
         </div>
     </div>
 
     <script>
+        const mainContent = document.getElementById('main-content');
+        const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
+        
         const departmentSelect = document.getElementById('department-select');
         const employeesTextarea = document.getElementById('employees-textarea');
         const fileInput = document.getElementById('file-input');
@@ -156,16 +149,16 @@
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
-                if (!session) {
-                    window.location.href = '/index.html';
-                    return;
+                if (session) {
+                    mainContent.classList.remove('hidden');
+                    // ถ้าล็อกอินแล้ว ให้โหลดข้อมูลแผนก
+                    await loadDepartments();
+                } else {
+                    unauthorizedMessage.classList.remove('hidden');
                 }
-                
-                await loadDepartments();
-
             } catch (error) {
                 console.error("Initialization Error:", error);
-                showResult(`ไม่สามารถเชื่อมต่อระบบได้: ${error.message}`, "error");
+                unauthorizedMessage.classList.remove('hidden');
             }
         }
 
@@ -175,6 +168,9 @@
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
+
+                if (!response.ok) throw new Error('Failed to fetch departments from server.');
+
                 const departments = await response.json();
                 
                 departmentSelect.innerHTML = '<option value="">-- กรุณาเลือกแผนก --</option>';
@@ -192,7 +188,6 @@
 
         function parseEmployeeData(data) {
             if (data.length < 2) throw new Error('ไฟล์/ข้อมูลว่างเปล่าหรือมีแค่หัวข้อ');
-            
             const header = data[0].map(h => String(h).toLowerCase().trim());
             const idIndex = header.indexOf('employee_id');
             const nameIndex = header.indexOf('name');
@@ -277,14 +272,14 @@
                 });
 
                 const result = await response.json();
-                if (!response.ok) throw new Error(result.message);
+                if (!response.ok) throw new Error(result.message || 'Server error');
 
                 let finalMessage = result.message;
                 if (result.duplicates && result.duplicates.length > 0) {
                     finalMessage += `\nรหัสซ้ำ (ไม่ถูกเพิ่ม): ${result.duplicates.join(', ')}`;
                 }
                 showResult(finalMessage, 'success');
-                // Clear inputs on success
+                
                 employeesTextarea.value = '';
                 fileInput.value = '';
                 filePreview.textContent = '';
@@ -301,9 +296,7 @@
         function showResult(message, type) {
             resultMessageDiv.style.display = 'block';
             resultMessageDiv.textContent = message;
-            if (type === 'success') resultMessageDiv.className = 'result-success';
-            else if (type === 'error') resultMessageDiv.className = 'result-error';
-            else resultMessageDiv.className = 'result-info';
+            resultMessageDiv.className = type === 'success' ? 'result-success' : (type === 'error' ? 'result-error' : 'result-info');
         }
 
         initializeApp();
