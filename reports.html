@@ -1,383 +1,391 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>รายงาน - ระบบคูปองพนักงาน</title>
-    <!-- Library for creating charts -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Library for date range picker (optional but recommended) -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <style>
-        :root {
-            --primary-color: #6366F1;
-            --light-gray: #F3F4F6;
-            --dark-gray: #1F2937;
-            --text-gray: #4B5563;
-            --border-color: #E5E7EB;
-            --success-color: #10B981;
-            --warning-color: #F59E0B;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--light-gray);
-            margin: 0;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 24px;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-        .header h1 {
-            color: var(--dark-gray);
-            font-size: 28px;
-            margin: 0;
-        }
-        .back-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 600;
-        }
-        .filters-card {
-            background: white;
-            padding: 24px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            margin-bottom: 32px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            align-items: end;
-        }
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-        }
-        .filter-group label {
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: var(--dark-gray);
-        }
-        .filter-group select, .filter-group input {
-            padding: 10px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 16px;
-        }
-        .filter-group button {
-            padding: 10px 20px;
-            font-size: 16px;
-            font-weight: 600;
-            color: white;
-            background-color: var(--primary-color);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        .report-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 32px;
-        }
-        .chart-card {
-            background: white;
-            padding: 24px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-        .chart-card h2 {
-            margin-top: 0;
-            color: var(--dark-gray);
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 16px;
-        }
-        /* Added style for chart depth */
-        .chart-card canvas {
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
-        }
-        .summary-card {
-            grid-column: 1 / -1; /* Span full width */
-            background: var(--dark-gray);
-            color: white;
-            padding: 32px;
-            border-radius: 16px;
-            text-align: center;
-        }
-        .summary-card .summary-title {
-            font-size: 18px;
-            font-weight: 500;
-            opacity: 0.7;
-            margin: 0 0 24px 0;
-        }
-        .summary-card h2 {
-            margin-top: 0;
-            font-size: 20px;
-            opacity: 0.9;
-            margin-bottom: 8px;
-        }
-        .summary-card .total-amount {
-            font-size: 48px;
-            font-weight: 700;
-            color: var(--success-color);
-            margin-top: 24px;
-            padding-top: 24px;
-            border-top: 1px solid rgba(255,255,255,0.2);
-        }
-        .summary-details {
-            display: flex;
-            justify-content: center;
-            gap: 48px;
-            margin-bottom: 24px;
-        }
-        .summary-details h3 {
-            margin: 0 0 8px 0;
-            font-size: 16px;
-            opacity: 0.7;
-            font-weight: 500;
-        }
-        .summary-details p {
-            margin: 0;
-            font-size: 28px;
-            font-weight: 600;
-            color: var(--success-color); /* Changed color */
-        }
-
-        @media (max-width: 900px) {
-            .report-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>รายงาน - ระบบคูปองพนักงาน</title>
+<!-- Library for creating charts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Library for date range picker -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<style>
+:root {
+--primary-color: #6366F1;
+--light-gray: #F3F4F6;
+--dark-gray: #1F2937;
+--text-gray: #4B5563;
+--border-color: #E5E7EB;
+--success-color: #10B981;
+--warning-color: #F59E0B;
+}
+body {
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+background-color: var(--light-gray);
+margin: 0;
+}
+.container {
+max-width: 1200px;
+margin: 0 auto;
+padding: 24px;
+}
+.header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 24px;
+}
+.header h1 {
+color: var(--dark-gray);
+font-size: 28px;
+margin: 0;
+}
+.back-link {
+color: var(--primary-color);
+text-decoration: none;
+font-weight: 600;
+}
+.filters-card {
+background: white;
+padding: 24px;
+border-radius: 16px;
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+margin-bottom: 32px;
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+gap: 20px;
+align-items: end;
+}
+.filter-group {
+display: flex;
+flex-direction: column;
+}
+.filter-group label {
+margin-bottom: 8px;
+font-weight: 600;
+color: var(--dark-gray);
+}
+.filter-group select, .filter-group input {
+padding: 10px;
+border: 1px solid var(--border-color);
+border-radius: 8px;
+font-size: 16px;
+}
+.filter-group button {
+padding: 10px 20px;
+font-size: 16px;
+font-weight: 600;
+color: white;
+background-color: var(--primary-color);
+border: none;
+border-radius: 8px;
+cursor: pointer;
+}
+.report-grid {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 32px;
+}
+.chart-card {
+background: white;
+padding: 24px;
+border-radius: 16px;
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.chart-card h2 {
+margin-top: 0;
+color: var(--dark-gray);
+border-bottom: 1px solid var(--border-color);
+padding-bottom: 16px;
+}
+/* Added style for chart depth */
+.chart-card canvas {
+filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+}
+.summary-card {
+grid-column: 1 / -1; /* Span full width */
+background: var(--dark-gray);
+color: white;
+padding: 32px;
+border-radius: 16px;
+text-align: center;
+}
+.summary-card .summary-title {
+font-size: 18px;
+font-weight: 500;
+opacity: 0.7;
+margin: 0 0 24px 0;
+}
+.summary-card h2 {
+margin-top: 0;
+font-size: 20px;
+opacity: 0.9;
+margin-bottom: 8px;
+}
+.summary-card .total-amount {
+font-size: 48px;
+font-weight: 700;
+color: var(--success-color);
+margin-top: 24px;
+padding-top: 24px;
+border-top: 1px solid rgba(255,255,255,0.2);
+}
+.summary-details {
+display: flex;
+justify-content: center;
+gap: 48px;
+margin-bottom: 24px;
+}
+.summary-details h3 {
+margin: 0 0 8px 0;
+font-size: 16px;
+opacity: 0.7;
+font-weight: 500;
+}
+.summary-details p {
+margin: 0;
+font-size: 28px;
+font-weight: 600;
+color: var(--success-color); /* Changed color */
+}
+@media (max-width: 900px) {
+.report-grid {
+grid-template-columns: 1fr;
+}
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>หน้าจอแสดงรายงาน</h1>
-            <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
-        </div>
+<div class="container">
+<div class="header">
+<h1>หน้าจอแสดงรายงาน</h1>
+<a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
+</div>
+<div class="filters-card">
+<div class="filter-group">
+<label for="time-range">ช่วงเวลา</label>
+<select id="time-range">
+<option value="daily">รายวัน</option>
+<option value="weekly">รายสัปดาห์</option>
+<option value="monthly">รายเดือน</option>
+<option value="custom">เลือกเอง</option>
+</select>
+</div>
+<div class="filter-group">
+<label for="date-picker">เลือกวันที่</label>
+<input type="text" id="date-picker" placeholder="เลือกช่วงวันที่...">
+</div>
+<div class="filter-group">
+<label for="department">แผนก</label>
+<select id="department">
+<option value="all">ทุกแผนก</option>
+<option value="it">IT</option>
+<option value="hr">HR</option>
+<!-- ถ้าต้องการ dynamic departments ต้องแก้ JS เพิ่ม -->
+</select>
+</div>
+<div class="filter-group">
+<button id="show-report-btn">แสดงรายงาน</button>
+</div>
+</div>
+<div class="report-grid">
+<div class="chart-card">
+<h2>คูปองอาหารกลางวัน (Lunch Coupon)</h2>
+<canvas id="normal-chart"></canvas>
+</div>
+<div class="chart-card">
+<h2>คูปองอาหารโอที (OT Meal Coupon)</h2>
+<canvas id="ot-chart"></canvas>
+</div>
+<div class="summary-card">
+<p class="summary-title" id="summary-title"></p>
+<div class="summary-details">
+<div>
+<h3>ยอดรวมค่าอาหารกลางวัน</h3>
+<p id="normal-summary-amount">฿ 0.00</p>
+</div>
+<div>
+<h3>ยอดรวมค่าอาหารโอที</h3>
+<p id="ot-summary-amount">฿ 0.00</p>
+</div>
+</div>
+<h2>สรุปยอดเงินรวมทั้งหมด</h2>
+<p class="total-amount" id="total-amount">฿ 0.00</p>
+</div>
+</div>
+</div>
+<script>
+// Initialize Date Picker
+flatpickr("#date-picker", {
+mode: "range",
+dateFormat: "Y-m-d",
+});
 
-        <div class="filters-card">
-            <div class="filter-group">
-                <label for="time-range">ช่วงเวลา</label>
-                <select id="time-range">
-                    <option value="daily">รายวัน</option>
-                    <option value="weekly">รายสัปดาห์</option>
-                    <option value="monthly">รายเดือน</option>
-                    <option value="custom">เลือกเอง</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label for="date-picker">เลือกวันที่</label>
-                <input type="text" id="date-picker" placeholder="เลือกช่วงวันที่...">
-            </div>
-            <div class="filter-group">
-                <label for="department">แผนก</label>
-                <select id="department">
-                    <option value="all">ทุกแผนก</option>
-                    <option value="it">IT</option>
-                    <option value="hr">HR</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <button id="show-report-btn">แสดงรายงาน</button>
-            </div>
-        </div>
+// Chart.js Plugin for center text
+const centerTextPlugin = {
+id: 'centerText',
+afterDraw: (chart) => {
+if (chart.config.type !== 'doughnut') return;
+const ctx = chart.ctx;
+const { width, height } = chart;
+const total = chart.config.options.plugins.centerText.total;
+ctx.restore();
+const textY = height / 2;
+// Sub-label
+const subText = 'สิทธิ์ทั้งหมด';
+const subFontSize = (height / 400).toFixed(2);
+ctx.font = `bold ${subFontSize}em sans-serif`;
+ctx.textBaseline = 'middle';
+const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
+ctx.fillStyle = '#6B7280';
+ctx.fillText(subText, subTextX, textY - 30);
+// Main number
+const text = total.toLocaleString('th-TH');
+const fontSize = (height / 114).toFixed(2);
+ctx.font = `bold ${fontSize}em sans-serif`;
+const textX = Math.round((width - ctx.measureText(text).width) / 2);
+ctx.fillStyle = '#1F2937';
+ctx.fillText(text, textX, textY + 25);
+ctx.save();
+}
+};
 
-        <div class="report-grid">
-            <div class="chart-card">
-                <h2>คูปองอาหารกลางวัน (Lunch Coupon)</h2>
-                <canvas id="normal-chart"></canvas>
-            </div>
-            <div class="chart-card">
-                <h2>คูปองอาหารโอที (OT Meal Coupon)</h2>
-                <canvas id="ot-chart"></canvas>
-            </div>
-            <div class="summary-card">
-                <p class="summary-title" id="summary-title"></p>
-                <div class="summary-details">
-                    <div>
-                        <h3>ยอดรวมค่าอาหารกลางวัน</h3>
-                        <p id="normal-summary-amount">฿ 0.00</p>
-                    </div>
-                    <div>
-                        <h3>ยอดรวมค่าอาหารโอที</h3>
-                        <p id="ot-summary-amount">฿ 0.00</p>
-                    </div>
-                </div>
-                <h2>สรุปยอดเงินรวมทั้งหมด</h2>
-                <p class="total-amount" id="total-amount">฿ 0.00</p>
-            </div>
-        </div>
-    </div>
+// ตัวแปรข้อมูล (จะถูกเซ็ตหลังดึงจาก API)
+let normalCouponData = { totalGranted: 0, totalUsed: 0 };
+let otCouponData = { totalGranted: 0, totalUsed: 0 };
 
-    <script>
-        // Initialize Date Picker
-        flatpickr("#date-picker", {
-            mode: "range",
-            dateFormat: "Y-m-d",
-        });
+// สร้าง Pie Chart
+function createPieChart(canvasId, data) {
+const ctx = document.getElementById(canvasId).getContext('2d');
+const notUsed = data.totalGranted - data.totalUsed >= 0 ? data.totalGranted - data.totalUsed : 0;
+if (window[canvasId + '_chart']) {
+window[canvasId + '_chart'].destroy();
+}
+window[canvasId + '_chart'] = new Chart(ctx, {
+type: 'doughnut',
+data: {
+labels: [`ใช้สิทธิ์ (${data.totalUsed})`, `ไม่ใช้สิทธิ์ (${notUsed})`],
+datasets: [{
+data: [data.totalUsed, notUsed],
+backgroundColor: [
+'rgba(16, 185, 129, 0.8)',
+'rgba(245, 158, 11, 0.8)'
+],
+borderColor: ['#ffffff'],
+borderWidth: 4,
+offset: [0, 20]
+}]
+},
+options: {
+responsive: true,
+cutout: '60%',
+plugins: {
+centerText: {
+total: data.totalGranted
+},
+legend: {
+position: 'top',
+},
+tooltip: {
+callbacks: {
+label: function(context) {
+let label = context.label || '';
+if (label) {
+label += ': ';
+}
+if (context.parsed !== null) {
+const total = data.totalGranted > 0 ? data.totalGranted : 1;
+const percentage = (context.parsed / total * 100).toFixed(1);
+label += `${context.raw} คน (${percentage}%)`;
+}
+return label;
+}
+}
+}
+}
+},
+plugins: [centerTextPlugin]
+});
+}
 
-        // --- DUMMY DATA FOR UI PROTOTYPING ---
-        const normalCouponData = {
-            totalGranted: 100,
-            totalUsed: 85
-        };
+// สรุปยอดเงินรวม
+function calculateTotal() {
+const normalAmount = normalCouponData.totalUsed * 45;
+const otAmount = otCouponData.totalUsed * 45;
+const totalAmount = normalAmount + otAmount;
+const formatCurrency = (amount) => `฿ ${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+document.getElementById('normal-summary-amount').textContent = formatCurrency(normalAmount);
+document.getElementById('ot-summary-amount').textContent = formatCurrency(otAmount);
+document.getElementById('total-amount').textContent = formatCurrency(totalAmount);
+}
 
-        const otCouponData = {
-            totalGranted: 50,
-            totalUsed: 40
-        };
-        // ------------------------------------
+// อัพเดท Summary Title
+function updateSummaryTitle() {
+const timeRangeSelect = document.getElementById('time-range');
+const departmentSelect = document.getElementById('department');
+const datePickerInput = document.getElementById('date-picker');
+const summaryTitle = document.getElementById('summary-title');
+let timeText = timeRangeSelect.options[timeRangeSelect.selectedIndex].text;
+if (timeRangeSelect.value === 'custom' && datePickerInput.value) {
+timeText = `(${datePickerInput.value.replace(' to ', ' - ')})`;
+} else if (timeRangeSelect.value === 'daily') {
+const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+timeText = `รายวัน (${today})`;
+}
+const departmentText = departmentSelect.options[departmentSelect.selectedIndex].text;
+summaryTitle.textContent = `รายงานสรุปยอด${timeText} | แผนก: ${departmentText}`;
+}
 
-        // --- Chart.js Plugin to draw text in the center ---
-        const centerTextPlugin = {
-            id: 'centerText',
-            afterDraw: (chart) => {
-                if (chart.config.type !== 'doughnut') return;
-                
-                const ctx = chart.ctx;
-                const { width, height } = chart;
-                const total = chart.config.options.plugins.centerText.total;
+// ฟังก์ชัน fetch ข้อมูล report จาก backend (เปลี่ยน endpoint ตามจริง)
+async function fetchReportData({ timeRange, dateRange, department }) {
+  let qs = new URLSearchParams();
+  qs.append("timeRange", timeRange);
+  if (dateRange) qs.append("dateRange", dateRange);
+  if (department && department !== "all") qs.append("department", department);
 
-                ctx.restore();
-                const textY = height / 2;
+  // *** เปลี่ยน endpoint นี้ตามระบบหลังบ้านของคุณ ***
+  const endpoint = '/.netlify/functions/get-report-data'; 
+  const response = await fetch(endpoint + '?' + qs.toString(), {
+    credentials: 'include' // เพิ่มถ้าต้องการส่ง cookies
+  });
+  if (!response.ok) throw new Error("โหลดข้อมูลรายงานไม่สำเร็จ");
+  return await response.json();
+}
 
-                // Sub-label (draw first, on top)
-                const subText = 'สิทธิ์ทั้งหมด';
-                const subFontSize = (height / 400).toFixed(2); // Made smaller
-                ctx.font = `bold ${subFontSize}em sans-serif`;
-                ctx.textBaseline = 'middle';
-                const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
-                ctx.fillStyle = '#6B7280'; // text-gray
-                ctx.fillText(subText, subTextX, textY - 30); // Moved further up
+// generateReport ที่แสดงผลเฉพาะข้อมูลจริง
+async function generateReport() {
+  try {
+    // ดึงค่าจาก input/UI
+    const timeRange = document.getElementById('time-range').value;
+    const dateRange = document.getElementById('date-picker').value;
+    const department = document.getElementById('department').value;
 
-                // Main number (draw second, below)
-                const text = total.toLocaleString('th-TH');
-                const fontSize = (height / 114).toFixed(2);
-                ctx.font = `bold ${fontSize}em sans-serif`;
-                const textX = Math.round((width - ctx.measureText(text).width) / 2);
-                ctx.fillStyle = '#1F2937'; // dark-gray
-                ctx.fillText(text, textX, textY + 25); // Moved down
-                
-                ctx.save();
-            }
-        };
-        // ----------------------------------------------------
+    // เรียกข้อมูล backend
+    const report = await fetchReportData({ timeRange, dateRange, department });
+    normalCouponData = report.normal || { totalGranted: 0, totalUsed: 0 };
+    otCouponData = report.ot || { totalGranted: 0, totalUsed: 0 };
 
-        function createPieChart(canvasId, data) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            const notUsed = data.totalGranted - data.totalUsed;
+    createPieChart('normal-chart', normalCouponData);
+    createPieChart('ot-chart', otCouponData);
+    calculateTotal();
+    updateSummaryTitle();
+  } catch (e) {
+    alert(e.message || "เกิดข้อผิดพลาดในการโหลดรายงาน");
+    // เคลียร์หน้าจอให้เป็นศูนย์
+    normalCouponData = { totalGranted: 0, totalUsed: 0 };
+    otCouponData = { totalGranted: 0, totalUsed: 0 };
+    createPieChart('normal-chart', normalCouponData);
+    createPieChart('ot-chart', otCouponData);
+    calculateTotal();
+    updateSummaryTitle();
+  }
+}
 
-            // Destroy existing chart instance if it exists
-            if (window[canvasId + '_chart']) {
-                window[canvasId + '_chart'].destroy();
-            }
+document.getElementById('show-report-btn').addEventListener('click', generateReport);
 
-            window[canvasId + '_chart'] = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: [`ใช้สิทธิ์ (${data.totalUsed})`, `ไม่ใช้สิทธิ์ (${notUsed})`],
-                    datasets: [{
-                        data: [data.totalUsed, notUsed],
-                        backgroundColor: [
-                            'rgba(16, 185, 129, 0.8)',
-                            'rgba(245, 158, 11, 0.8)'
-                        ],
-                        borderColor: ['#ffffff'],
-                        borderWidth: 4,
-                        offset: [0, 20] 
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    cutout: '60%',
-                    plugins: {
-                        // Pass data to our custom plugin
-                        centerText: {
-                            total: data.totalGranted
-                        },
-                        legend: {
-                            position: 'top',
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
-                                    if (context.parsed !== null) {
-                                        const total = data.totalGranted > 0 ? data.totalGranted : 1;
-                                        const percentage = (context.parsed / total * 100).toFixed(1);
-                                        label += `${context.raw} คน (${percentage}%)`;
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    }
-                },
-                plugins: [centerTextPlugin] // Register our custom plugin
-            });
-        }
-
-        function calculateTotal() {
-            const normalAmount = normalCouponData.totalUsed * 45;
-            const otAmount = otCouponData.totalUsed * 45;
-            const totalAmount = normalAmount + otAmount;
-
-            const formatCurrency = (amount) => `฿ ${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
-
-            document.getElementById('normal-summary-amount').textContent = formatCurrency(normalAmount);
-            document.getElementById('ot-summary-amount').textContent = formatCurrency(otAmount);
-            document.getElementById('total-amount').textContent = formatCurrency(totalAmount);
-        }
-        
-        function updateSummaryTitle() {
-            const timeRangeSelect = document.getElementById('time-range');
-            const departmentSelect = document.getElementById('department');
-            const datePickerInput = document.getElementById('date-picker');
-            const summaryTitle = document.getElementById('summary-title');
-
-            let timeText = timeRangeSelect.options[timeRangeSelect.selectedIndex].text;
-            if (timeRangeSelect.value === 'custom' && datePickerInput.value) {
-                timeText = `(${datePickerInput.value.replace(' to ', ' - ')})`;
-            } else if (timeRangeSelect.value === 'daily') {
-                const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-                timeText = `รายวัน (${today})`;
-            }
-
-
-            const departmentText = departmentSelect.options[departmentSelect.selectedIndex].text;
-            
-            summaryTitle.textContent = `รายงานสรุปยอด${timeText} | แผนก: ${departmentText}`;
-        }
-        
-        // Function to handle report generation
-        function generateReport() {
-            // In a real app, you would fetch new data here based on filters.
-            // For this prototype, we'll just re-render with dummy data.
-            createPieChart('normal-chart', normalCouponData);
-            createPieChart('ot-chart', otCouponData);
-            calculateTotal();
-            updateSummaryTitle();
-        }
-
-        // Add event listener to the button
-        document.getElementById('show-report-btn').addEventListener('click', generateReport);
-
-        // Initial load
-        window.onload = () => {
-            generateReport();
-        };
-
-    </script>
+window.onload = () => {
+  generateReport();
+};
+</script>
 </body>
 </html>
