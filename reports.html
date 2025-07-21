@@ -110,6 +110,12 @@
             border-radius: 16px;
             text-align: center;
         }
+        .summary-card .summary-title {
+            font-size: 18px;
+            font-weight: 500;
+            opacity: 0.7;
+            margin: 0 0 8px 0;
+        }
         .summary-card h2 {
             margin-top: 0;
             font-size: 20px;
@@ -158,7 +164,7 @@
                 </select>
             </div>
             <div class="filter-group">
-                <button>แสดงรายงาน</button>
+                <button id="show-report-btn">แสดงรายงาน</button>
             </div>
         </div>
 
@@ -213,7 +219,7 @@
 
                 // Sub-label (draw first, on top)
                 const subText = 'สิทธิ์ทั้งหมด';
-                const subFontSize = (height / 200).toFixed(2); // Reverted to original larger size
+                const subFontSize = (height / 350).toFixed(2); // Reverted to the smallest size
                 ctx.font = `bold ${subFontSize}em sans-serif`;
                 ctx.textBaseline = 'middle';
                 const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
