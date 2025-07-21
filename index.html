@@ -132,37 +132,26 @@
         <button id="toggle-btn" class="toggle-form">ยังไม่มีบัญชี? สร้างบัญชีใหม่</button>
     </div>
 
-    <script>
-        const authForm = document.getElementById('auth-form');
+   const authForm = document.getElementById('auth-form');
         const submitButton = document.getElementById('submit-btn');
         const messageDiv = document.getElementById('message');
         const toggleButton = document.getElementById('toggle-btn');
         const formTitle = document.getElementById('form-title');
         let _supabase;
-        let isLoginMode = true; // true = Login, false = Sign Up
+        let isLoginMode = true;
 
         async function initializeApp() {
             try {
-                // Fetch configuration from our new serverless function
                 const response = await fetch('/.netlify/functions/get-config');
                 if (!response.ok) throw new Error('Network response was not ok');
                 const config = await response.json();
 
-                if (!config.supabaseUrl || !config.supabaseKey) {
-                    throw new Error('Supabase configuration is missing from server.');
-                }
-
-                // Initialize Supabase client
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
-                // Redirect to menu if already logged in
-                _supabase.auth.onAuthStateChange((event, session) => {
-                    if (event === 'SIGNED_IN') {
-                        window.location.href = '/menu.html'; 
-                    }
-                });
-                
-                // Enable the login button
+                // **[ส่วนที่แก้ไข]** เราจะไม่มี onAuthStateChange ที่นี่อีกต่อไป
+                // การตรวจสอบ session จะทำที่หน้า menu.html
+                // เพื่อให้หน้านี้เป็นแค่หน้าสำหรับ Login/Signup เท่านั้น
+
                 submitButton.disabled = false;
                 submitButton.textContent = 'เข้าสู่ระบบ';
                 messageDiv.textContent = '';
@@ -176,7 +165,7 @@
         }
 
         function toggleMode() {
-            isLoginMode = !isLoginMode; // Switch the mode
+            isLoginMode = !isLoginMode;
             messageDiv.textContent = '';
             messageDiv.className = '';
             
@@ -205,43 +194,39 @@
             try {
                 let response;
                 if (isLoginMode) {
-                    // --- LOGIN MODE ---
                     response = await _supabase.auth.signInWithPassword({ email, password });
                 } else {
-                    // --- SIGN UP MODE ---
                     response = await _supabase.auth.signUp({ email, password });
                 }
 
                 const { data, error } = response;
-
                 if (error) throw error;
 
                 if (isLoginMode) {
                      messageDiv.className = 'message-success';
                      messageDiv.textContent = 'เข้าสู่ระบบสำเร็จ! กำลังไปยังหน้าเมนู...';
+                     // เมื่อสำเร็จ ให้ redirect ไปหน้าเมนู
+                     window.location.href = '/menu.html';
                 } else {
                      messageDiv.className = 'message-success';
                      messageDiv.textContent = 'สมัครสมาชิกสำเร็จ! กรุณายืนยันอีเมลของคุณก่อนเข้าสู่ระบบ';
-                     // Optional: Toggle back to login mode after successful sign-up
                      setTimeout(toggleMode, 3000); 
                 }
 
             } catch (error) {
                 messageDiv.className = 'message-error';
-                messageDiv.textContent = error.message; // Show specific error from Supabase
+                messageDiv.textContent = error.message;
                 console.error('Auth Error:', error.message);
             } finally {
-                submitButton.disabled = false;
-                // Restore button text based on current mode
-                submitButton.textContent = isLoginMode ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก';
+                if(isLoginMode) { // เฉพาะกรณี login ที่อาจไม่สำเร็จ
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'เข้าสู่ระบบ';
+                }
             }
         });
 
         toggleButton.addEventListener('click', toggleMode);
-
-        // Start the application
         initializeApp();
-    </script>
 
 </body>
 </html>
