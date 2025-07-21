@@ -219,12 +219,12 @@
 
                 // Sub-label (draw first, on top)
                 const subText = 'สิทธิ์ทั้งหมด';
-                const subFontSize = (height / 350).toFixed(2); // Reverted to the smallest size
+                const subFontSize = (height / 400).toFixed(2); // Made smaller
                 ctx.font = `bold ${subFontSize}em sans-serif`;
                 ctx.textBaseline = 'middle';
                 const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
                 ctx.fillStyle = '#6B7280'; // text-gray
-                ctx.fillText(subText, subTextX, textY - 15); // Moved up
+                ctx.fillText(subText, subTextX, textY - 30); // Moved further up
 
                 // Main number (draw second, below)
                 const text = total.toLocaleString('th-TH');
@@ -232,7 +232,7 @@
                 ctx.font = `bold ${fontSize}em sans-serif`;
                 const textX = Math.round((width - ctx.measureText(text).width) / 2);
                 ctx.fillStyle = '#1F2937'; // dark-gray
-                ctx.fillText(text, textX, textY + 20); // Moved down
+                ctx.fillText(text, textX, textY + 25); // Moved down
                 
                 ctx.save();
             }
