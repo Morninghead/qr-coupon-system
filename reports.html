@@ -209,7 +209,7 @@
 
                 ctx.restore();
                 const fontSize = (height / 114).toFixed(2);
-                ctx.font = `${fontSize}em sans-serif`;
+                ctx.font = `bold ${fontSize}em sans-serif`;
                 ctx.textBaseline = 'middle';
 
                 // Main number
@@ -218,16 +218,16 @@
                 const textY = height / 2;
                 
                 ctx.fillStyle = '#1F2937'; // dark-gray
-                ctx.fillText(text, textX, textY - 10);
+                ctx.fillText(text, textX, textY - 12); // Adjusted Y position slightly up
 
                 // Sub-label
                 const subText = 'สิทธิ์ทั้งหมด';
-                const subFontSize = (height / 200).toFixed(2);
+                const subFontSize = (height / 350).toFixed(2); // Made even smaller
                 ctx.font = `bold ${subFontSize}em sans-serif`;
                 const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
                 
                 ctx.fillStyle = '#6B7280'; // text-gray
-                ctx.fillText(subText, subTextX, textY + 20);
+                ctx.fillText(subText, subTextX, textY + 32); // Moved further down
                 
                 ctx.save();
             }
