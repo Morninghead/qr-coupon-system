@@ -22,7 +22,6 @@
             background-color: var(--light-gray);
             margin: 0;
         }
-        /* CSS สำหรับซ่อน/แสดง และหน้าแจ้งเตือน */
         .hidden { display: none !important; }
         .unauthorized-container {
             display: flex;
@@ -44,22 +43,13 @@
         .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
         .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
         .unauthorized-button {
-            display: inline-block;
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            color: white;
+            display: inline-block; width: 100%; padding: 12px;
+            font-size: 16px; font-weight: 600; color: white;
             background-color: var(--primary-color);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-            transition: background-color 0.2s;
+            border: none; border-radius: 8px; cursor: pointer;
+            text-decoration: none; transition: background-color 0.2s;
         }
         .unauthorized-button:hover { background-color: #4F46E5; }
-
-        /* CSS เดิมของหน้า */
         .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
@@ -115,11 +105,11 @@
             </div>
             <div class="report-grid">
                 <div class="chart-card">
-                    <h2>คูปองอาหารกลางวัน (Normal Coupon)</h2>
+                    <h2>คูปองอาหารกลางวัน (Normal)</h2>
                     <canvas id="normal-chart"></canvas>
                 </div>
                 <div class="chart-card">
-                    <h2>คูปองอาหารโอที (OT Coupon)</h2>
+                    <h2>คูปองอาหารโอที (OT)</h2>
                     <canvas id="ot-chart"></canvas>
                 </div>
                 <div class="summary-card">
@@ -146,10 +136,10 @@
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
         let datePicker;
-
         const baseUrl = window.location.origin;
         const departmentSelect = document.getElementById('department-select');
 
+        // ... (โค้ดของ Chart.js plugin ไม่เปลี่ยนแปลง) ...
         const centerTextPlugin = {
             id: 'centerText',
             afterDraw: (chart) => {
@@ -238,9 +228,15 @@
         }
 
         async function fetchReportData() {
+            const showReportBtn = document.getElementById('show-report-btn');
+            showReportBtn.disabled = true;
+            showReportBtn.textContent = 'กำลังโหลด...';
+
             const dateRange = datePicker.selectedDates;
             if (dateRange.length < 2) {
                 alert('กรุณาเลือกช่วงวันที่');
+                showReportBtn.disabled = false;
+                showReportBtn.textContent = 'แสดงรายงาน';
                 return;
             }
 
@@ -255,15 +251,21 @@
                 const response = await fetch(endpoint, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
-                if (!response.ok) throw new Error("โหลดข้อมูลรายงานไม่สำเร็จ");
+                if (!response.ok) {
+                    const errorResult = await response.json();
+                    throw new Error(errorResult.message || "โหลดข้อมูลรายงานไม่สำเร็จ");
+                }
                 const report = await response.json();
 
-                createDoughnutChart('normal-chart', report.normalData);
-                createDoughnutChart('ot-chart', report.otData);
+                createDoughnutChart('normal-chart', report.normalData || { totalGranted: 0, totalUsed: 0 });
+                createDoughnutChart('ot-chart', report.otData || { totalGranted: 0, totalUsed: 0 });
                 updateSummary(report);
 
             } catch (e) {
-                alert(e.message || "เกิดข้อผิดพลาดในการโหลดรายงาน");
+                alert(`เกิดข้อผิดพลาด: ${e.message}`);
+            } finally {
+                showReportBtn.disabled = false;
+                showReportBtn.textContent = 'แสดงรายงาน';
             }
         }
 
@@ -296,15 +298,20 @@
                 if (session) {
                     mainContent.classList.remove('hidden');
                     
+                    // ตั้งค่าปฏิทิน
                     datePicker = flatpickr("#date-picker", {
                         mode: "range",
                         dateFormat: "Y-m-d",
                         defaultDate: [new Date(), new Date()]
                     });
 
+                    // โหลดข้อมูลแผนก
                     await loadDepartments();
-                    await fetchReportData(); // Load initial report for today
+                    
+                    // โหลดรายงานเริ่มต้น
+                    await fetchReportData(); 
 
+                    // ตั้งค่า Event Listener ให้ปุ่ม
                     document.getElementById('show-report-btn').addEventListener('click', fetchReportData);
 
                 } else {
