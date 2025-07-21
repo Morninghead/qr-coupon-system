@@ -1,60 +1,47 @@
 import { createClient } from '@supabase/supabase-js';
 
-// This function requires the Admin client to bypass RLS for role checking
 const supabaseUrl = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Use the SERVICE_ROLE_KEY for admin actions
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
-// Helper function to get the current date in Bangkok (YYYY-MM-DD format)
 function getBangkokDate() {
     const now = new Date();
-    const bangkokOffset = 7 * 60; // +7 hours in minutes
-    const localOffset = -now.getTimezoneOffset();
-    const totalOffset = bangkokOffset - localOffset;
-    
-    const bangkokTime = new Date(now.getTime() + totalOffset * 60 * 1000);
-    
-    const year = bangkokTime.getFullYear();
-    const month = String(bangkokTime.getMonth() + 1).padStart(2, '0');
-    const day = String(bangkokTime.getDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
+    return new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
 }
 
-
 export const handler = async (event, context) => {
-    // 1. Check if it's a POST request
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
     try {
-        // 2. Authenticate and authorize user
-        const { user } = context.clientContext;
-        if (!user) {
+        // 1. ตรวจสอบ Token และยืนยันตัวตนผู้ใช้
+        const token = event.headers.authorization?.split('Bearer ')[1];
+        if (!token) {
             return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
         }
-
-        // --- AUTHORIZATION CHECK DISABLED FOR TESTING ---
-        /* const { data: profile, error: profileError } = await supabaseAdmin
+        const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+        if (userError || !user) {
+            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
+        }
+        
+        // 2. (แนะนำ) ตรวจสอบสิทธิ์ - อนุญาตเฉพาะ 'superuser' หรือ 'department_admin'
+        const { data: profile, error: profileError } = await supabaseAdmin
             .from('profiles')
             .select('role')
-            .eq('id', user.sub)
+            .eq('id', user.id)
             .single();
 
         if (profileError || !profile || !['superuser', 'department_admin'].includes(profile.role)) {
             return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied' }) };
         }
-        */
-        // ----------------------------------------------
 
-        // 3. Parse the incoming data
+        // 3. ดำเนินการให้สิทธิ์คูปอง (โค้ดเดิม)
         const { employeeIds, couponType } = JSON.parse(event.body);
         if (!employeeIds || !couponType || employeeIds.length === 0) {
             return { statusCode: 400, body: JSON.stringify({ message: 'Missing employee IDs or coupon type' }) };
         }
 
-        // 4. Find employee UUIDs from the provided employee_id numbers
         const { data: employees, error: employeesError } = await supabaseAdmin
             .from('Employees')
             .select('id, employee_id')
@@ -72,7 +59,6 @@ export const handler = async (event, context) => {
         const today = getBangkokDate();
         const employeeUuids = employees.map(e => e.id);
 
-        // 5. Check for existing coupons for these employees on this day and type
         const { data: existingCoupons, error: checkError } = await supabaseAdmin
             .from('Daily_Coupons')
             .select('employee_id')
@@ -84,10 +70,7 @@ export const handler = async (event, context) => {
 
         const existingUuids = new Set(existingCoupons.map(c => c.employee_id));
         const employeeIdToUuidMap = new Map(employees.map(e => [e.id, e.employee_id]));
-        
         const alreadyExistsIds = Array.from(existingUuids).map(uuid => employeeIdToUuidMap.get(uuid));
-
-        // 6. Filter out employees who already have a coupon
         const employeesToInsert = employees.filter(emp => !existingUuids.has(emp.id));
 
         if (employeesToInsert.length > 0) {
@@ -98,11 +81,7 @@ export const handler = async (event, context) => {
                 status: 'READY'
             }));
 
-            // 7. Insert only the new coupons
-            const { error: insertError } = await supabaseAdmin
-                .from('Daily_Coupons')
-                .insert(couponsToInsert);
-
+            const { error: insertError } = await supabaseAdmin.from('Daily_Coupons').insert(couponsToInsert);
             if (insertError) throw insertError;
         }
 

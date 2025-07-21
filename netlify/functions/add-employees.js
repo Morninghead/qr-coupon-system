@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 
-// Use the Admin client to bypass RLS for role checking and insertion
+// ใช้ Admin client เพื่อตรวจสอบสิทธิ์และเพิ่มข้อมูล
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdmin = createClient(supabaseUrl, serviceKey);
@@ -12,25 +12,29 @@ export const handler = async (event, context) => {
     }
 
     try {
-        // 1. Authorize: only superusers can add employees
-        const { user } = context.clientContext;
-        if (!user) {
+        // 1. ตรวจสอบ Token และยืนยันตัวตนผู้ใช้
+        const token = event.headers.authorization?.split('Bearer ')[1];
+        if (!token) {
             return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
         }
-        const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.sub).single();
-        if (profile?.role !== 'superuser') {
-            return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied.' }) };
+        const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+        if (userError || !user) {
+            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
         }
 
-        // 2. Parse incoming data
+        // 2. ตรวจสอบบทบาท (role) จากตาราง profiles
+        const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
+        if (profile?.role !== 'superuser') {
+            return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied. Superuser role required.' }) };
+        }
+
+        // 3. ดำเนินการเพิ่มพนักงาน (โค้ดเดิม)
         const { employees, department_id } = JSON.parse(event.body);
         if (!employees || !department_id || employees.length === 0) {
             return { statusCode: 400, body: JSON.stringify({ message: 'Employee data and department ID are required.' }) };
         }
 
         const incomingIds = employees.map(emp => emp.employee_id);
-
-        // 3. Check for existing employee_ids
         const { data: existingEmployees, error: checkError } = await supabaseAdmin
             .from('Employees')
             .select('employee_id')
@@ -41,7 +45,6 @@ export const handler = async (event, context) => {
         const existingIds = new Set(existingEmployees.map(e => e.employee_id));
         const duplicateIds = incomingIds.filter(id => existingIds.has(id));
         
-        // 4. Filter out duplicates to get only new employees
         const newEmployeesToInsert = employees
             .filter(emp => !existingIds.has(emp.employee_id))
             .map(emp => ({
@@ -53,10 +56,7 @@ export const handler = async (event, context) => {
             }));
 
         if (newEmployeesToInsert.length > 0) {
-            const { error: insertError } = await supabaseAdmin
-                .from('Employees')
-                .insert(newEmployeesToInsert);
-
+            const { error: insertError } = await supabaseAdmin.from('Employees').insert(newEmployeesToInsert);
             if (insertError) throw insertError;
         }
 

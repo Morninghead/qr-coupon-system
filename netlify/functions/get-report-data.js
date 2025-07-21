@@ -1,41 +1,40 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Use the Admin client to perform complex queries
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
 export const handler = async (event, context) => {
-    // Ensure the user is authenticated
-    const { user } = context.clientContext;
-    if (!user) {
+    // 1. ตรวจสอบ Token และยืนยันตัวตนผู้ใช้
+    const token = event.headers.authorization?.split('Bearer ')[1];
+    if (!token) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
     }
-
     try {
+        const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+        if (userError || !user) {
+            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
+        }
+    
+        // 2. ดำเนินการดึงข้อมูลรายงาน (โค้ดเดิม)
         const { startDate, endDate, departmentId } = event.queryStringParameters;
-
         if (!startDate || !endDate) {
             return { statusCode: 400, body: JSON.stringify({ message: 'Start date and end date are required.' }) };
         }
 
-        // Base query for coupons within the date range
         let query = supabaseAdmin
             .from('Daily_Coupons')
             .select('coupon_type, status, Employees!inner(department_id)', { count: 'exact' })
             .gte('coupon_date', startDate)
             .lte('coupon_date', endDate);
 
-        // Apply department filter if specified
         if (departmentId && departmentId !== 'all') {
             query = query.eq('Employees.department_id', departmentId);
         }
 
         const { data: coupons, error } = await query;
-
         if (error) throw error;
 
-        // Process the data to get the report summary
         const report = {
             normalData: { totalGranted: 0, totalUsed: 0 },
             otData: { totalGranted: 0, totalUsed: 0 }
