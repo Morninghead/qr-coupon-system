@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Employee Coupon System</title>
-    <!-- Import Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -65,7 +64,7 @@
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
         }
-        .login-btn {
+        .submit-btn {
             width: 100%;
             padding: 14px;
             font-size: 16px;
@@ -77,10 +76,10 @@
             cursor: pointer;
             transition: background-color 0.2s;
         }
-        .login-btn:hover {
+        .submit-btn:hover {
             background-color: #4F46E5;
         }
-        .login-btn:disabled {
+        .submit-btn:disabled {
             background-color: #A5B4FC;
             cursor: not-allowed;
         }
@@ -91,6 +90,7 @@
             font-weight: 500;
             display: block; /* Always visible */
             min-height: 48px;
+            text-align: center;
         }
         .message-success {
             background-color: #D1FAE5;
@@ -100,34 +100,46 @@
             background-color: #FEE2E2;
             color: #991B1B;
         }
+        .toggle-form {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 16px;
+        }
     </style>
 </head>
 <body>
 
     <div class="login-container">
-        <h1>ลงชื่อเข้าใช้</h1>
+        <h1 id="form-title">ลงชื่อเข้าใช้</h1>
         <p>ระบบคูปองพนักงาน</p>
-        <form id="login-form">
+        <form id="auth-form">
             <div class="form-group">
                 <label for="email">อีเมล</label>
-                <input type="email" id="email" required>
+                <input type="email" id="email" required autocomplete="email">
             </div>
             <div class="form-group">
                 <label for="password">รหัสผ่าน</label>
-                <input type="password" id="password" required>
+                <input type="password" id="password" required autocomplete="current-password">
             </div>
-            <button type="submit" class="login-btn" id="login-btn" disabled>
+            <button type="submit" class="submit-btn" id="submit-btn" disabled>
                 กำลังโหลด...
             </button>
         </form>
         <div id="message"></div>
+        <button id="toggle-btn" class="toggle-form">ยังไม่มีบัญชี? สร้างบัญชีใหม่</button>
     </div>
 
     <script>
-        const loginForm = document.getElementById('login-form');
-        const loginButton = document.getElementById('login-btn');
+        const authForm = document.getElementById('auth-form');
+        const submitButton = document.getElementById('submit-btn');
         const messageDiv = document.getElementById('message');
-        let _supabase; // Declare supabase client variable
+        const toggleButton = document.getElementById('toggle-btn');
+        const formTitle = document.getElementById('form-title');
+        let _supabase;
+        let isLoginMode = true; // true = Login, false = Sign Up
 
         async function initializeApp() {
             try {
@@ -141,64 +153,91 @@
                 }
 
                 // Initialize Supabase client
-                const { createClient } = supabase;
-                _supabase = createClient(config.supabaseUrl, config.supabaseKey);
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
-                // Now that supabase is initialized, set up auth listeners and form handlers
-                setupAuth();
+                // Redirect to menu if already logged in
+                _supabase.auth.onAuthStateChange((event, session) => {
+                    if (event === 'SIGNED_IN') {
+                        window.location.href = '/menu.html'; 
+                    }
+                });
                 
                 // Enable the login button
-                loginButton.disabled = false;
-                loginButton.textContent = 'เข้าสู่ระบบ';
+                submitButton.disabled = false;
+                submitButton.textContent = 'เข้าสู่ระบบ';
                 messageDiv.textContent = '';
-
 
             } catch (error) {
                 console.error('Failed to initialize app:', error);
                 messageDiv.className = 'message-error';
                 messageDiv.textContent = 'ไม่สามารถโหลดการตั้งค่าระบบได้';
+                submitButton.disabled = true;
             }
         }
 
-        function setupAuth() {
-            // Redirect to menu if already logged in
-            _supabase.auth.onAuthStateChange((event, session) => {
-                if (session) {
-                    window.location.href = '/menu.html'; 
-                }
-            });
-
-            loginForm.addEventListener('submit', async (event) => {
-                event.preventDefault();
-
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-
-                loginButton.disabled = true;
-                loginButton.textContent = 'กำลังตรวจสอบ...';
-                messageDiv.className = '';
-                messageDiv.textContent = '';
-
-                try {
-                    const { data, error } = await _supabase.auth.signInWithPassword({
-                        email: email,
-                        password: password,
-                    });
-
-                    if (error) throw error;
-
-                    messageDiv.className = 'message-success';
-                    messageDiv.textContent = 'เข้าสู่ระบบสำเร็จ! กำลังไปยังหน้าเมนู...';
-
-                } catch (error) {
-                    messageDiv.className = 'message-error';
-                    messageDiv.textContent = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
-                    console.error('Login Error:', error.message);
-                    loginButton.disabled = false;
-                    loginButton.textContent = 'เข้าสู่ระบบ';
-                }
-            });
+        function toggleMode() {
+            isLoginMode = !isLoginMode; // Switch the mode
+            messageDiv.textContent = '';
+            messageDiv.className = '';
+            
+            if (isLoginMode) {
+                formTitle.textContent = 'ลงชื่อเข้าใช้';
+                submitButton.textContent = 'เข้าสู่ระบบ';
+                toggleButton.textContent = 'ยังไม่มีบัญชี? สร้างบัญชีใหม่';
+            } else {
+                formTitle.textContent = 'สร้างบัญชีใหม่';
+                submitButton.textContent = 'สมัครสมาชิก';
+                toggleButton.textContent = 'มีบัญชีอยู่แล้ว? ลงชื่อเข้าใช้';
+            }
         }
+
+        authForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'กำลังตรวจสอบ...';
+            messageDiv.className = '';
+            messageDiv.textContent = '';
+
+            try {
+                let response;
+                if (isLoginMode) {
+                    // --- LOGIN MODE ---
+                    response = await _supabase.auth.signInWithPassword({ email, password });
+                } else {
+                    // --- SIGN UP MODE ---
+                    response = await _supabase.auth.signUp({ email, password });
+                }
+
+                const { data, error } = response;
+
+                if (error) throw error;
+
+                if (isLoginMode) {
+                     messageDiv.className = 'message-success';
+                     messageDiv.textContent = 'เข้าสู่ระบบสำเร็จ! กำลังไปยังหน้าเมนู...';
+                } else {
+                     messageDiv.className = 'message-success';
+                     messageDiv.textContent = 'สมัครสมาชิกสำเร็จ! กรุณายืนยันอีเมลของคุณก่อนเข้าสู่ระบบ';
+                     // Optional: Toggle back to login mode after successful sign-up
+                     setTimeout(toggleMode, 3000); 
+                }
+
+            } catch (error) {
+                messageDiv.className = 'message-error';
+                messageDiv.textContent = error.message; // Show specific error from Supabase
+                console.error('Auth Error:', error.message);
+            } finally {
+                submitButton.disabled = false;
+                // Restore button text based on current mode
+                submitButton.textContent = isLoginMode ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก';
+            }
+        });
+
+        toggleButton.addEventListener('click', toggleMode);
 
         // Start the application
         initializeApp();
