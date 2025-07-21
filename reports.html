@@ -172,6 +172,7 @@
                 <canvas id="ot-chart"></canvas>
             </div>
             <div class="summary-card">
+                <p class="summary-title" id="summary-title"></p>
                 <h2>สรุปยอดเงินรวมทั้งหมด</h2>
                 <p class="total-amount" id="total-amount">฿ 0.00</p>
             </div>
@@ -208,26 +209,24 @@
                 const total = chart.config.options.plugins.centerText.total;
 
                 ctx.restore();
+                const textY = height / 2;
+
+                // Sub-label (draw first, on top)
+                const subText = 'สิทธิ์ทั้งหมด';
+                const subFontSize = (height / 200).toFixed(2); // Reverted to original larger size
+                ctx.font = `bold ${subFontSize}em sans-serif`;
+                ctx.textBaseline = 'middle';
+                const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
+                ctx.fillStyle = '#6B7280'; // text-gray
+                ctx.fillText(subText, subTextX, textY - 15); // Moved up
+
+                // Main number (draw second, below)
+                const text = total.toLocaleString('th-TH');
                 const fontSize = (height / 114).toFixed(2);
                 ctx.font = `bold ${fontSize}em sans-serif`;
-                ctx.textBaseline = 'middle';
-
-                // Main number
-                const text = total.toLocaleString('th-TH');
                 const textX = Math.round((width - ctx.measureText(text).width) / 2);
-                const textY = height / 2;
-                
                 ctx.fillStyle = '#1F2937'; // dark-gray
-                ctx.fillText(text, textX, textY - 12); // Adjusted Y position slightly up
-
-                // Sub-label
-                const subText = 'สิทธิ์ทั้งหมด';
-                const subFontSize = (height / 350).toFixed(2); // Made even smaller
-                ctx.font = `bold ${subFontSize}em sans-serif`;
-                const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
-                
-                ctx.fillStyle = '#6B7280'; // text-gray
-                ctx.fillText(subText, subTextX, textY + 35); // Moved even further down
+                ctx.fillText(text, textX, textY + 20); // Moved down
                 
                 ctx.save();
             }
@@ -238,7 +237,12 @@
             const ctx = document.getElementById(canvasId).getContext('2d');
             const notUsed = data.totalGranted - data.totalUsed;
 
-            new Chart(ctx, {
+            // Destroy existing chart instance if it exists
+            if (window[canvasId + '_chart']) {
+                window[canvasId + '_chart'].destroy();
+            }
+
+            window[canvasId + '_chart'] = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels: [`ใช้สิทธิ์ (${data.totalUsed})`, `ไม่ใช้สิทธิ์ (${notUsed})`],
@@ -291,12 +295,43 @@
             const totalAmount = totalUsed * 45;
             document.getElementById('total-amount').textContent = `฿ ${totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
         }
+        
+        function updateSummaryTitle() {
+            const timeRangeSelect = document.getElementById('time-range');
+            const departmentSelect = document.getElementById('department');
+            const datePickerInput = document.getElementById('date-picker');
+            const summaryTitle = document.getElementById('summary-title');
 
-        // Create charts with dummy data on page load
-        window.onload = () => {
+            let timeText = timeRangeSelect.options[timeRangeSelect.selectedIndex].text;
+            if (timeRangeSelect.value === 'custom' && datePickerInput.value) {
+                timeText = `(${datePickerInput.value.replace(' to ', ' - ')})`;
+            } else if (timeRangeSelect.value === 'daily') {
+                const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+                timeText = `รายวัน (${today})`;
+            }
+
+
+            const departmentText = departmentSelect.options[departmentSelect.selectedIndex].text;
+            
+            summaryTitle.textContent = `รายงานสรุปยอด${timeText} | แผนก: ${departmentText}`;
+        }
+        
+        // Function to handle report generation
+        function generateReport() {
+            // In a real app, you would fetch new data here based on filters.
+            // For this prototype, we'll just re-render with dummy data.
             createPieChart('normal-chart', normalCouponData);
             createPieChart('ot-chart', otCouponData);
             calculateTotal();
+            updateSummaryTitle();
+        }
+
+        // Add event listener to the button
+        document.getElementById('show-report-btn').addEventListener('click', generateReport);
+
+        // Initial load
+        window.onload = () => {
+            generateReport();
         };
 
     </script>
