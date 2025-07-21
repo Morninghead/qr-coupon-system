@@ -114,17 +114,39 @@
             font-size: 18px;
             font-weight: 500;
             opacity: 0.7;
-            margin: 0 0 8px 0;
+            margin: 0 0 24px 0;
         }
         .summary-card h2 {
             margin-top: 0;
             font-size: 20px;
-            opacity: 0.8;
+            opacity: 0.9;
+            margin-bottom: 8px;
         }
         .summary-card .total-amount {
             font-size: 48px;
             font-weight: 700;
             color: var(--success-color);
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+        .summary-details {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            margin-bottom: 24px;
+        }
+        .summary-details h3 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            opacity: 0.7;
+            font-weight: 500;
+        }
+        .summary-details p {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--success-color); /* Changed color */
         }
 
         @media (max-width: 900px) {
@@ -179,6 +201,16 @@
             </div>
             <div class="summary-card">
                 <p class="summary-title" id="summary-title"></p>
+                <div class="summary-details">
+                    <div>
+                        <h3>ยอดอาหารกลางวัน</h3>
+                        <p id="normal-summary-amount">฿ 0.00</p>
+                    </div>
+                    <div>
+                        <h3>ยอดโอที</h3>
+                        <p id="ot-summary-amount">฿ 0.00</p>
+                    </div>
+                </div>
                 <h2>สรุปยอดเงินรวมทั้งหมด</h2>
                 <p class="total-amount" id="total-amount">฿ 0.00</p>
             </div>
@@ -297,9 +329,15 @@
         }
 
         function calculateTotal() {
-            const totalUsed = normalCouponData.totalUsed + otCouponData.totalUsed;
-            const totalAmount = totalUsed * 45;
-            document.getElementById('total-amount').textContent = `฿ ${totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+            const normalAmount = normalCouponData.totalUsed * 45;
+            const otAmount = otCouponData.totalUsed * 45;
+            const totalAmount = normalAmount + otAmount;
+
+            const formatCurrency = (amount) => `฿ ${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
+
+            document.getElementById('normal-summary-amount').textContent = formatCurrency(normalAmount);
+            document.getElementById('ot-summary-amount').textContent = formatCurrency(otAmount);
+            document.getElementById('total-amount').textContent = formatCurrency(totalAmount);
         }
         
         function updateSummaryTitle() {
