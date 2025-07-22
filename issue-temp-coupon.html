@@ -7,7 +7,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.0.0/qrcode.min.js"></script>
     <style>
-        /* สไตล์พื้นฐาน คล้ายกับหน้าอื่นๆ ของคุณ */
         :root {
             --primary-color: #6366F1;
             --light-gray: #F3F4F6;
@@ -15,7 +14,7 @@
             --text-gray: #4B5563;
             --success-color: #10B981;
             --error-color: #EF4444;
-            --info-color: #3B82F6; /* สีใหม่สำหรับข้อความ info */
+            --info-color: #3B82F6;
             --border-color: #E5E7EB;
         }
         body {
@@ -89,11 +88,11 @@
             padding: 16px;
             border-radius: 8px;
             display: none;
-            white-space: pre-wrap; /* เพื่อให้ขึ้นบรรทัดใหม่ได้ */
+            white-space: pre-wrap;
         }
         .result-success { background-color: #D1FAE5; color: #065F46; }
         .result-error { background-color: #FEE2E2; color: #991B1B; }
-        .result-info { background-color: #E0E7FF; color: #3730A3; } /* สไตล์สำหรับข้อความ info */
+        .result-info { background-color: #E0E7FF; color: #3730A3; }
         
         #qr-code-display {
             text-align: center;
@@ -111,7 +110,7 @@
             margin-bottom: 15px;
         }
         #qr-code-display #qrcode {
-            margin: 0 auto; /* จัดให้อยู่กึ่งกลาง */
+            margin: 0 auto;
         }
         #qr-code-display #expiry-time, #qr-code-display #temp-token-display {
             font-weight: 700;
@@ -246,7 +245,11 @@
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
+                // --- เพิ่ม console.log ตรงนี้ ---
+                console.log('Session on initializeApp:', session); 
                 if (session) {
+                    console.log('Session user ID:', session.user?.id);
+                    currentUserSession = session;
                     mainContent.classList.remove('hidden');
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
@@ -274,11 +277,9 @@
 
 
         issueQrBtn.addEventListener('click', async () => {
-            // --- FIX START ---
             const selectedEmployeeTypeElement = document.querySelector('input[name="employee-type-selection"]:checked');
             const selectedEmployeeType = selectedEmployeeTypeElement ? selectedEmployeeTypeElement.value : '';
-            console.log('Selected Employee Type:', selectedEmployeeType); // Debugging: Check what's actually selected
-            // --- FIX END ---
+            console.log('Selected Employee Type:', selectedEmployeeType); 
             
             let employeeIdentifier = '';
             let tempEmployeeName = '';
@@ -291,17 +292,17 @@
                     showResult('กรุณากรอกรหัสพนักงานหรือ Permanent Token', 'error');
                     return;
                 }
-            } else if (selectedEmployeeType === 'new-temp') { // Added this else if for clarity, was 'else' before
+            } else if (selectedEmployeeType === 'new-temp') { 
                 tempEmployeeName = tempEmployeeNameInput.value.trim();
-                tempEmployeeIdentifier = tempEmployeeIdentifierInput.value.trim();
+                tempEmployeeIdentifier = tempEmployeeIdentifierInput.value.trim(); 
                 isNewTempEmployee = true;
 
                 if (!tempEmployeeName) {
                     showResult('กรุณากรอกชื่อ-สกุลของบุคคลชั่วคราว', 'error');
                     return;
                 }
-            } else { // This 'else' block now handles only truly unexpected/empty cases
-                showResult('ผิดพลาด: กรุณาเลือกประเภทพนักงาน', 'error'); // More specific error message
+            } else { 
+                showResult('ผิดพลาด: กรุณาเลือกประเภทพนักงาน', 'error'); 
                 return;
             }
 
@@ -323,6 +324,10 @@
             qrCodeDisplayDiv.classList.add('hidden');
 
             try {
+                // --- เพิ่ม console.log ตรงนี้ ---
+                console.log('currentUserSession before fetch:', currentUserSession);
+                console.log('Access Token before fetch:', currentUserSession?.access_token);
+
                 if (!currentUserSession || !currentUserSession.access_token) {
                     showResult('ไม่ได้ลงชื่อเข้าใช้ กรุณาลองใหม่', 'error');
                     return;
@@ -387,4 +392,3 @@
     </script>
 </body>
 </html>
-}
