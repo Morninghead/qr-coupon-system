@@ -38,9 +38,9 @@ export const handler = async (event, context) => {
         // --- 2. วิเคราะห์ข้อมูลที่ส่งมาจาก Frontend ---
         const { 
             selected_employee_type, 
-            employee_identifier, // สำหรับ Existing Employee
-            temp_employee_name,  // สำหรับ New/Temp Employee
-            temp_employee_identifier, // สำหรับ New/Temp Employee (ไม่บังคับ)
+            employee_identifier, 
+            temp_employee_name,  
+            temp_employee_identifier, 
             reason, 
             coupon_type 
         } = JSON.parse(event.body);
@@ -50,18 +50,18 @@ export const handler = async (event, context) => {
             return { statusCode: 400, body: JSON.stringify({ success: false, message: 'เหตุผลและประเภทคูปองจำเป็นต้องระบุ' }) };
         }
 
-        let targetEmployeeId = null; // จะเก็บ UUID ของพนักงานใน Employees.id (ถ้ามี)
-        let displayEmployeeName = ''; // ชื่อที่จะใช้แสดงใน Response
+        let targetEmployeeId = null; 
+        let displayEmployeeName = ''; 
+        let isNewTempEmployee = false; // <<< นี่คือการประกาศตัวแปร isNewTempEmployee ที่ถูกต้อง
 
         // --- 3. จัดการตามประเภทของพนักงานที่เลือก ---
         if (selected_employee_type === 'existing') {
             if (!employee_identifier) {
                 return { statusCode: 400, body: JSON.stringify({ success: false, message: 'กรุณากรอกรหัสพนักงานหรือ Permanent Token สำหรับพนักงานที่มีอยู่แล้ว' }) };
             }
-            // ค้นหาพนักงานที่มีอยู่จริง
             const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(employee_identifier);
             
-            let employeeQuery = supabaseAdmin.from('employees').select('id, employee_id, name, is_active'); // แก้เป็น 'employees' ตัวเล็ก
+            let employeeQuery = supabaseAdmin.from('employees').select('id, employee_id, name, is_active'); // แก้ไข: 'employees'
             if (isUuid) {
                 employeeQuery = employeeQuery.eq('permanent_token', employee_identifier);
             } else {
@@ -80,11 +80,11 @@ export const handler = async (event, context) => {
             displayEmployeeName = employee.name;
 
         } else if (selected_employee_type === 'new-temp') {
+            isNewTempEmployee = true; // กำหนดค่าให้กับตัวแปร
             if (!temp_employee_name) {
                 return { statusCode: 400, body: JSON.stringify({ success: false, message: 'กรุณากรอกชื่อ-สกุลของบุคคลชั่วคราว' }) };
             }
-            // ไม่ต้องค้นหาในตาราง employees เพราะเป็นบุคคลใหม่
-            targetEmployeeId = null; // สำคัญ: กำหนดให้เป็น NULL
+            targetEmployeeId = null;
             displayEmployeeName = temp_employee_name;
 
         } else {
@@ -98,11 +98,11 @@ export const handler = async (event, context) => {
 
         // --- 5. บันทึกข้อมูลคำขอชั่วคราวลงในตาราง temporary_coupon_requests ---
         const { data: requestData, error: insertRequestError } = await supabaseAdmin
-            .from('temporary_coupon_requests') // แก้เป็น 'temporary_coupon_requests' ตัวเล็ก
+            .from('temporary_coupon_requests') // แก้ไข: 'temporary_coupon_requests'
             .insert({
-                employee_id: targetEmployeeId,     // เป็น NULL สำหรับบุคคลใหม่, หรือ UUID สำหรับพนักงานเดิม
-                temp_employee_name: isNewTempEmployee ? temp_employee_name : null, // บันทึกชื่อถ้าเป็นบุคคลใหม่
-                temp_employee_identifier: isNewTempEmployee && temp_employee_identifier ? temp_employee_identifier : null, // บันทึกรหัสชั่วคราวถ้ามี
+                employee_id: targetEmployeeId,     
+                temp_employee_name: isNewTempEmployee ? temp_employee_name : null, 
+                temp_employee_identifier: isNewTempEmployee && temp_employee_identifier ? temp_employee_identifier : null, 
                 reason: reason,
                 status: 'ISSUED',             
                 issued_by: user.id,           
@@ -120,7 +120,6 @@ export const handler = async (event, context) => {
 
         // --- 6. สร้างและอัปโหลด QR Code ชั่วคราว ---
         const qrCodeData = `${BASE_SCANNER_URL}?token=${temporaryToken}`;
-        // ใช้ชื่อไฟล์ที่แตกต่างกันสำหรับบุคคลใหม่ (เพื่อให้ไม่ทับซ้อนกับ QR พนักงานปกติ)
         const qrCodeFileName = `temp-${selected_employee_type === 'new-temp' ? 'new-' + randomUUID() : employee_identifier}-${temporaryToken}.png`; 
 
         const qrCodeBuffer = await qrcode.toBuffer(qrCodeData, { type: 'png', errorCorrectionLevel: 'H' });
@@ -134,7 +133,7 @@ export const handler = async (event, context) => {
 
         if (uploadError) {
             console.error(`Error uploading temporary QR for ${displayEmployeeName}:`, uploadError);
-            return { statusCode: 500, body: JSON.stringify({ success: false, message: `QR Code ถูกสร้างแต่ไม่สามารถอัปโหลดได้: ${uploadError.message}` }) };
+            return { statusCode: 500, body: JSON.stringify({ success: false, message: `QR Code ถูกสร้างแต่ไม่สามารถอัปโหลดได้: ${uploadData?.message || uploadError.message}` }) };
         }
 
         // --- 7. ส่งผลลัพธ์สำเร็จกลับไปยัง Frontend ---
