@@ -4,7 +4,7 @@
   "description": "Netlify Functions for Coupon System",
   "main": "add-employees.js",
   "dependencies": {
-    "@supabase/supabase-js": "^2.52.0", // ใช้เวอร์ชั่นที่คุณต้องการ (หรือ 2.x.x)
+    "@supabase/supabase-js": "^2.52.0",  <-- Make sure this version matches what you're using
     "qrcode": "^1.5.3"
   },
   "devDependencies": {},
