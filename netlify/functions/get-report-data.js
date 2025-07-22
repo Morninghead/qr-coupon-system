@@ -1,3 +1,4 @@
+// get-report-data.js
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -15,7 +16,7 @@ export const handler = async (event, context) => {
         if (userError || !user) {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
         }
-    
+
         // 2. ดำเนินการดึงข้อมูลรายงาน (โค้ดเดิม)
         const { startDate, endDate, departmentId } = event.queryStringParameters;
         if (!startDate || !endDate) {
@@ -23,13 +24,13 @@ export const handler = async (event, context) => {
         }
 
         let query = supabaseAdmin
-            .from('Daily_Coupons')
-            .select('coupon_type, status, Employees!inner(department_id)', { count: 'exact' })
+            .from('daily_coupons') // แก้ไขตรงนี้: 'Daily_Coupons' -> 'daily_coupons'
+            .select(`coupon_type, status, employees!inner(department_id)`, { count: 'exact' }) // แก้ไขตรงนี้: 'Employees' -> 'employees'
             .gte('coupon_date', startDate)
             .lte('coupon_date', endDate);
 
         if (departmentId && departmentId !== 'all') {
-            query = query.eq('Employees.department_id', departmentId);
+            query = query.eq('employees.department_id', departmentId); // แก้ไขตรงนี้: 'Employees' -> 'employees'
         }
 
         const { data: coupons, error } = await query;

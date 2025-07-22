@@ -1,3 +1,4 @@
+// add-employees.js
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import qrcode from 'qrcode'; // <--- เพิ่ม import qrcode
@@ -28,7 +29,7 @@ export const handler = async (event, context) => {
         }
 
         // 2. ตรวจสอบบทบาท (role) จากตาราง profiles
-        const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
+        const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single(); // ถูกต้องแล้ว
         if (profile?.role !== 'superuser') {
             return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied. Superuser role required.' }) };
         }
@@ -41,7 +42,7 @@ export const handler = async (event, context) => {
 
         const incomingIds = employees.map(emp => emp.employee_id);
         const { data: existingEmployees, error: checkError } = await supabaseAdmin
-            .from('Employees')
+            .from('employees') // แก้ไขตรงนี้: 'Employees' -> 'employees'
             .select('employee_id')
             .in('employee_id', incomingIds);
 
@@ -67,13 +68,7 @@ export const handler = async (event, context) => {
         // Process new employees one by one to generate QR codes
         for (const newEmp of newEmployeesToInsert) {
             try {
-                // Insert employee into database first to get the id (UUID)
-                // If you refer to `id` from Employees table as Foreign Key in Daily_Coupons
-                // This step is crucial. However, if you use `permanent_token` as the main identifier
-                // for the QR Code and the foreign key, then permanent_token is already generated.
-                // Assuming permanent_token is what you want in the QR code.
-
-                const { error: insertError } = await supabaseAdmin.from('Employees').insert(newEmp);
+                const { error: insertError } = await supabaseAdmin.from('employees').insert(newEmp); // แก้ไขตรงนี้: 'Employees' -> 'employees'
                 if (insertError) {
                     console.error(`Error inserting employee ${newEmp.employee_id}:`, insertError);
                     // If insert fails for one employee, skip QR code for them
@@ -106,12 +101,12 @@ export const handler = async (event, context) => {
                     qrCodeUrls[newEmp.employee_id] = publicUrl;
 
                     // Optional: Update employee record with QR code URL if you have a column for it
-                     const { error: updateQrUrlError } = await supabaseAdmin
-                         .from('Employees')
-                         .update({ qr_code_url: publicUrl })
-                         .eq('employee_id', newEmp.employee_id);
+                    const { error: updateQrUrlError } = await supabaseAdmin
+                        .from('employees') // แก้ไขตรงนี้: 'Employees' -> 'employees'
+                        .update({ qr_code_url: publicUrl })
+                        .eq('employee_id', newEmp.employee_id);
                     if (updateQrUrlError) {
-                     console.error(`Error updating QR URL for ${newEmp.employee_id}:`, updateQrUrlError);
+                        console.error(`Error updating QR URL for ${newEmp.employee_id}:`, updateQrUrlError);
                     }
                 }
                 // --- End QR Code Generation ---

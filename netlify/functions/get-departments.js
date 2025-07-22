@@ -1,3 +1,4 @@
+// get-departments.js
 import { createClient } from '@supabase/supabase-js';
 
 // ฟังก์ชันนี้จะถูกเรียกใช้งานบน Server ของ Netlify
@@ -45,7 +46,7 @@ export const handler = async (event, context) => {
         // --- ณ จุดนี้, ยืนยันตัวตนสำเร็จแล้ว ---
         // 5. ดึงข้อมูลแผนกจากฐานข้อมูล
         const { data, error } = await supabase
-            .from('Departments')
+            .from('departments') // แก้ไขตรงนี้: 'Departments' -> 'departments'
             .select('id, name')
             .order('name', { ascending: true });
 
