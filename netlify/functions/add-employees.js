@@ -106,13 +106,13 @@ export const handler = async (event, context) => {
                     qrCodeUrls[newEmp.employee_id] = publicUrl;
 
                     // Optional: Update employee record with QR code URL if you have a column for it
-                    // const { error: updateQrUrlError } = await supabaseAdmin
-                    //     .from('Employees')
-                    //     .update({ qr_code_url: publicUrl })
-                    //     .eq('employee_id', newEmp.employee_id);
-                    // if (updateQrUrlError) {
-                    //     console.error(`Error updating QR URL for ${newEmp.employee_id}:`, updateQrUrlError);
-                    // }
+                     const { error: updateQrUrlError } = await supabaseAdmin
+                         .from('Employees')
+                         .update({ qr_code_url: publicUrl })
+                         .eq('employee_id', newEmp.employee_id);
+                    if (updateQrUrlError) {
+                     console.error(`Error updating QR URL for ${newEmp.employee_id}:`, updateQrUrlError);
+                    }
                 }
                 // --- End QR Code Generation ---
 
