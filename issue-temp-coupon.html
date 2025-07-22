@@ -121,6 +121,24 @@
         .hidden {
             display: none !important;
         }
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            color: var(--text-gray);
+            cursor: pointer;
+        }
+        .radio-group input[type="radio"] {
+            width: auto;
+            margin-right: 8px;
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
@@ -140,8 +158,30 @@
             </div>
 
             <div class="form-section">
+                <label>ออก QR Code ชั่วคราวสำหรับ:</label>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="employee-type-selection" value="existing" checked>
+                        พนักงานที่มีอยู่แล้ว
+                    </label>
+                    <label>
+                        <input type="radio" name="employee-type-selection" value="new-temp">
+                        บุคคลใหม่ (ชั่วคราว)
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-section" id="existing-employee-fields">
                 <label for="employee-id-input">รหัสพนักงาน หรือ Permanent Token</label>
                 <input type="text" id="employee-id-input" placeholder="กรอกรหัสพนักงาน (เช่น 30000) หรือ Permanent Token (UUID)">
+            </div>
+
+            <div class="form-section hidden" id="new-temp-employee-fields">
+                <label for="temp-employee-name-input">ชื่อ-สกุล (บุคคลชั่วคราว)</label>
+                <input type="text" id="temp-employee-name-input" placeholder="กรอกชื่อ-สกุลของบุคคลชั่วคราว">
+                
+                <label for="temp-employee-identifier-input">รหัสชั่วคราว (ไม่บังคับ)</label>
+                <input type="text" id="temp-employee-identifier-input" placeholder="กรอกรหัสชั่วคราว (ถ้ามี)">
             </div>
 
             <div class="form-section">
@@ -175,14 +215,19 @@
     </div>
 
     <script>
-        // Supabase Client สำหรับฝั่ง Frontend (ใช้ anon key)
-        let _supabase; // จะถูกกำหนดค่าใน initializeApp
-
         const mainContent = document.getElementById('main-content');
         const unauthorizedMessage = document.getElementById('unauthorized-message');
+        
+        const employeeTypeSelectionRadios = document.querySelectorAll('input[name="employee-type-selection"]');
+        const existingEmployeeFields = document.getElementById('existing-employee-fields');
+        const newTempEmployeeFields = document.getElementById('new-temp-employee-fields');
+
         const employeeIdInput = document.getElementById('employee-id-input');
+        const tempEmployeeNameInput = document.getElementById('temp-employee-name-input');
+        const tempEmployeeIdentifierInput = document.getElementById('temp-employee-identifier-input');
+
         const reasonSelect = document.getElementById('reason-select');
-        const couponTypeSelect = document.getElementById('coupon-type-select'); // เพิ่มตัวแปรนี้
+        const couponTypeSelect = document.getElementById('coupon-type-select');
         const issueQrBtn = document.getElementById('issue-qr-btn');
         const resultMessageDiv = document.getElementById('result-message');
         const qrCodeDisplayDiv = document.getElementById('qr-code-display');
@@ -190,112 +235,136 @@
         const expiryTimeSpan = document.getElementById('expiry-time');
         const tempTokenDisplaySpan = document.getElementById('temp-token-display');
 
-        // URL จริงของหน้า Scanner (ต้องตรงกับ BASE_SCANNER_URL ใน Netlify Function)
         const BASE_SCANNER_URL = 'https://ssth-ecoupon.netlify.app/scanner'; 
         
-        let currentUserSession = null; // เก็บข้อมูล session ของผู้ใช้ที่ Login อยู่
+        let currentUserSession = null; 
 
         async function initializeApp() {
             try {
-                // ดึง Supabase Config จาก Netlify Function (ถ้าคุณมี)
                 const response = await fetch('/.netlify/functions/get-config');
                 const config = await response.json();
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
-                // ตรวจสอบสถานะการ Login
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
-                    currentUserSession = session;
-                    mainContent.classList.remove('hidden'); // แสดงหน้าหลัก
-                    // ถ้าต้องการเช็ค role ของผู้ใช้ในฝั่ง frontend ด้วย ก็เพิ่มโค้ดที่นี่
-                    // เช่น: const { data: profile } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
-                    // ถ้า profile.role ไม่ใช่ 'superuser' ให้ redirect ไปหน้าอื่น
+                    mainContent.classList.remove('hidden');
                 } else {
-                    unauthorizedMessage.classList.remove('hidden'); // แสดงข้อความ Unauthorized
-                    // หรือ redirect ไปหน้า login โดยตรง
-                    // window.location.href = '/index.html'; 
+                    unauthorizedMessage.classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Initialization failed:', error);
                 unauthorizedMessage.classList.remove('hidden');
-                // window.location.href = '/index.html'; // Redirect on error
             }
         }
 
-        // --- Event Listener สำหรับปุ่ม 'ออก QR Code ชั่วคราว' ---
-        issueQrBtn.addEventListener('click', async () => {
-            const employeeIdentifier = employeeIdInput.value.trim(); // รหัสพนักงาน หรือ Permanent Token
-            const reason = reasonSelect.value; // เหตุผล
-            const couponType = couponTypeSelect.value; // **เพิ่ม: ประเภทคูปองที่เลือก**
+        employeeTypeSelectionRadios.forEach(radio => {
+            radio.addEventListener('change', (event) => {
+                if (event.target.value === 'existing') {
+                    existingEmployeeFields.classList.remove('hidden');
+                    newTempEmployeeFields.classList.add('hidden');
+                    tempEmployeeNameInput.value = '';
+                    tempEmployeeIdentifierInput.value = '';
+                } else {
+                    existingEmployeeFields.classList.add('hidden');
+                    newTempEmployeeFields.classList.remove('hidden');
+                    employeeIdInput.value = '';
+                }
+            });
+        });
 
-            // ตรวจสอบ Input
-            if (!employeeIdentifier) {
-                showResult('กรุณากรอกรหัสพนักงานหรือ Permanent Token', 'error');
+
+        issueQrBtn.addEventListener('click', async () => {
+            // --- FIX START ---
+            const selectedEmployeeTypeElement = document.querySelector('input[name="employee-type-selection"]:checked');
+            const selectedEmployeeType = selectedEmployeeTypeElement ? selectedEmployeeTypeElement.value : '';
+            console.log('Selected Employee Type:', selectedEmployeeType); // Debugging: Check what's actually selected
+            // --- FIX END ---
+            
+            let employeeIdentifier = '';
+            let tempEmployeeName = '';
+            let tempEmployeeIdentifier = '';
+            let isNewTempEmployee = false;
+
+            if (selectedEmployeeType === 'existing') {
+                employeeIdentifier = employeeIdInput.value.trim();
+                if (!employeeIdentifier) {
+                    showResult('กรุณากรอกรหัสพนักงานหรือ Permanent Token', 'error');
+                    return;
+                }
+            } else if (selectedEmployeeType === 'new-temp') { // Added this else if for clarity, was 'else' before
+                tempEmployeeName = tempEmployeeNameInput.value.trim();
+                tempEmployeeIdentifier = tempEmployeeIdentifierInput.value.trim();
+                isNewTempEmployee = true;
+
+                if (!tempEmployeeName) {
+                    showResult('กรุณากรอกชื่อ-สกุลของบุคคลชั่วคราว', 'error');
+                    return;
+                }
+            } else { // This 'else' block now handles only truly unexpected/empty cases
+                showResult('ผิดพลาด: กรุณาเลือกประเภทพนักงาน', 'error'); // More specific error message
                 return;
             }
+
+            const reason = reasonSelect.value;
+            const couponType = couponTypeSelect.value;
+
             if (!reason) {
                 showResult('กรุณาเลือกเหตุผล', 'error');
                 return;
             }
-            if (!couponType) { // **เพิ่ม: ตรวจสอบประเภทคูปอง**
+            if (!couponType) {
                 showResult('กรุณาเลือกประเภทคูปองที่ต้องการออก', 'error');
                 return;
             }
 
-            // ตั้งค่า UI ระหว่างรอการประมวลผล
             issueQrBtn.disabled = true;
             issueQrBtn.textContent = 'กำลังออก QR Code...';
             showResult('กำลังประมวลผล...', 'info');
-            qrCodeDisplayDiv.classList.add('hidden'); // ซ่อน QR เก่าหากมี
+            qrCodeDisplayDiv.classList.add('hidden');
 
             try {
-                // ตรวจสอบ session อีกครั้งก่อนส่ง request
                 if (!currentUserSession || !currentUserSession.access_token) {
                     showResult('ไม่ได้ลงชื่อเข้าใช้ กรุณาลองใหม่', 'error');
-                    // อาจจะ redirect ไปหน้า login
-                    // window.location.href = '/index.html';
                     return;
                 }
 
-                // ส่งข้อมูลไปยัง Netlify Function issue-temp-coupon
                 const response = await fetch('/.netlify/functions/issue-temp-coupon', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${currentUserSession.access_token}` // ส่ง token เพื่อยืนยันตัวตน
+                        'Authorization': `Bearer ${currentUserSession.access_token}`
                     },
                     body: JSON.stringify({ 
+                        selected_employee_type: selectedEmployeeType, 
                         employee_identifier: employeeIdentifier, 
+                        temp_employee_name: tempEmployeeName,     
+                        temp_employee_identifier: tempEmployeeIdentifier, 
                         reason: reason,
-                        coupon_type: couponType // **เพิ่ม: ส่งประเภทคูปองไปด้วย**
+                        coupon_type: couponType 
                     })
                 });
 
-                const data = await response.json(); // แปลง response เป็น JSON
+                const data = await response.json(); 
 
                 if (response.ok && data.success) {
-                    // ถ้าสำเร็จ
                     showResult(`สำเร็จ: ${data.message}`, 'success');
                     
-                    // แสดงผล QR Code
-                    qrcodeContainer.innerHTML = ''; // ล้าง QR Code เก่า
-                    // ใช้ qrcode.js เพื่อสร้าง QR Code จาก URL ที่ได้มา
+                    qrcodeContainer.innerHTML = ''; 
                     new QRCode(qrcodeContainer, {
-                        text: `${BASE_SCANNER_URL}?token=${data.temporaryToken}`, // URL ที่จะฝังใน QR Code
+                        text: `${BASE_SCANNER_URL}?token=${data.temporaryToken}`, 
                         width: 256,
                         height: 256,
                         colorDark : "#000000",
                         colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.H // ระดับการแก้ไขข้อผิดพลาด (สูง)
+                        correctLevel : QRCode.CorrectLevel.H 
                     });
-                    expiryTimeSpan.textContent = new Date(data.expiresAt).toLocaleString('th-TH'); // แสดงเวลาหมดอายุ
-                    tempTokenDisplaySpan.textContent = data.temporaryToken; // แสดงรหัสชั่วคราว
-                    qrCodeDisplayDiv.classList.remove('hidden'); // แสดงส่วนแสดงผล QR Code
+                    expiryTimeSpan.textContent = new Date(data.expiresAt).toLocaleString('th-TH'); 
+                    tempTokenDisplaySpan.textContent = data.temporaryToken; 
+                    qrCodeDisplayDiv.classList.remove('hidden'); 
 
                 } else {
-                    // ถ้ามีข้อผิดพลาด
                     showResult(`ผิดพลาด: ${data.message || 'ไม่ทราบข้อผิดพลาด'}`, 'error');
-                    qrCodeDisplayDiv.classList.add('hidden'); // ซ่อน QR Code
+                    qrCodeDisplayDiv.classList.add('hidden'); 
                 }
 
             } catch (error) {
@@ -303,22 +372,19 @@
                 showResult('เกิดข้อผิดพลาดในการเชื่อมต่อ หรือระบบ', 'error');
                 qrCodeDisplayDiv.classList.add('hidden');
             } finally {
-                // รีเซ็ตปุ่มและสถานะ
                 issueQrBtn.disabled = false;
                 issueQrBtn.textContent = 'ออก QR Code ชั่วคราว';
             }
         });
 
-        // --- ฟังก์ชันสำหรับแสดงข้อความผลลัพธ์ ---
         function showResult(message, type) {
             resultMessageDiv.style.display = 'block';
             resultMessageDiv.textContent = message;
-            // กำหนด class เพื่อเปลี่ยนสีตามประเภทข้อความ (success, error, info)
             resultMessageDiv.className = `result-${type}`;
         }
 
-        // เริ่มต้นการทำงานของ App เมื่อหน้าเว็บโหลดเสร็จ
         initializeApp();
     </script>
 </body>
 </html>
+}
