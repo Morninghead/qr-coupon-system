@@ -1,3 +1,4 @@
+// get-scan-report.js
 // Import Supabase client library
 import { createClient } from '@supabase/supabase-js';
 
@@ -8,7 +9,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * This function fetches a paginated list of today's used coupons.
- * It joins with the Employees table to get employee details.
+ * It joins with the employees table to get employee details.
  */
 export const handler = async (event) => {
     // Default to page 1, limit 50 records
@@ -21,11 +22,11 @@ export const handler = async (event) => {
     try {
         // Query to get the paginated list of used coupons
         const { data: reportData, error: reportError } = await supabase
-            .from('Daily_Coupons')
+            .from('daily_coupons') // <<< แก้ไขตรงนี้
             .select(`
                 used_at,
                 coupon_type,
-                Employees ( name, employee_id )
+                employees ( name, employee_id ) // <<< แก้ไขตรงนี้ (ใน string literal)
             `)
             .eq('status', 'USED')
             .eq('coupon_date', today)
@@ -38,7 +39,7 @@ export const handler = async (event) => {
 
         // Query to get the total count of used coupons for today for pagination
         const { count, error: countError } = await supabase
-            .from('Daily_Coupons')
+            .from('daily_coupons') // <<< แก้ไขตรงนี้
             .select('*', { count: 'exact', head: true })
             .eq('status', 'USED')
             .eq('coupon_date', today);
