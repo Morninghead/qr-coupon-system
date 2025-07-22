@@ -6,7 +6,10 @@ const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
 function getBangkokDate() {
     const now = new Date();
-    return new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Adjusted to ensure consistent timezone for date calculations if not handled by Supabase default
+    // For Netlify, process.env.TZ might be 'Etc/UTC', so explicit conversion is safer.
+    const bangkokTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    return bangkokTime.toISOString().split('T')[0];
 }
 
 export const handler = async (event, context) => {
@@ -25,9 +28,9 @@ export const handler = async (event, context) => {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
         }
         
-        // 2. (แนะนำ) ตรวจสอบสิทธิ์ - อนุญาตเฉพาะ 'superuser' หรือ 'department_admin'
+        // 2. ตรวจสอบสิทธิ์ - อนุญาตเฉพาะ 'superuser' หรือ 'department_admin'
         const { data: profile, error: profileError } = await supabaseAdmin
-            .from('profiles')
+            .from('profiles') // ถูกต้องแล้ว
             .select('role')
             .eq('id', user.id)
             .single();
@@ -36,14 +39,14 @@ export const handler = async (event, context) => {
             return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied' }) };
         }
 
-        // 3. ดำเนินการให้สิทธิ์คูปอง (โค้ดเดิม)
+        // 3. ดำเนินการให้สิทธิ์คูปอง
         const { employeeIds, couponType } = JSON.parse(event.body);
         if (!employeeIds || !couponType || employeeIds.length === 0) {
             return { statusCode: 400, body: JSON.stringify({ message: 'Missing employee IDs or coupon type' }) };
         }
 
         const { data: employees, error: employeesError } = await supabaseAdmin
-            .from('Employees')
+            .from('employees') // <<< แก้ไขตรงนี้: 'Employees' -> 'employees'
             .select('id, employee_id')
             .in('employee_id', employeeIds);
 
@@ -60,7 +63,7 @@ export const handler = async (event, context) => {
         const employeeUuids = employees.map(e => e.id);
 
         const { data: existingCoupons, error: checkError } = await supabaseAdmin
-            .from('Daily_Coupons')
+            .from('daily_coupons') // <<< แก้ไขตรงนี้: 'Daily_Coupons' -> 'daily_coupons'
             .select('employee_id')
             .in('employee_id', employeeUuids)
             .eq('coupon_date', today)
@@ -81,7 +84,7 @@ export const handler = async (event, context) => {
                 status: 'READY'
             }));
 
-            const { error: insertError } = await supabaseAdmin.from('Daily_Coupons').insert(couponsToInsert);
+            const { error: insertError } = await supabaseAdmin.from('daily_coupons').insert(couponsToInsert); // <<< แก้ไขตรงนี้: 'Daily_Coupons' -> 'daily_coupons'
             if (insertError) throw insertError;
         }
 
