@@ -156,6 +156,15 @@
                 </select>
             </div>
 
+            <div class="form-section">
+                <label for="coupon-type-select">ประเภทคูปองที่ต้องการออก</label>
+                <select id="coupon-type-select">
+                    <option value="">-- เลือกประเภทคูปอง --</option>
+                    <option value="NORMAL">คูปองปกติ</option>
+                    <option value="OT">คูปอง OT</option>
+                    </select>
+            </div>
+
             <button id="issue-qr-btn">ออก QR Code ชั่วคราว</button>
             <div id="result-message"></div> <div id="qr-code-display" class="hidden">
                 <p>สแกน QR Code นี้เพื่อใช้คูปองชั่วคราว</p>
@@ -173,6 +182,7 @@
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         const employeeIdInput = document.getElementById('employee-id-input');
         const reasonSelect = document.getElementById('reason-select');
+        const couponTypeSelect = document.getElementById('coupon-type-select'); // เพิ่มตัวแปรนี้
         const issueQrBtn = document.getElementById('issue-qr-btn');
         const resultMessageDiv = document.getElementById('result-message');
         const qrCodeDisplayDiv = document.getElementById('qr-code-display');
@@ -181,7 +191,7 @@
         const tempTokenDisplaySpan = document.getElementById('temp-token-display');
 
         // URL จริงของหน้า Scanner (ต้องตรงกับ BASE_SCANNER_URL ใน Netlify Function)
-        const BASE_SCANNER_URL = 'https://ssth-ecoupon.netlify.app/scanner';
+        const BASE_SCANNER_URL = 'https://ssth-ecoupon.netlify.app/scanner'; 
         
         let currentUserSession = null; // เก็บข้อมูล session ของผู้ใช้ที่ Login อยู่
 
@@ -194,7 +204,7 @@
 
                 // ตรวจสอบสถานะการ Login
                 const { data: { session } } = await _supabase.auth.getSession();
-                if (session && session.user) {
+                if (session) {
                     currentUserSession = session;
                     mainContent.classList.remove('hidden'); // แสดงหน้าหลัก
                     // ถ้าต้องการเช็ค role ของผู้ใช้ในฝั่ง frontend ด้วย ก็เพิ่มโค้ดที่นี่
@@ -216,6 +226,7 @@
         issueQrBtn.addEventListener('click', async () => {
             const employeeIdentifier = employeeIdInput.value.trim(); // รหัสพนักงาน หรือ Permanent Token
             const reason = reasonSelect.value; // เหตุผล
+            const couponType = couponTypeSelect.value; // **เพิ่ม: ประเภทคูปองที่เลือก**
 
             // ตรวจสอบ Input
             if (!employeeIdentifier) {
@@ -224,6 +235,10 @@
             }
             if (!reason) {
                 showResult('กรุณาเลือกเหตุผล', 'error');
+                return;
+            }
+            if (!couponType) { // **เพิ่ม: ตรวจสอบประเภทคูปอง**
+                showResult('กรุณาเลือกประเภทคูปองที่ต้องการออก', 'error');
                 return;
             }
 
@@ -249,7 +264,11 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${currentUserSession.access_token}` // ส่ง token เพื่อยืนยันตัวตน
                     },
-                    body: JSON.stringify({ employee_identifier: employeeIdentifier, reason: reason })
+                    body: JSON.stringify({ 
+                        employee_identifier: employeeIdentifier, 
+                        reason: reason,
+                        coupon_type: couponType // **เพิ่ม: ส่งประเภทคูปองไปด้วย**
+                    })
                 });
 
                 const data = await response.json(); // แปลง response เป็น JSON
