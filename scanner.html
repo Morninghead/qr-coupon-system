@@ -11,8 +11,9 @@
             --light-gray: #F3F4F6;
             --dark-gray: #1F2937;
             --text-gray: #4B5563;
-            --success-color: #10B981;
-            --error-color: #EF4444;
+            --success-color: #10B981; /* เขียว */
+            --warning-color: #F97316; /* ส้ม (สำหรับใช้แล้ว) */
+            --error-color: #EF4444; /* แดง (สำหรับไม่กำหนดสิทธิ์) */
             --border-color: #E5E7EB;
         }
         body {
@@ -64,7 +65,54 @@
         .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
         .scanner-section { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); margin-bottom: 32px; }
         #scanInput { width: 100%; padding: 15px; font-size: 18px; border: 2px solid var(--border-color); border-radius: 8px; box-sizing: border-box; text-align: center; }
-        #scanResult { margin-top: 16px; padding: 16px; font-size: 20px; font-weight: bold; border-radius: 8px; min-height: 40px; display: flex; justify-content: center; align-items: center; }
+        
+        /* สไตล์ใหม่สำหรับ scanResultDiv */
+        #scanResult {
+            margin-top: 16px;
+            padding: 20px; /* เพิ่ม padding */
+            font-size: 18px; /* ปรับขนาดฟอนต์ */
+            font-weight: bold;
+            border-radius: 8px;
+            min-height: 80px; /* เพิ่มความสูงขั้นต่ำ */
+            display: flex;
+            flex-direction: column; /* จัดให้เป็นคอลัมน์ */
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); /* เพิ่มเงา */
+            background-color: #fff; /* พื้นหลังสีขาว */
+            border: 1px solid var(--border-color); /* มีขอบ */
+        }
+        #scanResult .status-icon {
+            font-size: 3em; /* ขนาดไอคอน */
+            margin-bottom: 10px;
+            line-height: 1; /* ปรับระยะห่างบรรทัด */
+        }
+        #scanResult .main-message {
+            font-size: 1.2em; /* ขนาดข้อความหลัก */
+            margin-bottom: 5px;
+            color: var(--dark-gray);
+        }
+        #scanResult .detail-text {
+            font-size: 0.9em; /* ขนาดข้อความรายละเอียด */
+            color: var(--text-gray);
+            font-weight: normal;
+        }
+
+        /* สีตามสถานะ */
+        #scanResult.status-approved { background-color: #D1FAE5; border-color: var(--success-color); } /* อนุมัติ */
+        #scanResult.status-approved .status-icon { color: var(--success-color); }
+
+        #scanResult.status-used { background-color: #FFEDD5; border-color: var(--warning-color); } /* ใช้ไปแล้ว */
+        #scanResult.status-used .status-icon { color: var(--warning-color); }
+
+        #scanResult.status-error { background-color: #FEE2E2; border-color: var(--error-color); } /* ไม่กำหนดสิทธิ์ / ข้อผิดพลาด */
+        #scanResult.status-error .status-icon { color: var(--error-color); }
+
+        #scanResult.status-initial { background-color: #E0E7FF; border-color: #8C9EFF; } /* เริ่มต้น */
+        #scanResult.status-initial .status-icon { color: #8C9EFF; }
+
+
         .report-section h2 { color: var(--dark-gray); margin-bottom: 16px; }
         .table-container { background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; }
@@ -95,7 +143,10 @@
     
             <div class="scanner-section">
                 <input type="text" id="scanInput" placeholder="พร้อมสแกน..." autofocus>
-                <div id="scanResult"><p>กรุณาสแกน QR Code หรือกรอกรหัส</p></div>
+                <div id="scanResult" class="status-initial">
+                    <span class="status-icon">🔍</span>
+                    <p class="main-message">กรุณาสแกน QR Code หรือกรอกรหัส</p>
+                </div>
             </div>
     
             <div class="report-section">
@@ -141,7 +192,6 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    // เมื่อล็อกอินสำเร็จ ให้โหลดรายงานหน้าแรก
                     await fetchReport(1);
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
@@ -174,8 +224,8 @@
             reportTableBody.innerHTML = data.map(item => `
                 <tr>
                     <td>${new Date(item.used_at).toLocaleTimeString('th-TH')}</td>
-                    <td>${item.Employees.employee_id}</td>
-                    <td>${item.Employees.name}</td>
+                    <td>${item.employees.employee_id}</td>
+                    <td>${item.employees.name}</td>
                     <td>${item.coupon_type}</td>
                 </tr>
             `).join('');
@@ -194,6 +244,67 @@
             paginationControls.innerHTML = buttonsHtml;
         }
 
+        // --- ฟังก์ชันใหม่: แสดงผลลัพธ์การสแกนใน scanResultDiv อย่างสวยงาม ---
+        function displayScanResult(data) {
+            let icon = '';
+            let mainMessage = '';
+            let detailLine1 = ''; // ชื่อพนักงาน, รหัสพนักงาน
+            let detailLine2 = ''; // วันที่, เวลา, ประเภทคูปอง
+            let className = ''; // สำหรับสี
+
+            if (data.success) {
+                icon = '✅';
+                className = 'status-approved';
+                mainMessage = data.message; // เช่น "อนุมัติ" หรือ "อนุมัติ (คูปองชั่วคราว)"
+                detailLine1 = `${data.name} (${data.employee_id || 'N/A'})`; // รหัสพนักงานอาจเป็น N/A ถ้าเป็นบุคคลชั่วคราว
+                
+                const scanDateTime = new Date(data.used_at).toLocaleString('th-TH', { 
+                    year: 'numeric', month: 'numeric', day: 'numeric', 
+                    hour: '2-digit', minute: '2-digit', second: '2-digit' 
+                });
+                detailLine2 = `เวลา: ${scanDateTime} | ประเภท: ${data.coupon_type}`;
+
+            } else {
+                icon = '❌';
+                detailLine1 = `${data.name || 'N/A'} (${data.employee_id || 'N/A'})`; // อาจจะไม่มีชื่อ/รหัส
+
+                switch (data.status_code) {
+                    case 'ALREADY_USED_TEMP':
+                        className = 'status-used'; // ส้ม
+                        mainMessage = 'ใช้สิทธิ์ไปแล้ว';
+                        detailLine2 = data.message; // "QR ชั่วคราวนี้ถูกใช้ไปแล้ว"
+                        break;
+                    case 'EXPIRED_TEMP':
+                        className = 'status-used'; // ส้ม
+                        mainMessage = 'สิทธิ์หมดอายุ';
+                        detailLine2 = data.message; // "QR ชั่วคราวนี้หมดอายุแล้ว"
+                        break;
+                    case 'EMP_NOT_FOUND':
+                    case 'COUPON_NOT_READY':
+                    case 'EMP_INACTIVE':
+                    case 'TEMP_QR_INVALID_STATUS':
+                    case 'SERVER_ERROR':
+                    case 'INVALID_INPUT':
+                    case 'UPDATE_FAILED':
+                    default:
+                        className = 'status-error'; // แดง
+                        mainMessage = 'ไม่สามารถอนุมัติได้';
+                        detailLine2 = data.message || 'กรุณาติดต่อหัวหน้าแผนก'; // ข้อความจาก Backend หรือ Default
+                        break;
+                }
+            }
+
+            scanResultDiv.className = `status-result ${className}`;
+            scanResultDiv.innerHTML = `
+                <span class="status-icon">${icon}</span>
+                <p class="main-message">${mainMessage}</p>
+                <p class="detail-text">${detailLine1}</p>
+                <p class="detail-text">${detailLine2}</p>
+            `;
+        }
+        // --- สิ้นสุดฟังก์ชันใหม่ ---
+
+
         scanInput.addEventListener('change', async (event) => {
             const inputValue = event.target.value.trim();
             if (!inputValue || isProcessing) return;
@@ -209,28 +320,43 @@
             }
 
             isProcessing = true;
-            scanResultDiv.innerHTML = `<p>กำลังประมวลผล...</p>`;
+            // แสดงสถานะ "กำลังประมวลผล" ก่อน
+            scanResultDiv.className = 'status-result status-initial';
+            scanResultDiv.innerHTML = `
+                <span class="status-icon">⏳</span>
+                <p class="main-message">กำลังประมวลผล...</p>
+            `;
 
             try {
                 const response = await fetch(`/.netlify/functions/scan?token=${token}`);
                 const data = await response.json();
 
+                displayScanResult(data); // เรียกใช้ฟังก์ชันแสดงผลใหม่
+
                 if (data.success) {
-                    scanResultDiv.innerHTML = `<p style="color:green;">✅ ${data.name} - ${data.message}</p>`;
-                    await fetchReport(1); // Refresh report to the first page
-                } else {
-                    scanResultDiv.innerHTML = `<p style="color:red;">❌ ${data.name ? data.name + ' - ' : ''}${data.message}</p>`;
+                    await fetchReport(1); // Refresh report to the first page only on success
                 }
             } catch (err) {
-                scanResultDiv.innerHTML = `<p style="color:red;">เกิดข้อผิดพลาดในการเชื่อมต่อ</p>`;
+                scanResultDiv.className = 'status-result status-error';
+                scanResultDiv.innerHTML = `
+                    <span class="status-icon">🚫</span>
+                    <p class="main-message">เกิดข้อผิดพลาดในการเชื่อมต่อ</p>
+                    <p class="detail-text">${err.message || 'กรุณาลองใหม่อีกครั้ง'}</p>
+                `;
             }
 
             setTimeout(() => {
                 scanInput.value = '';
-                scanResultDiv.innerHTML = '<p>กรุณาสแกน QR Code หรือกรอกรหัส</p>';
+                // รีเซ็ตกลับไปสถานะเริ่มต้นหลังจาก 3 วินาที (ไม่ล้างข้อมูลทันที)
+                scanResultDiv.className = 'status-result status-initial';
+                scanResultDiv.innerHTML = `
+                    <span class="status-icon">🔍</span>
+                    <p class="main-message">กรุณาสแกน QR Code หรือกรอกรหัส</p>
+                `;
                 isProcessing = false;
                 scanInput.focus();
-            }, 3000);
+            }, 5000); // แสดงผลลัพธ์ค้างไว้ 5 วินาที
+
         });
 
         // Auto-focus input
