@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ออก QR Code ชั่วคราว - ระบบคูปองพนักงาน</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.0.0/qrcode.min.js"></script>
+    <style>
+        /* สไตล์พื้นฐาน คล้ายกับหน้าอื่นๆ ของคุณ */
+        :root {
+            --primary-color: #6366F1;
+            --light-gray: #F3F4F6;
+            --dark-gray: #1F2937;
+            --text-gray: #4B5563;
+            --success-color: #10B981;
+            --error-color: #EF4444;
+            --info-color: #3B82F6; /* สีใหม่สำหรับข้อความ info */
+            --border-color: #E5E7EB;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+            padding: 24px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header h1 {
+            color: var(--dark-gray);
+            font-size: 28px;
+            margin: 0;
+        }
+        .back-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .form-section {
+            margin-bottom: 24px;
+        }
+        .form-section label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #4f46e5;
+        }
+        button:disabled {
+            background-color: #A5B4FC;
+            cursor: not-allowed;
+        }
+        #result-message {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+            white-space: pre-wrap; /* เพื่อให้ขึ้นบรรทัดใหม่ได้ */
+        }
+        .result-success { background-color: #D1FAE5; color: #065F46; }
+        .result-error { background-color: #FEE2E2; color: #991B1B; }
+        .result-info { background-color: #E0E7FF; color: #3730A3; } /* สไตล์สำหรับข้อความ info */
+        
+        #qr-code-display {
+            text-align: center;
+            margin-top: 32px;
+            padding: 24px;
+            border: 2px dashed var(--border-color);
+            border-radius: 16px;
+            background-color: var(--light-gray);
+        }
+        #qr-code-display p {
+            color: var(--dark-gray);
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        #qr-code-display #qrcode {
+            margin: 0 auto; /* จัดให้อยู่กึ่งกลาง */
+        }
+        #qr-code-display #expiry-time, #qr-code-display #temp-token-display {
+            font-weight: 700;
+            color: var(--primary-color);
+            font-size: 1.1em;
+        }
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="unauthorized-message" class="unauthorized-container hidden">
+        <div class="unauthorized-box">
+            <h1>กรุณาลงชื่อเข้าใช้</h1>
+            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
+        </div>
+    </div>
+
+    <div id="main-content" class="hidden">
+        <div class="container">
+            <div class="header">
+                <h1>ออก QR Code ชั่วคราว</h1>
+                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+            </div>
+
+            <div class="form-section">
+                <label for="employee-id-input">รหัสพนักงาน หรือ Permanent Token</label>
+                <input type="text" id="employee-id-input" placeholder="กรอกรหัสพนักงาน (เช่น 30000) หรือ Permanent Token (UUID)">
+            </div>
+
+            <div class="form-section">
+                <label for="reason-select">เหตุผลในการออก</label>
+                <select id="reason-select">
+                    <option value="">-- เลือกเหตุผล --</option>
+                    <option value="Forgot ID">ลืมบัตรประจำตัว</option>
+                    <option value="OT">ทำงานล่วงเวลา (OT)</option>
+                    <option value="Sub-contract">พนักงาน Sub-contract</option>
+                    <option value="Spare">พนักงาน Spare</option>
+                    <option value="Name Missing">ไม่ได้แจ้งชื่อ/ชื่อตกหล่น</option>
+                </select>
+            </div>
+
+            <button id="issue-qr-btn">ออก QR Code ชั่วคราว</button>
+            <div id="result-message"></div> <div id="qr-code-display" class="hidden">
+                <p>สแกน QR Code นี้เพื่อใช้คูปองชั่วคราว</p>
+                <div id="qrcode"></div> <p>QR Code นี้จะใช้งานได้ถึง: <strong id="expiry-time"></strong></p>
+                <p>(รหัสชั่วคราว: <span id="temp-token-display"></span>)</p>
+                </div>
+        </div>
+    </div>
+
+    <script>
+        // Supabase Client สำหรับฝั่ง Frontend (ใช้ anon key)
+        let _supabase; // จะถูกกำหนดค่าใน initializeApp
+
+        const mainContent = document.getElementById('main-content');
+        const unauthorizedMessage = document.getElementById('unauthorized-message');
+        const employeeIdInput = document.getElementById('employee-id-input');
+        const reasonSelect = document.getElementById('reason-select');
+        const issueQrBtn = document.getElementById('issue-qr-btn');
+        const resultMessageDiv = document.getElementById('result-message');
+        const qrCodeDisplayDiv = document.getElementById('qr-code-display');
+        const qrcodeContainer = document.getElementById('qrcode');
+        const expiryTimeSpan = document.getElementById('expiry-time');
+        const tempTokenDisplaySpan = document.getElementById('temp-token-display');
+
+        // URL จริงของหน้า Scanner (ต้องตรงกับ BASE_SCANNER_URL ใน Netlify Function)
+        const BASE_SCANNER_URL = 'https://ssth-ecoupon.netlify.app/scanner';
+        
+        let currentUserSession = null; // เก็บข้อมูล session ของผู้ใช้ที่ Login อยู่
+
+        async function initializeApp() {
+            try {
+                // ดึง Supabase Config จาก Netlify Function (ถ้าคุณมี)
+                const response = await fetch('/.netlify/functions/get-config');
+                const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+                // ตรวจสอบสถานะการ Login
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (session && session.user) {
+                    currentUserSession = session;
+                    mainContent.classList.remove('hidden'); // แสดงหน้าหลัก
+                    // ถ้าต้องการเช็ค role ของผู้ใช้ในฝั่ง frontend ด้วย ก็เพิ่มโค้ดที่นี่
+                    // เช่น: const { data: profile } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
+                    // ถ้า profile.role ไม่ใช่ 'superuser' ให้ redirect ไปหน้าอื่น
+                } else {
+                    unauthorizedMessage.classList.remove('hidden'); // แสดงข้อความ Unauthorized
+                    // หรือ redirect ไปหน้า login โดยตรง
+                    // window.location.href = '/index.html'; 
+                }
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                unauthorizedMessage.classList.remove('hidden');
+                // window.location.href = '/index.html'; // Redirect on error
+            }
+        }
+
+        // --- Event Listener สำหรับปุ่ม 'ออก QR Code ชั่วคราว' ---
+        issueQrBtn.addEventListener('click', async () => {
+            const employeeIdentifier = employeeIdInput.value.trim(); // รหัสพนักงาน หรือ Permanent Token
+            const reason = reasonSelect.value; // เหตุผล
+
+            // ตรวจสอบ Input
+            if (!employeeIdentifier) {
+                showResult('กรุณากรอกรหัสพนักงานหรือ Permanent Token', 'error');
+                return;
+            }
+            if (!reason) {
+                showResult('กรุณาเลือกเหตุผล', 'error');
+                return;
+            }
+
+            // ตั้งค่า UI ระหว่างรอการประมวลผล
+            issueQrBtn.disabled = true;
+            issueQrBtn.textContent = 'กำลังออก QR Code...';
+            showResult('กำลังประมวลผล...', 'info');
+            qrCodeDisplayDiv.classList.add('hidden'); // ซ่อน QR เก่าหากมี
+
+            try {
+                // ตรวจสอบ session อีกครั้งก่อนส่ง request
+                if (!currentUserSession || !currentUserSession.access_token) {
+                    showResult('ไม่ได้ลงชื่อเข้าใช้ กรุณาลองใหม่', 'error');
+                    // อาจจะ redirect ไปหน้า login
+                    // window.location.href = '/index.html';
+                    return;
+                }
+
+                // ส่งข้อมูลไปยัง Netlify Function issue-temp-coupon
+                const response = await fetch('/.netlify/functions/issue-temp-coupon', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentUserSession.access_token}` // ส่ง token เพื่อยืนยันตัวตน
+                    },
+                    body: JSON.stringify({ employee_identifier: employeeIdentifier, reason: reason })
+                });
+
+                const data = await response.json(); // แปลง response เป็น JSON
+
+                if (response.ok && data.success) {
+                    // ถ้าสำเร็จ
+                    showResult(`สำเร็จ: ${data.message}`, 'success');
+                    
+                    // แสดงผล QR Code
+                    qrcodeContainer.innerHTML = ''; // ล้าง QR Code เก่า
+                    // ใช้ qrcode.js เพื่อสร้าง QR Code จาก URL ที่ได้มา
+                    new QRCode(qrcodeContainer, {
+                        text: `${BASE_SCANNER_URL}?token=${data.temporaryToken}`, // URL ที่จะฝังใน QR Code
+                        width: 256,
+                        height: 256,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H // ระดับการแก้ไขข้อผิดพลาด (สูง)
+                    });
+                    expiryTimeSpan.textContent = new Date(data.expiresAt).toLocaleString('th-TH'); // แสดงเวลาหมดอายุ
+                    tempTokenDisplaySpan.textContent = data.temporaryToken; // แสดงรหัสชั่วคราว
+                    qrCodeDisplayDiv.classList.remove('hidden'); // แสดงส่วนแสดงผล QR Code
+
+                } else {
+                    // ถ้ามีข้อผิดพลาด
+                    showResult(`ผิดพลาด: ${data.message || 'ไม่ทราบข้อผิดพลาด'}`, 'error');
+                    qrCodeDisplayDiv.classList.add('hidden'); // ซ่อน QR Code
+                }
+
+            } catch (error) {
+                console.error('Error issuing temporary QR:', error);
+                showResult('เกิดข้อผิดพลาดในการเชื่อมต่อ หรือระบบ', 'error');
+                qrCodeDisplayDiv.classList.add('hidden');
+            } finally {
+                // รีเซ็ตปุ่มและสถานะ
+                issueQrBtn.disabled = false;
+                issueQrBtn.textContent = 'ออก QR Code ชั่วคราว';
+            }
+        });
+
+        // --- ฟังก์ชันสำหรับแสดงข้อความผลลัพธ์ ---
+        function showResult(message, type) {
+            resultMessageDiv.style.display = 'block';
+            resultMessageDiv.textContent = message;
+            // กำหนด class เพื่อเปลี่ยนสีตามประเภทข้อความ (success, error, info)
+            resultMessageDiv.className = `result-${type}`;
+        }
+
+        // เริ่มต้นการทำงานของ App เมื่อหน้าเว็บโหลดเสร็จ
+        initializeApp();
+    </script>
+</body>
+</html>
