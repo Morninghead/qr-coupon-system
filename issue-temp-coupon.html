@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ออก QR Code ชั่วคราว - ระบบคูปองพนักงาน</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="/js/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.0.0/qrcode.min.js"></script>
     <style>
         :root {
             --primary-color: #6366F1;
@@ -70,7 +70,7 @@
             background-color: var(--primary-color);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 88px;
             cursor: pointer;
             font-size: 16px;
             font-weight: 600;
@@ -94,8 +94,12 @@
         .result-error { background-color: #FEE2E2; color: #991B1B; }
         .result-info { background-color: #E0E7FF; color: #3730A3; }
         
+        /* แก้ไข CSS เพื่อจัด QR Code ตรงกลาง */
         #qr-code-display {
-            text-align: center;
+            display: flex; /* เพิ่มเพื่อให้สามารถใช้ flexbox จัดเรียงได้ */
+            flex-direction: column; /* จัดเรียง Element ภายในเป็นคอลัมน์ */
+            align-items: center; /* จัด Element ให้อยู่ตรงกลางตามแนวนอน */
+            text-align: center; /* จัดข้อความให้อยู่ตรงกลาง */
             margin-top: 32px;
             padding: 24px;
             border: 2px dashed var(--border-color);
@@ -110,7 +114,7 @@
             margin-bottom: 15px;
         }
         #qr-code-display #qrcode {
-            margin: 0 auto;
+            /* margin: 0 auto; ไม่จำเป็นแล้ว */
         }
         #qr-code-display #expiry-time, #qr-code-display #temp-token-display {
             font-weight: 700;
@@ -145,7 +149,7 @@
         <div class="unauthorized-box">
             <h1>กรุณาลงชื่อเข้าใช้</h1>
             <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
-            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
+            <a class='unauthorized-button' href='/'>ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
     </div>
 
@@ -153,7 +157,7 @@
         <div class="container">
             <div class="header">
                 <h1>ออก QR Code ชั่วคราว</h1>
-                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+                <a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
             </div>
 
             <div class="form-section">
@@ -245,7 +249,6 @@
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
-                // --- เพิ่ม console.log ตรงนี้ ---
                 console.log('Session on initializeApp:', session); 
                 if (session) {
                     console.log('Session user ID:', session.user?.id);
@@ -324,7 +327,6 @@
             qrCodeDisplayDiv.classList.add('hidden');
 
             try {
-                // --- เพิ่ม console.log ตรงนี้ ---
                 console.log('currentUserSession before fetch:', currentUserSession);
                 console.log('Access Token before fetch:', currentUserSession?.access_token);
 
