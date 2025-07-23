@@ -24,7 +24,7 @@
             padding: 24px;
         }
         .container {
-            max-width: 800px;
+            max-width: 700px;
             margin: 20px auto;
             background: white;
             padding: 32px;
@@ -56,21 +56,21 @@
             font-weight: 600;
             color: var(--dark-gray);
         }
-        input[type="text"], select {
+        input[type="text"], input[type="number"], input[type="date"], select {
             width: 100%;
             padding: 12px;
-            margin-bottom: 15px;
             border: 1px solid var(--border-color);
             border-radius: 8px;
             font-size: 16px;
             box-sizing: border-box;
+            margin-bottom: 15px;
         }
         button {
             padding: 12px 24px;
             background-color: var(--primary-color);
             color: white;
             border: none;
-            border-radius: 88px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 16px;
             font-weight: 600;
@@ -83,64 +83,108 @@
             background-color: #A5B4FC;
             cursor: not-allowed;
         }
-        #result-message {
+        #message {
             margin-top: 24px;
             padding: 16px;
             border-radius: 8px;
             display: none;
             white-space: pre-wrap;
         }
-        .result-success { background-color: #D1FAE5; color: #065F46; }
-        .result-error { background-color: #FEE2E2; color: #991B1B; }
-        .result-info { background-color: #E0E7FF; color: #3730A3; }
-        
-        /* แก้ไข CSS เพื่อจัด QR Code ตรงกลาง */
+        .message-success { background-color: #D1FAE5; color: #065F46; }
+        .message-error { background-color: #FEE2E2; color: #991B1B; }
+        .message-info { background-color: #E0E7FF; color: #3730A3; }
+
         #qr-code-display {
-            display: flex; /* เพิ่มเพื่อให้สามารถใช้ flexbox จัดเรียงได้ */
-            flex-direction: column; /* จัดเรียง Element ภายในเป็นคอลัมน์ */
-            align-items: center; /* จัด Element ให้อยู่ตรงกลางตามแนวนอน */
-            text-align: center; /* จัดข้อความให้อยู่ตรงกลาง */
-            margin-top: 32px;
-            padding: 24px;
-            border: 2px dashed var(--border-color);
-            border-radius: 16px;
+            text-align: center;
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
             background-color: var(--light-gray);
         }
-        #qr-code-display p {
-            color: var(--dark-gray);
-            font-size: 18px;
-            font-weight: 600;
-            margin-top: 0;
-            margin-bottom: 15px;
-        }
-        #qr-code-display #qrcode {
-            /* margin: 0 auto; ไม่จำเป็นแล้ว */
-        }
-        #qr-code-display #expiry-time, #qr-code-display #temp-token-display {
-            font-weight: 700;
-            color: var(--primary-color);
-            font-size: 1.1em;
+        #qr-code-img {
+            max-width: 200px;
+            height: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            display: none; /* ซ่อนไว้ในตอนแรก */
         }
         .hidden {
             display: none !important;
         }
-        .radio-group {
+        .unauthorized-container {
             display: flex;
-            gap: 20px;
-            margin-bottom: 20px;
+            justify-content: center;
             align-items: center;
+            height: 100vh;
+            width: 100%;
+            position: fixed; top: 0; left: 0;
+            background-color: var(--light-gray);
         }
+        .unauthorized-box {
+            background: white;
+            padding: 40px 48px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 450px;
+        }
+        .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
+        .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
+        .unauthorized-button {
+            display: inline-block; width: 100%; padding: 12px;
+            font-size: 16px; font-weight: 600; color: white;
+            background-color: var(--primary-color);
+            border: none; border-radius: 8px; cursor: pointer;
+            text-decoration: none; transition: background-color 0.2s;
+        }
+        .unauthorized-button:hover { background-color: #4F46E5; }
+
         .radio-group label {
             display: flex;
             align-items: center;
             font-weight: 500;
             color: var(--text-gray);
             cursor: pointer;
+            margin-bottom: 8px;
         }
         .radio-group input[type="radio"] {
-            width: auto;
             margin-right: 8px;
-            margin-bottom: 0;
+        }
+        .radio-group {
+            margin-bottom: 15px;
+        }
+        .search-results-box {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            background-color: #f9fafb;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .search-results-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .search-results-item:last-child {
+            border-bottom: none;
+        }
+        .search-results-item:hover {
+            background-color: #eef2ff;
+        }
+        .search-results-item.selected {
+            background-color: #e0e7ff;
+            font-weight: 600;
+        }
+        .search-results-item button {
+            padding: 6px 12px;
+            font-size: 0.9em;
+            background-color: var(--info-color);
         }
     </style>
 </head>
@@ -149,111 +193,126 @@
         <div class="unauthorized-box">
             <h1>กรุณาลงชื่อเข้าใช้</h1>
             <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
-            <a class='unauthorized-button' href='/'>ไปที่หน้าลงชื่อเข้าใช้</a>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
     </div>
 
     <div id="main-content" class="hidden">
         <div class="container">
             <div class="header">
-                <h1>ออก QR Code ชั่วคราว</h1>
-                <a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
+                <h1>ออกคูปอง</h1>
+                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
             </div>
 
             <div class="form-section">
-                <label>ออก QR Code ชั่วคราวสำหรับ:</label>
+                <label>ประเภทผู้รับคูปอง:</label>
                 <div class="radio-group">
                     <label>
-                        <input type="radio" name="employee-type-selection" value="existing" checked>
-                        พนักงานที่มีอยู่แล้ว
+                        <input type="radio" name="coupon-recipient-type" value="employee" checked>
+                        พนักงานประจำ
                     </label>
                     <label>
-                        <input type="radio" name="employee-type-selection" value="new-temp">
-                        บุคคลใหม่ (ชั่วคราว)
+                        <input type="radio" name="coupon-recipient-type" value="temporary">
+                        บุคคลใหม่ / ชั่วคราว
                     </label>
                 </div>
             </div>
 
-            <div class="form-section" id="existing-employee-fields">
-                <label for="employee-id-input">รหัสพนักงาน หรือ Permanent Token</label>
-                <input type="text" id="employee-id-input" placeholder="กรอกรหัสพนักงาน (เช่น 30000) หรือ Permanent Token (UUID)">
+            <div id="employee-section" class="form-section">
+                <label for="employee-id">รหัสพนักงาน</label>
+                <input type="text" id="employee-id" placeholder="กรอกรหัสพนักงาน (เช่น 30000)">
+                <label for="coupon-amount-employee">จำนวนคูปอง (บาท)</label>
+                <input type="number" id="coupon-amount-employee" value="45" min="1">
+                <button id="issue-employee-coupon-btn">ออกคูปองให้พนักงาน</button>
             </div>
 
-            <div class="form-section hidden" id="new-temp-employee-fields">
-                <label for="temp-employee-name-input">ชื่อ-สกุล (บุคคลชั่วคราว)</label>
-                <input type="text" id="temp-employee-name-input" placeholder="กรอกชื่อ-สกุลของบุคคลชั่วคราว">
+            <div id="temporary-section" class="form-section hidden">
+                <label for="temp-employee-name">ชื่อบุคคล (ชั่วคราว)</label>
+                <input type="text" id="temp-employee-name" placeholder="กรอกชื่อบุคคลชั่วคราว">
                 
-                <label for="temp-employee-identifier-input">รหัสชั่วคราว (ไม่บังคับ)</label>
-                <input type="text" id="temp-employee-identifier-input" placeholder="กรอกรหัสชั่วคราว (ถ้ามี)">
-            </div>
-
-            <div class="form-section">
-                <label for="reason-select">เหตุผลในการออก</label>
-                <select id="reason-select">
-                    <option value="">-- เลือกเหตุผล --</option>
-                    <option value="Forgot ID">ลืมบัตรประจำตัว</option>
-                    <option value="OT">ทำงานล่วงเวลา (OT)</option>
-                    <option value="Sub-contract">พนักงาน Sub-contract</option>
-                    <option value="Spare">พนักงาน Spare</option>
-                    <option value="Name Missing">ไม่ได้แจ้งชื่อ/ชื่อตกหล่น</option>
-                </select>
-            </div>
-
-            <div class="form-section">
-                <label for="coupon-type-select">ประเภทคูปองที่ต้องการออก</label>
-                <select id="coupon-type-select">
-                    <option value="">-- เลือกประเภทคูปอง --</option>
-                    <option value="NORMAL">คูปองปกติ</option>
-                    <option value="OT">คูปอง OT</option>
-                    </select>
-            </div>
-
-            <button id="issue-qr-btn">ออก QR Code ชั่วคราว</button>
-            <div id="result-message"></div> <div id="qr-code-display" class="hidden">
-                <p>สแกน QR Code นี้เพื่อใช้คูปองชั่วคราว</p>
-                <div id="qrcode"></div> <p>QR Code นี้จะใช้งานได้ถึง: <strong id="expiry-time"></strong></p>
-                <p>(รหัสชั่วคราว: <span id="temp-token-display"></span>)</p>
+                <label for="search-temp-employee">ค้นหาประวัติพนักงานชั่วคราว:</label>
+                <input type="text" id="search-temp-employee" placeholder="ค้นหาด้วยชื่อ หรือรหัสชั่วคราว">
+                <button id="search-temp-employee-btn">ค้นหา</button>
+                
+                <div id="temp-employee-search-results" class="search-results-box hidden">
+                    <p>ผลการค้นหา:</p>
+                    <div id="temp-employee-results-list">
+                    </div>
+                    <p id="no-temp-results-message" class="hidden" style="color: var(--text-gray);">ไม่พบประวัติที่ตรงกัน</p>
                 </div>
+
+                <label for="coupon-amount-temporary">จำนวนคูปอง (บาท)</label>
+                <input type="number" id="coupon-amount-temporary" value="45" min="1">
+                
+                <button id="issue-temporary-coupon-btn">ออก QR Code ชั่วคราว</button>
+            </div>
+
+            <div id="qr-code-display" class="hidden">
+                <p>QR Code สำหรับคูปอง:</p>
+                <img id="qr-code-img" src="" alt="QR Code">
+                <p id="qr-code-info"></p>
+                <button id="print-qr-btn">พิมพ์ QR Code</button>
+                <button id="download-qr-btn">ดาวน์โหลด QR Code</button>
+            </div>
+
+            <div id="message"></div>
         </div>
     </div>
 
-    <script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.0.0/qrcode.min.js"></script> <script>
         const mainContent = document.getElementById('main-content');
         const unauthorizedMessage = document.getElementById('unauthorized-message');
-        
-        const employeeTypeSelectionRadios = document.querySelectorAll('input[name="employee-type-selection"]');
-        const existingEmployeeFields = document.getElementById('existing-employee-fields');
-        const newTempEmployeeFields = document.getElementById('new-temp-employee-fields');
+        let _supabase;
+        let currentUserSession;
 
-        const employeeIdInput = document.getElementById('employee-id-input');
-        const tempEmployeeNameInput = document.getElementById('temp-employee-name-input');
-        const tempEmployeeIdentifierInput = document.getElementById('temp-employee-identifier-input');
+        const couponRecipientTypeRadios = document.querySelectorAll('input[name="coupon-recipient-type"]');
+        const employeeSection = document.getElementById('employee-section');
+        const temporarySection = document.getElementById('temporary-section');
 
-        const reasonSelect = document.getElementById('reason-select');
-        const couponTypeSelect = document.getElementById('coupon-type-select');
-        const issueQrBtn = document.getElementById('issue-qr-btn');
-        const resultMessageDiv = document.getElementById('result-message');
-        const qrCodeDisplayDiv = document.getElementById('qr-code-display');
-        const qrcodeContainer = document.getElementById('qrcode');
-        const expiryTimeSpan = document.getElementById('expiry-time');
-        const tempTokenDisplaySpan = document.getElementById('temp-token-display');
+        const employeeIdInput = document.getElementById('employee-id');
+        const couponAmountEmployeeInput = document.getElementById('coupon-amount-employee');
+        const issueEmployeeCouponBtn = document.getElementById('issue-employee-coupon-btn');
 
-        const BASE_SCANNER_URL = 'https://ssth-ecoupon.netlify.app/scanner'; 
-        
-        let currentUserSession = null; 
+        const tempEmployeeNameInput = document.getElementById('temp-employee-name');
+        const searchTempEmployeeInput = document.getElementById('search-temp-employee');
+        const searchTempEmployeeBtn = document.getElementById('search-temp-employee-btn');
+        const tempEmployeeSearchResults = document.getElementById('temp-employee-search-results');
+        const tempEmployeeResultsList = document.getElementById('temp-employee-results-list');
+        const noTempResultsMessage = document.getElementById('no-temp-results-message');
+        const couponAmountTemporaryInput = document.getElementById('coupon-amount-temporary');
+        const issueTemporaryCouponBtn = document.getElementById('issue-temporary-coupon-btn');
+
+        const qrCodeDisplay = document.getElementById('qr-code-display');
+        const qrCodeImg = document.getElementById('qr-code-img');
+        const qrCodeInfo = document.getElementById('qr-code-info');
+        const printQrBtn = document.getElementById('print-qr-btn');
+        const downloadQrBtn = document.getElementById('download-qr-btn');
+
+        const messageDiv = document.getElementById('message');
+
+        const baseUrl = window.location.origin;
+
+        let selectedTempEmployeeForReactivation = null;
 
         async function initializeApp() {
             try {
-                const response = await fetch('/.netlify/functions/get-config');
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
                 const config = await response.json();
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
-                console.log('Session on initializeApp:', session); 
+                currentUserSession = session;
                 if (session) {
-                    console.log('Session user ID:', session.user?.id);
-                    currentUserSession = session;
                     mainContent.classList.remove('hidden');
+                    const { data: profile, error: profileError } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
+                    if (profileError || profile?.role !== 'superuser') {
+                        unauthorizedMessage.querySelector('h1').textContent = 'ไม่ได้รับอนุญาต';
+                        unauthorizedMessage.querySelector('p').textContent = 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้. กรุณาติดต่อผู้ดูแลระบบ.';
+                        unauthorizedMessage.classList.remove('hidden');
+                        mainContent.classList.add('hidden');
+                        return;
+                    }
+                    showRecipientType('employee');
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
@@ -263,134 +322,132 @@
             }
         }
 
-        employeeTypeSelectionRadios.forEach(radio => {
+        function showRecipientType(type) {
+            if (type === 'employee') {
+                employeeSection.classList.remove('hidden');
+                temporarySection.classList.add('hidden');
+                tempEmployeeNameInput.value = '';
+                searchTempEmployeeInput.value = '';
+                tempEmployeeSearchResults.classList.add('hidden');
+                tempEmployeeResultsList.innerHTML = '';
+                noTempResultsMessage.classList.add('hidden');
+                selectedTempEmployeeForReactivation = null;
+                issueTemporaryCouponBtn.textContent = 'ออก QR Code ชั่วคราว';
+            } else {
+                employeeSection.classList.add('hidden');
+                temporarySection.classList.remove('hidden');
+                employeeIdInput.value = '';
+            }
+            qrCodeDisplay.classList.add('hidden');
+            showMessage('', 'info');
+        }
+
+        couponRecipientTypeRadios.forEach(radio => {
             radio.addEventListener('change', (event) => {
-                if (event.target.value === 'existing') {
-                    existingEmployeeFields.classList.remove('hidden');
-                    newTempEmployeeFields.classList.add('hidden');
-                    tempEmployeeNameInput.value = '';
-                    tempEmployeeIdentifierInput.value = '';
-                } else {
-                    existingEmployeeFields.classList.add('hidden');
-                    newTempEmployeeFields.classList.remove('hidden');
-                    employeeIdInput.value = '';
-                }
+                showRecipientType(event.target.value);
             });
         });
 
+        function showMessage(message, type) {
+            messageDiv.style.display = 'block';
+            messageDiv.textContent = message;
+            messageDiv.className = `message-${type}`;
+        }
 
-        issueQrBtn.addEventListener('click', async () => {
-            const selectedEmployeeTypeElement = document.querySelector('input[name="employee-type-selection"]:checked');
-            const selectedEmployeeType = selectedEmployeeTypeElement ? selectedEmployeeTypeElement.value : '';
-            console.log('Selected Employee Type:', selectedEmployeeType); 
-            
-            let employeeIdentifier = '';
-            let tempEmployeeName = '';
-            let tempEmployeeIdentifier = '';
-            let isNewTempEmployee = false;
+        issueEmployeeCouponBtn.addEventListener('click', async () => {
+            const employeeId = employeeIdInput.value.trim();
+            const amount = parseInt(couponAmountEmployeeInput.value);
 
-            if (selectedEmployeeType === 'existing') {
-                employeeIdentifier = employeeIdInput.value.trim();
-                if (!employeeIdentifier) {
-                    showResult('กรุณากรอกรหัสพนักงานหรือ Permanent Token', 'error');
-                    return;
-                }
-            } else if (selectedEmployeeType === 'new-temp') { 
-                tempEmployeeName = tempEmployeeNameInput.value.trim();
-                tempEmployeeIdentifier = tempEmployeeIdentifierInput.value.trim(); 
-                isNewTempEmployee = true;
-
-                if (!tempEmployeeName) {
-                    showResult('กรุณากรอกชื่อ-สกุลของบุคคลชั่วคราว', 'error');
-                    return;
-                }
-            } else { 
-                showResult('ผิดพลาด: กรุณาเลือกประเภทพนักงาน', 'error'); 
+            if (!employeeId || isNaN(amount) || amount <= 0) {
+                showMessage('กรุณากรอกรหัสพนักงานและจำนวนคูปองให้ถูกต้อง', 'error');
                 return;
             }
 
-            const reason = reasonSelect.value;
-            const couponType = couponTypeSelect.value;
-
-            if (!reason) {
-                showResult('กรุณาเลือกเหตุผล', 'error');
-                return;
-            }
-            if (!couponType) {
-                showResult('กรุณาเลือกประเภทคูปองที่ต้องการออก', 'error');
-                return;
-            }
-
-            issueQrBtn.disabled = true;
-            issueQrBtn.textContent = 'กำลังออก QR Code...';
-            showResult('กำลังประมวลผล...', 'info');
-            qrCodeDisplayDiv.classList.add('hidden');
+            issueEmployeeCouponBtn.disabled = true;
+            showMessage('กำลังออกคูปอง...', 'info');
+            qrCodeDisplay.classList.add('hidden');
 
             try {
-                console.log('currentUserSession before fetch:', currentUserSession);
-                console.log('Access Token before fetch:', currentUserSession?.access_token);
-
-                if (!currentUserSession || !currentUserSession.access_token) {
-                    showResult('ไม่ได้ลงชื่อเข้าใช้ กรุณาลองใหม่', 'error');
-                    return;
-                }
-
-                const response = await fetch('/.netlify/functions/issue-temp-coupon', {
+                const response = await fetch(`${baseUrl}/.netlify/functions/issue-coupon`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${currentUserSession.access_token}`
                     },
-                    body: JSON.stringify({ 
-                        selected_employee_type: selectedEmployeeType, 
-                        employee_identifier: employeeIdentifier, 
-                        temp_employee_name: tempEmployeeName,     
-                        temp_employee_identifier: tempEmployeeIdentifier, 
-                        reason: reason,
-                        coupon_type: couponType 
-                    })
+                    body: JSON.stringify({ employee_id: employeeId, amount: amount })
                 });
 
-                const data = await response.json(); 
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || 'เกิดข้อผิดพลาดในการออกคูปอง');
 
-                if (response.ok && data.success) {
-                    showResult(`สำเร็จ: ${data.message}`, 'success');
-                    
-                    qrcodeContainer.innerHTML = ''; 
-                    new QRCode(qrcodeContainer, {
-                        text: `${BASE_SCANNER_URL}?token=${data.temporaryToken}`, 
-                        width: 256,
-                        height: 256,
-                        colorDark : "#000000",
-                        colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.H 
-                    });
-                    expiryTimeSpan.textContent = new Date(data.expiresAt).toLocaleString('th-TH'); 
-                    tempTokenDisplaySpan.textContent = data.temporaryToken; 
-                    qrCodeDisplayDiv.classList.remove('hidden'); 
-
-                } else {
-                    showResult(`ผิดพลาด: ${data.message || 'ไม่ทราบข้อผิดพลาด'}`, 'error');
-                    qrCodeDisplayDiv.classList.add('hidden'); 
-                }
+                showMessage(`ออกคูปองให้ ${employeeId} จำนวน ${amount} บาท สำเร็จ!`, 'success');
+                qrCodeImg.src = result.qr_code_url;
+                qrCodeInfo.textContent = `รหัสคูปอง: ${result.coupon_code}`;
+                qrCodeDisplay.classList.remove('hidden');
+                employeeIdInput.value = '';
+                couponAmountEmployeeInput.value = '45'; // Reset to 45
 
             } catch (error) {
-                console.error('Error issuing temporary QR:', error);
-                showResult('เกิดข้อผิดพลาดในการเชื่อมต่อ หรือระบบ', 'error');
-                qrCodeDisplayDiv.classList.add('hidden');
+                console.error('Issue Employee Coupon Error:', error);
+                showMessage(`ผิดพลาด: ${error.message}`, 'error');
             } finally {
-                issueQrBtn.disabled = false;
-                issueQrBtn.textContent = 'ออก QR Code ชั่วคราว';
+                issueEmployeeCouponBtn.disabled = false;
             }
         });
 
-        function showResult(message, type) {
-            resultMessageDiv.style.display = 'block';
-            resultMessageDiv.textContent = message;
-            resultMessageDiv.className = `result-${type}`;
-        }
+        searchTempEmployeeBtn.addEventListener('click', async () => {
+            const searchTerm = searchTempEmployeeInput.value.trim();
+            if (!searchTerm) {
+                showMessage('กรุณากรอกชื่อหรือรหัสชั่วคราวเพื่อค้นหา', 'error');
+                tempEmployeeSearchResults.classList.add('hidden');
+                return;
+            }
 
-        initializeApp();
-    </script>
-</body>
-</html>
+            showMessage('กำลังค้นหา...', 'info');
+            tempEmployeeSearchResults.classList.add('hidden');
+            tempEmployeeResultsList.innerHTML = '';
+            noTempResultsMessage.classList.add('hidden');
+            selectedTempEmployeeForReactivation = null;
+            issueTemporaryCouponBtn.textContent = 'ออก QR Code ชั่วคราว';
+
+            try {
+                const response = await fetch(`${baseUrl}/.netlify/functions/search-temp-employees?query=${encodeURIComponent(searchTerm)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentUserSession.access_token}`
+                    }
+                });
+                const result = await response.json();
+
+                if (!response.ok) throw new Error(result.message || 'เกิดข้อผิดพลาดในการค้นหา');
+
+                if (result.length > 0) {
+                    tempEmployeeSearchResults.classList.remove('hidden');
+                    result.forEach(tempEmp => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.classList.add('search-results-item');
+                        itemDiv.innerHTML = `
+                            <span>${tempEmp.temp_employee_name || 'ไม่ระบุชื่อ'} (ID: ${tempEmp.issued_token.substring(0, 8)}...)</span>
+                            <button data-token="${tempEmp.issued_token}" data-name="${tempEmp.temp_employee_name || ''}" data-amount="${tempEmp.coupon_value || 45}">เลือก</button>
+                        `;
+                        itemDiv.querySelector('button').addEventListener('click', (e) => {
+                            document.querySelectorAll('.search-results-item').forEach(el => el.classList.remove('selected'));
+                            itemDiv.classList.add('selected');
+
+                            selectedTempEmployeeForReactivation = {
+                                issued_token: e.target.dataset.token,
+                                temp_employee_name: e.target.dataset.name,
+                                coupon_value: parseInt(e.target.dataset.amount) // ใช้ค่า amount จากที่ค้นหา
+                            };
+                            tempEmployeeNameInput.value = selectedTempEmployeeForReactivation.temp_employee_name;
+                            couponAmountTemporaryInput.value = selectedTempEmployeeForReactivation.coupon_value; // แสดง amount ที่ค้นหามาได้
+                            issueTemporaryCouponBtn.textContent = 'เปิดใช้งาน QR Code เดิม';
+                            showMessage(`เลือก ${selectedTempEmployeeForReactivation.temp_employee_name} แล้ว. กด "เปิดใช้งาน QR Code เดิม" เพื่อออกคูปอง`, 'info');
+                            qrCodeDisplay.classList.add('hidden');
+                        });
+                        tempEmployeeResultsList.appendChild(itemDiv);
+                    });
+                    noTempResultsMessage.classList.add('hidden');
+                } else {
+                    tempEmployeeSearchResults.classList.remove('hidden');
+                    noTempResultsMessage.classList.remove('hidden');
+                    showMessage('ไม่พบประวัติที่ตรงกัน คุณสามารถกรอกชื่อและออก QR Code ใหม่ได้เลย', 'info');
