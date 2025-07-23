@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>อัปโหลดรูปพนักงาน - ระบบคูปองพนักงาน</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary-color: #6366F1;
+            --light-gray: #F3F4F6;
+            --dark-gray: #1F2937;
+            --text-gray: #4B5563;
+            --success-color: #10B981;
+            --error-color: #EF4444;
+            --info-color: #3B82F6;
+            --border-color: #E5E7EB;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+            padding: 24px;
+        }
+        .container {
+            max-width: 700px;
+            margin: 20px auto;
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header h1 {
+            color: var(--dark-gray);
+            font-size: 28px;
+            margin: 0;
+        }
+        .back-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .form-section {
+            margin-bottom: 24px;
+        }
+        .form-section label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+        input[type="text"], input[type="file"]:not([multiple]), input[type="file"][multiple], input[type="file"][webkitdirectory] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+        input[type="checkbox"] {
+            width: auto; /* ไม่ให้กว้างเต็ม */
+            margin-right: 8px;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #4f46e5;
+        }
+        button:disabled {
+            background-color: #A5B4FC;
+            cursor: not-allowed;
+        }
+        #message {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+            white-space: pre-wrap;
+        }
+        .message-success { background-color: #D1FAE5; color: #065F46; }
+        .message-error { background-color: #FEE2E2; color: #991B1B; }
+        .message-info { background-color: #E0E7FF; color: #3730A3; }
+
+        #photo-preview-container {
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            margin-top: 10px;
+            margin-bottom: 20px;
+            background-color: var(--light-gray);
+        }
+        #photo-preview-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            display: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        #photo-preview-message {
+            font-size: 0.9em;
+            color: var(--text-gray);
+            margin-top: 10px;
+        }
+
+        .hidden { display: none !important; }
+        .unauthorized-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100%;
+            position: fixed; top: 0; left: 0;
+            background-color: var(--light-gray);
+        }
+        .unauthorized-box {
+            background: white;
+            padding: 40px 48px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 450px;
+        }
+        .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
+        .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
+        .unauthorized-button {
+            display: inline-block; width: 100%; padding: 12px;
+            font-size: 16px; font-weight: 600; color: white;
+            background-color: var(--primary-color);
+            border: none; border-radius: 8px; cursor: pointer;
+            text-decoration: none; transition: background-color 0.2s;
+        }
+        .unauthorized-button:hover { background-color: #4F46E5; }
+
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            color: var(--text-gray);
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+        .radio-group input[type="radio"] {
+            margin-right: 8px;
+        }
+        .radio-group {
+            margin-bottom: 15px;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-top: -10px; /* ชิดกับ input file */
+            margin-bottom: 20px;
+        }
+        .checkbox-group label {
+            margin-bottom: 0;
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+    <div id="unauthorized-message" class="unauthorized-container hidden">
+        <div class="unauthorized-box">
+            <h1>กรุณาลงชื่อเข้าใช้</h1>
+            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
+        </div>
+    </div>
+
+    <div id="main-content" class="hidden">
+        <div class="container">
+            <div class="header">
+                <h1>อัปโหลดรูปพนักงาน</h1>
+                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+            </div>
+
+            <div class="form-section">
+                <label>เลือกโหมดการอัปโหลด:</label>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="upload-mode" value="single" checked>
+                        อัปโหลดทีละรูป
+                    </label>
+                    <label>
+                        <input type="radio" name="upload-mode" value="batch">
+                        อัปโหลดหลายรูป / โฟลเดอร์
+                    </label>
+                </div>
+            </div>
+
+            <div id="single-upload-section" class="form-section">
+                <label for="employee-id-for-photo">รหัสพนักงาน</label>
+                <input type="text" id="employee-id-for-photo" placeholder="กรอกรหัสพนักงาน (เช่น 30000)">
+                
+                <label for="photo-upload-single">เลือกรูปพนักงาน</label>
+                <input type="file" id="photo-upload-single" accept="image/*">
+                <div id="photo-preview-container-single">
+                    <img id="photo-preview-img-single" src="" alt="Photo Preview">
+                    <p id="photo-preview-message-single">เลือกรูปภาพเพื่อดูตัวอย่าง (จะถูกปรับขนาด)</p>
+                </div>
+            </div>
+
+            <div id="batch-upload-section" class="form-section hidden">
+                <label for="photo-upload-batch">เลือกหลายรูป หรือ โฟลเดอร์รูปภาพ (ชื่อไฟล์ควรเป็นรหัสพนักงาน.jpg/.png)</label>
+                <input type="file" id="photo-upload-batch" accept="image/*" multiple webkitdirectory directory>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="photos-are-optimized">
+                    <label for="photos-are-optimized">รูปภาพบีบอัดมาแล้ว (ไม่ต้องปรับขนาด)</label>
+                </div>
+                <div id="batch-preview-summary"></div>
+            </div>
+
+            <button id="upload-photo-btn">อัปโหลดรูปภาพ</button>
+            <div id="message"></div>
+        </div>
+    </div>
+
+    <script>
+        const mainContent = document.getElementById('main-content');
+        const unauthorizedMessage = document.getElementById('unauthorized-message');
+        let _supabase;
+
+        const uploadModeRadios = document.querySelectorAll('input[name="upload-mode"]');
+        const singleUploadSection = document.getElementById('single-upload-section');
+        const batchUploadSection = document.getElementById('batch-upload-section');
+
+        const employeeIdForPhotoInput = document.getElementById('employee-id-for-photo');
+        const photoUploadSingleInput = document.getElementById('photo-upload-single');
+        const photoPreviewContainerSingle = document.getElementById('photo-preview-container-single');
+        const photoPreviewImgSingle = document.getElementById('photo-preview-img-single');
+        const photoPreviewMessageSingle = document.getElementById('photo-preview-message-single');
+
+        const photoUploadBatchInput = document.getElementById('photo-upload-batch');
+        const photosAreOptimizedCheckbox = document.getElementById('photos-are-optimized');
+        const batchPreviewSummary = document.getElementById('batch-preview-summary');
+
+        const uploadPhotoBtn = document.getElementById('upload-photo-btn');
+        const messageDiv = document.getElementById('message');
+
+        const baseUrl = window.location.origin;
+        let resizedImageBase64 = null; // สำหรับโหมด single
+        let filesToUploadBatch = []; // สำหรับโหมด batch
+
+        async function initializeApp() {
+            try {
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+                const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (session) {
+                    mainContent.classList.remove('hidden');
+                    // ตั้งค่าเริ่มต้นให้โหมด Single
+                    showUploadMode('single');
+                } else {
+                    unauthorizedMessage.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                unauthorizedMessage.classList.remove('hidden');
+            }
+        }
+
+        // --- ฟังก์ชันสลับโหมดการอัปโหลด ---
+        function showUploadMode(mode) {
+            if (mode === 'single') {
+                singleUploadSection.classList.remove('hidden');
+                batchUploadSection.classList.add('hidden');
+                batchPreviewSummary.textContent = ''; // เคลียร์ preview
+                filesToUploadBatch = []; // เคลียร์ไฟล์ในโหมด batch
+                photoUploadBatchInput.value = ''; // เคลียร์ input file
+            } else { // batch
+                singleUploadSection.classList.add('hidden');
+                batchUploadSection.classList.remove('hidden');
+                employeeIdForPhotoInput.value = ''; // เคลียร์ ID
+                photoUploadSingleInput.value = ''; // เคลียร์ input file
+                photoPreviewImgSingle.style.display = 'none'; // ซ่อน preview
+                photoPreviewMessageSingle.textContent = 'เลือกรูปภาพเพื่อดูตัวอย่าง (จะถูกปรับขนาด)';
+                resizedImageBase64 = null; // เคลียร์รูปในโหมด single
+            }
+            showMessage('', 'info'); // เคลียร์ข้อความสถานะ
+        }
+
+        uploadModeRadios.forEach(radio => {
+            radio.addEventListener('change', (event) => {
+                showUploadMode(event.target.value);
+            });
+        });
+
+        // --- ฟังก์ชันปรับขนาดและบีบอัดรูปภาพ (ใช้สำหรับโหมด Single และ Batch หากไม่ได้ Optimize มาแล้ว) ---
+        async function resizeAndCompressImage(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+
+                reader.onload = (readerEvent) => {
+                    const img = new Image();
+                    img.src = readerEvent.target.result;
+
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+
+                        const MAX_WIDTH = 600;   // กำหนดความกว้างสูงสุด
+                        const MAX_HEIGHT = 600;  // กำหนดความสูงสูงสุด
+                        const QUALITY = 0.8;    // คุณภาพการบีบอัด JPEG
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) {
+                                height *= MAX_WIDTH / width;
+                                width = MAX_WIDTH;
+                            }
+                        } else {
+                            if (height > MAX_HEIGHT) {
+                                width *= MAX_HEIGHT / height;
+                                height = MAX_HEIGHT;
+                            }
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        resizedImageBase64 = canvas.toDataURL('image/jpeg', QUALITY);
+                        resolve(resizedImageBase64.split(',')[1]); // ส่งเฉพาะ Base64 data
+                    };
+                    img.onerror = (error) => reject(error);
+                };
+                reader.onerror = (error) => reject(error);
+            });
+        }
+        
+        // --- Event Listener สำหรับโหมด Single File ---
+        photoUploadSingleInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                photoPreviewMessageSingle.textContent = 'ไม่ได้เลือกรูปภาพ';
+                photoPreviewImgSingle.style.display = 'none';
+                resizedImageBase64 = null;
+                return;
+            }
+
+            if (!file.type.startsWith('image/')) {
+                photoPreviewMessageSingle.textContent = 'กรุณาเลือกไฟล์รูปภาพเท่านั้น';
+                photoPreviewImgSingle.style.display = 'none';
+                resizedImageBase64 = null;
+                return;
+            }
+
+            photoPreviewMessageSingle.textContent = 'กำลังปรับขนาดรูปภาพ...';
+            photoPreviewImgSingle.style.display = 'none';
+            uploadPhotoBtn.disabled = true;
+            showMessage('', 'info');
+
+            try {
+                const base64Data = await resizeAndCompressImage(file);
+                resizedImageBase64 = `data:image/jpeg;base64,${base64Data}`; // เก็บเป็น Data URL
+                
+                photoPreviewImgSingle.src = resizedImageBase64;
+                photoPreviewImgSingle.style.display = 'block';
+                photoPreviewMessageSingle.textContent = `รูปภาพพร้อมอัปโหลด (ขนาดใหม่: ${base64Data.length / 1024} KB)`; // แสดงขนาดโดยประมาณ
+                uploadPhotoBtn.disabled = false;
+            } catch (error) {
+                console.error('Error resizing image:', error);
+                photoPreviewMessageSingle.textContent = 'เกิดข้อผิดพลาดในการปรับขนาดรูปภาพ';
+                showMessage('ผิดพลาดในการปรับขนาดรูปภาพ', 'error');
+                uploadPhotoBtn.disabled = false;
+                resizedImageBase64 = null;
+            }
+        });
+
+        // --- Event Listener สำหรับโหมด Batch/Folder ---
+        photoUploadBatchInput.addEventListener('change', async (event) => {
+            filesToUploadBatch = Array.from(event.target.files).filter(file => file.type.startsWith('image/'));
+            
+            if (filesToUploadBatch.length === 0) {
+                batchPreviewSummary.textContent = 'ไม่ได้เลือกรูปภาพ';
+                uploadPhotoBtn.disabled = true;
+                return;
+            }
+
+            batchPreviewSummary.textContent = `พบ ${filesToUploadBatch.length} รูปภาพ (กำลังเตรียมไฟล์...)`;
+            uploadPhotoBtn.disabled = true;
+            showMessage('', 'info');
+
+            if (!photosAreOptimizedCheckbox.checked) {
+                batchPreviewSummary.textContent += ' (จะถูกปรับขนาด)';
+                // ถ้าไม่ได้ Optimize มาแล้ว ก็ต้องบีบอัดทีละไฟล์ (อาจใช้เวลา)
+                let processedCount = 0;
+                for (const file of filesToUploadBatch) {
+                    try {
+                        const base64Data = await resizeAndCompressImage(file);
+                        file.optimizedBase64 = base64Data; // เก็บ Base64 ที่ Optimize แล้วไว้ใน object ไฟล์
+                        processedCount++;
+                        batchPreviewSummary.textContent = `พบ ${filesToUploadBatch.length} รูปภาพ (เตรียมแล้ว ${processedCount}/${filesToUploadBatch.length} รูป)`;
+                    } catch (error) {
+                        console.error(`Error processing file ${file.name}:`, error);
+                        file.optimizedBase64 = null; // Mark as failed
+                    }
+                }
+                filesToUploadBatch = filesToUploadBatch.filter(f => f.optimizedBase64 !== null); // กรองไฟล์ที่ประมวลผลสำเร็จ
+                batchPreviewSummary.textContent = `พร้อมอัปโหลด ${filesToUploadBatch.length} รูปภาพ (${filesToUploadBatch.length} รูปที่ปรับขนาดแล้ว)`;
+            } else {
+                batchPreviewSummary.textContent += ' (จะอัปโหลดโดยตรง)';
+                // ถ้า Optimize มาแล้ว ก็อ่านเป็น Base64 ตรงๆ
+                let processedCount = 0;
+                for (const file of filesToUploadBatch) {
+                    await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(file);
+                        reader.onload = (readerEvent) => {
+                            file.optimizedBase64 = readerEvent.target.result.split(',')[1];
+                            processedCount++;
+                            batchPreviewSummary.textContent = `พร้อมอัปโหลด ${filesToUploadBatch.length} รูปภาพ (อ่านแล้ว ${processedCount}/${filesToUploadBatch.length} รูป)`;
+                            resolve();
+                        };
+                        reader.onerror = (error) => {
+                            console.error(`Error reading raw file ${file.name}:`, error);
+                            file.optimizedBase64 = null;
+                            reject(error);
+                        };
+                    });
+                }
+                filesToUploadBatch = filesToUploadBatch.filter(f => f.optimizedBase64 !== null);
+                batchPreviewSummary.textContent = `พร้อมอัปโหลด ${filesToUploadBatch.length} รูปภาพ (อ่านไฟล์ต้นฉบับแล้ว)`;
+            }
+            uploadPhotoBtn.disabled = filesToUploadBatch.length === 0;
+        });
+
+
+        // --- Event Listener สำหรับปุ่มอัปโหลดรูปภาพ ---
+        uploadPhotoBtn.addEventListener('click', async () => {
+            const selectedUploadMode = document.querySelector('input[name="upload-mode"]:checked').value;
+            let photosDataToSend = [];
+            
+            if (selectedUploadMode === 'single') {
+                const employeeId = employeeIdForPhotoInput.value.trim();
+                if (!employeeId) {
+                    showMessage('กรุณากรอกรหัสพนักงาน', 'error');
+                    return;
+                }
+                if (!resizedImageBase64) {
+                    showMessage('กรุณาเลือกรูปภาพและรอการปรับขนาดก่อน', 'error');
+                    return;
+                }
+                photosDataToSend.push({ employee_id: employeeId, photo_data: resizedImageBase64.split(',')[1] });
+
+            } else { // batch mode
+                if (filesToUploadBatch.length === 0) {
+                    showMessage('กรุณาเลือกรูปภาพสำหรับอัปโหลด', 'error');
+                    return;
+                }
+                photosDataToSend = filesToUploadBatch.map(file => ({
+                    employee_id: file.name.split('.')[0], // ดึง employee_id จากชื่อไฟล์ (เช่น "30000.jpg" -> "30000")
+                    photo_data: file.optimizedBase64 // ใช้ Base64 ที่ Optimize/อ่านมาแล้ว
+                }));
+            }
+
+            uploadPhotoBtn.disabled = true;
+            showMessage('กำลังอัปโหลดรูปภาพ...', 'info');
+
+            try {
+                if (!currentUserSession || !currentUserSession.access_token) {
+                    throw new Error('ไม่ได้ลงชื่อเข้าใช้ กรุณาลองใหม่');
+                }
+
+                // เรียก Netlify Function (จะสร้างในส่วนถัดไป)
+                const response = await fetch(`${baseUrl}/.netlify/functions/upload-employee-photo`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentUserSession.access_token}`
+                    },
+                    body: JSON.stringify({ photos: photosDataToSend }) // ส่งเป็น Array ของรูปภาพ
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || 'เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ');
+
+                let successMessage = `อัปโหลดสำเร็จ ${result.uploadedCount} รูป`;
+                if (result.failedCount > 0) {
+                    successMessage += ` (ผิดพลาด ${result.failedCount} รูป: ${result.failedIds.join(', ')})`;
+                }
+                showMessage(successMessage, 'success');
+
+                // รีเซ็ตฟอร์มหลังจากสำเร็จ
+                if (selectedUploadMode === 'single') {
+                    employeeIdForPhotoInput.value = '';
+                    photoUploadSingleInput.value = '';
+                    photoPreviewImgSingle.style.display = 'none';
+                    photoPreviewMessageSingle.textContent = 'เลือกรูปภาพเพื่อดูตัวอย่าง (จะถูกปรับขนาด)';
+                    resizedImageBase64 = null;
+                } else {
+                    photoUploadBatchInput.value = '';
+                    batchPreviewSummary.textContent = '';
+                    filesToUploadBatch = [];
+                }
+
+            } catch (error) {
+                console.error('Upload Error:', error);
+                showMessage(`ผิดพลาด: ${error.message}`, 'error');
+            } finally {
+                uploadPhotoBtn.disabled = false;
+            }
+        });
+
+        // --- ฟังก์ชันสำหรับแสดงข้อความผลลัพธ์ ---
+        function showMessage(message, type) {
+            messageDiv.style.display = 'block';
+            messageDiv.textContent = message;
+            messageDiv.className = `message-${type}`;
+        }
+
+        initializeApp();
+    </script>
+</body>
+</html>

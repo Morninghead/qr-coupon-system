@@ -20,7 +20,6 @@
             background-color: var(--light-gray);
             margin: 0;
         }
-        /* CSS สำหรับซ่อน/แสดง และหน้าแจ้งเตือน */
         .hidden { display: none !important; }
         .unauthorized-container {
             display: flex;
@@ -64,7 +63,6 @@
         }
         .unauthorized-button:hover { background-color: #4F46E5; }
 
-        /* CSS เดิมของหน้า */
         .container { max-width: 900px; margin: 0 auto; padding: 24px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
@@ -157,8 +155,28 @@
             }
         }
 
+        // --- เริ่มต้นการแก้ไขเพื่อแคชข้อมูลแผนก ---
+        const DEPARTMENTS_CACHE_KEY = 'departments_cache';
+        const DEPARTMENTS_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ชั่วโมง
+
         async function loadDepartments() {
             try {
+                // ตรวจสอบ Cache ก่อน
+                const cachedData = localStorage.getItem(DEPARTMENTS_CACHE_KEY);
+                if (cachedData) {
+                    const { departments, timestamp } = JSON.parse(cachedData);
+                    if (Date.now() - timestamp < DEPARTMENTS_CACHE_EXPIRY_MS) {
+                        // ใช้ข้อมูลจาก Cache หากยังไม่หมดอายุ
+                        renderDepartmentOptions(departments);
+                        console.log('Departments loaded from cache.');
+                        return;
+                    } else {
+                        console.log('Departments cache expired, fetching new data.');
+                        localStorage.removeItem(DEPARTMENTS_CACHE_KEY); // ล้าง Cache เก่า
+                    }
+                }
+
+                // ถ้าไม่มี Cache หรือ Cache หมดอายุ ให้ดึงข้อมูลจาก Server
                 const { data: { session } } = await _supabase.auth.getSession();
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
@@ -167,19 +185,32 @@
                 if (!response.ok) throw new Error('Failed to fetch departments from server.');
 
                 const departments = await response.json();
+                
+                // เก็บข้อมูลลง Cache
+                localStorage.setItem(DEPARTMENTS_CACHE_KEY, JSON.stringify({
+                    departments,
+                    timestamp: Date.now()
+                }));
 
-                departmentSelect.innerHTML = '<option value="">-- กรุณาเลือกแผนก --</option>';
-                departments.forEach(dept => {
-                    const option = document.createElement('option');
-                    option.value = dept.id;
-                    option.textContent = dept.name;
-                    departmentSelect.appendChild(option);
-                });
+                renderDepartmentOptions(departments);
+                console.log('Departments loaded from server and cached.');
+
             } catch (error) {
                 departmentSelect.innerHTML = '<option value="">ไม่สามารถโหลดแผนกได้</option>';
                 console.error("Failed to load departments:", error);
             }
         }
+
+        function renderDepartmentOptions(departments) {
+            departmentSelect.innerHTML = '<option value="">-- กรุณาเลือกแผนก --</option>';
+            departments.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept.id;
+                option.textContent = dept.name;
+                departmentSelect.appendChild(option);
+            });
+        }
+        // --- สิ้นสุดการแก้ไขเพื่อแคชข้อมูลแผนก ---
 
         function parseEmployeeData(data) {
             if (data.length < 2) throw new Error('ไฟล์/ข้อมูลว่างเปล่าหรือมีแค่หัวข้อ');
