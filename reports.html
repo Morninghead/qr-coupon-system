@@ -1,364 +1,111 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>รายงาน - ระบบคูปองพนักงาน</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <style>
-        :root {
-            --primary-color: #6366F1;
-            --light-gray: #F3F4F6;
-            --dark-gray: #1F2937;
-            --text-gray: #4B5563;
-            --border-color: #E5E7EB;
-            --success-color: #10B981;
-            --warning-color: #F59E0B;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--light-gray);
-            margin: 0;
-        }
-        .hidden { display: none !important; }
-        .unauthorized-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            width: 100%;
-            position: fixed; top: 0; left: 0;
-            background-color: var(--light-gray);
-        }
-        .unauthorized-box {
-            background: white;
-            padding: 40px 48px;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            max-width: 450px;
-        }
-        .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
-        .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
-        .unauthorized-button {
-            display: inline-block; width: 100%; padding: 12px;
-            font-size: 16px; font-weight: 600; color: white;
-            background-color: var(--primary-color);
-            border: none; border-radius: 8px; cursor: pointer;
-            text-decoration: none; transition: background-color 0.2s;
-        }
-        .unauthorized-button:hover { background-color: #4F46E5; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-        .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
-        .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
-        .filters-card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); margin-bottom: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: end; }
-        .filter-group { display: flex; flex-direction: column; }
-        .filter-group label { margin-bottom: 8px; font-weight: 600; color: var(--dark-gray); }
-        .filter-group select, .filter-group input { padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; }
-        .filter-group button { padding: 10px 20px; font-size: 16px; font-weight: 600; color: white; background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; }
-        .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
-        .chart-card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
-        .chart-card h2 { margin-top: 0; color: var(--dark-gray); border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
-        .chart-card canvas { filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); }
-        .summary-card { grid-column: 1 / -1; background: var(--dark-gray); color: white; padding: 32px; border-radius: 16px; text-align: center; }
-        .summary-card .summary-title { font-size: 18px; font-weight: 500; opacity: 0.7; margin: 0 0 24px 0; }
-        .summary-card h2 { margin-top: 0; font-size: 20px; opacity: 0.9; margin-bottom: 8px; }
-        .summary-card .total-amount { font-size: 48px; font-weight: 700; color: var(--success-color); margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.2); }
-        .summary-details { display: flex; justify-content: center; gap: 48px; margin-bottom: 24px; }
-        .summary-details h3 { margin: 0 0 8px 0; font-size: 16px; opacity: 0.7; font-weight: 500; }
-        .summary-details p { margin: 0; font-size: 28px; font-weight: 600; color: var(--success-color); }
-        @media (max-width: 900px) { .report-grid { grid-template-columns: 1fr; } }
-    </style>
-</head>
-<body>
-    <div id="unauthorized-message" class="unauthorized-container hidden">
-        <div class="unauthorized-box">
-            <h1>กรุณาลงชื่อเข้าใช้</h1>
-            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
-            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
-        </div>
-    </div>
+import { createClient } from '@supabase/supabase-js';
 
-    <div id="main-content" class="hidden">
-        <div class="container">
-            <div class="header">
-                <h1>หน้าจอแสดงรายงาน</h1>
-                <a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
-            </div>
-            <div class="filters-card">
-                <div class="filter-group">
-                    <label for="date-picker">เลือกช่วงวันที่</label>
-                    <input type="text" id="date-picker" placeholder="เลือกช่วงวันที่...">
-                </div>
-                <div class="filter-group">
-                    <label for="department">แผนก</label>
-                    <select id="department-select">
-                        <option value="all">ทุกแผนก</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <button id="show-report-btn">แสดงรายงาน</button>
-                </div>
-            </div>
-            <div class="report-grid">
-                <div class="chart-card">
-                    <h2>คูปองอาหารกลางวัน (Normal)</h2>
-                    <canvas id="normal-chart"></canvas>
-                </div>
-                <div class="chart-card">
-                    <h2>คูปองอาหารโอที (OT)</h2>
-                    <canvas id="ot-chart"></canvas>
-                </div>
-                <div class="summary-card">
-                    <p class="summary-title" id="summary-title"></p>
-                    <div class="summary-details">
-                        <div>
-                            <h3>ยอดรวมค่าอาหารกลางวัน</h3>
-                            <p id="normal-summary-amount">฿ 0.00</p>
-                        </div>
-                        <div>
-                            <h3>ยอดรวมค่าอาหารโอที</h3>
-                            <p id="ot-summary-amount">฿ 0.00</p>
-                        </div>
-                    </div>
-                    <h2>สรุปยอดเงินรวมทั้งหมด</h2>
-                    <p class="total-amount" id="total-amount">฿ 0.00</p>
-                </div>
-            </div>
-        </div>
-    </div>
+const supabaseUrl = process.env.SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
-    <script>
-        const mainContent = document.getElementById('main-content');
-        const unauthorizedMessage = document.getElementById('unauthorized-message');
-        let _supabase;
-        let datePicker;
-        const baseUrl = window.location.origin;
-        const departmentSelect = document.getElementById('department-select');
+export const handler = async (event, context) => {
+    const token = event.headers.authorization?.split('Bearer ')[1];
+    if (!token) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
+    }
+    try {
+        const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+        if (userError || !user) {
+            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
+        }
+    
+        const { startDate, endDate, departmentId } = event.queryStringParameters;
+        if (!startDate || !endDate) {
+            return { statusCode: 400, body: JSON.stringify({ message: 'Start date and end date are required.' }) };
+        }
 
-        const centerTextPlugin = {
-            id: 'centerText',
-            afterDraw: (chart) => {
-                if (chart.config.type !== 'doughnut' || chart.data.datasets[0].data.reduce((a, b) => a + b, 0) === 0) return;
-                const ctx = chart.ctx;
-                const { width, height } = chart;
-                const total = chart.config.options.plugins.centerText.total;
-                ctx.restore();
-                const textY = height / 2;
-                const subText = 'สิทธิ์ทั้งหมด';
-                const subFontSize = (height / 400).toFixed(2);
-                ctx.font = `bold ${subFontSize}em sans-serif`;
-                ctx.textBaseline = 'middle';
-                const textX = Math.round((width - ctx.measureText(subText).width) / 2);
-                ctx.fillStyle = '#6B7280';
-                ctx.fillText(subText, textX, textY - 30);
-                const text = total.toLocaleString('th-TH');
-                const fontSize = (height / 114).toFixed(2);
-                ctx.font = `bold ${fontSize}em sans-serif`;
-                const textX2 = Math.round((width - ctx.measureText(text).width) / 2);
-                ctx.fillStyle = '#1F2937';
-                ctx.fillText(text, textX2, textY + 15);
-                ctx.save();
-            }
+        // --- 1. ดึงข้อมูลคูปองจาก daily_coupons (สำหรับพนักงานประจำ) ---
+        let dailyCouponsQuery = supabaseAdmin
+            .from('daily_coupons')
+            .select('coupon_type, status, coupon_value, employees!inner(department_id)', { count: 'exact' })
+            .gte('coupon_date', startDate)
+            .lte('coupon_date', endDate);
+
+        if (departmentId && departmentId !== 'all') {
+            dailyCouponsQuery = dailyCouponsQuery.eq('employees.department_id', departmentId);
+        }
+
+        const { data: dailyCoupons, error: dailyCouponsError } = await dailyCouponsQuery;
+        if (dailyCouponsError) {
+            console.error('Error fetching daily coupons for report:', dailyCouponsError);
+            throw dailyCouponsError;
+        }
+
+        // --- 2. ดึงข้อมูลคูปองชั่วคราวจาก temporary_coupon_requests (สำหรับบุคคลใหม่/ไม่รู้จัก) ---
+        let tempRequestsQuery = supabaseAdmin
+            .from('temporary_coupon_requests')
+            .select('coupon_type, status, coupon_value', { count: 'exact' })
+            .gte('request_date', startDate)
+            .lte('request_date', endDate)
+            .is('employee_id', null);
+
+        const { data: tempRequests, error: tempRequestsError } = await tempRequestsQuery;
+        if (tempRequestsError) {
+            console.error('Error fetching temporary requests for report:', tempRequestsError);
+            throw tempRequestsError;
+        }
+
+        // --- 3. รวมและคำนวณรายงาน ---
+        const report = {
+            normalData: { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 },
+            otData: { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 }
         };
 
-        function createDoughnutChart(canvasId, data) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            const notUsed = data.totalGranted - data.totalUsed;
-            if (window[canvasId + '_chart']) {
-                window[canvasId + '_chart'].destroy();
-            }
-            window[canvasId + '_chart'] = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: [`ใช้สิทธิ์ (${data.totalUsed})`, `ไม่ใช้สิทธิ์ (${notUsed < 0 ? 0 : notUsed})`],
-                    datasets: [{
-                        data: [data.totalUsed, notUsed < 0 ? 0 : notUsed],
-                        backgroundColor: ['rgba(16, 185, 129, 0.8)', 'rgba(245, 158, 11, 0.8)'],
-                        borderColor: ['#ffffff'], borderWidth: 4, offset: [0, 10]
-                    }]
-                },
-                options: {
-                    responsive: true, cutout: '60%',
-                    plugins: {
-                        centerText: { total: data.totalGranted },
-                        legend: { position: 'bottom' },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.label || '';
-                                    if (label) { label += ': '; }
-                                    if (context.parsed !== null) {
-                                        const total = data.totalGranted > 0 ? data.totalGranted : 1;
-                                        const percentage = (context.parsed / total * 100).toFixed(1);
-                                        label += `${context.raw} คน (${percentage}%)`;
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    }
-                },
-                plugins: [centerTextPlugin]
-            });
-        }
-
-        function updateSummary(reportData) {
-            // ใช้ totalUsedAmount ที่คำนวณมาจาก backend
-            const normalAmount = reportData.normalData?.totalUsedAmount || 0;
-            const otAmount = reportData.otData?.totalUsedAmount || 0;
-            const totalAmount = normalAmount + otAmount;
-            const formatCurrency = (amount) => `฿ ${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
-            
-            document.getElementById('normal-summary-amount').textContent = formatCurrency(normalAmount);
-            document.getElementById('ot-summary-amount').textContent = formatCurrency(otAmount);
-            document.getElementById('total-amount').textContent = formatCurrency(totalAmount);
-            updateSummaryTitle();
-        }
-
-        function updateSummaryTitle() {
-            const datePickerInput = document.getElementById('date-picker').value;
-            const deptSelect = document.getElementById('department-select');
-            const departmentText = deptSelect.options[deptSelect.selectedIndex].text;
-            const timeText = datePickerInput ? `(${datePickerInput.replace(' to ', ' - ')})` : '';
-            document.getElementById('summary-title').textContent = `รายงานสรุปยอด ${timeText} | แผนก: ${departmentText}`;
-        }
-
-        async function fetchReportData() {
-            const showReportBtn = document.getElementById('show-report-btn');
-            showReportBtn.disabled = true;
-            showReportBtn.textContent = 'กำลังโหลด...';
-
-            const dateRange = datePicker.selectedDates;
-            if (dateRange.length < 2) {
-                console.log('Please select a date range.');
-                showReportBtn.disabled = false;
-                showReportBtn.textContent = 'แสดงรายงาน';
-                return;
-            }
-
-            const startDate = dateRange[0].toISOString().split('T')[0];
-            const endDate = dateRange[1].toISOString().split('T')[0];
-            const departmentId = departmentSelect.value;
-            const { data: { session } } = await _supabase.auth.getSession();
-
-            if (!session) {
-                console.error("No active session to fetch report data.");
-                showReportBtn.disabled = false;
-                showReportBtn.textContent = 'แสดงรายงาน';
-                return;
-            }
-
-            const endpoint = `${baseUrl}/.netlify/functions/get-report-data?startDate=${startDate}&endDate=${endDate}&departmentId=${departmentId}`;
-            
-            try {
-                const response = await fetch(endpoint, {
-                    headers: { 'Authorization': `Bearer ${session.access_token}` }
-                });
-                if (!response.ok) {
-                    const errorResult = await response.json();
-                    throw new Error(errorResult.message || "Failed to load report data");
+        // คำนวณจาก daily_coupons
+        for (const coupon of dailyCoupons) {
+            if (coupon.coupon_type === 'NORMAL') {
+                report.normalData.totalGranted++; // นับ Granted
+                if (coupon.status === 'USED') {
+                    report.normalData.totalUsed++;
+                    report.normalData.totalUsedAmount += (coupon.coupon_value || 0);
                 }
-                const report = await response.json();
-
-                createDoughnutChart('normal-chart', report.normalData || { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 }); // ส่ง totalUsedAmount ไปด้วย
-                createDoughnutChart('ot-chart', report.otData || { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 }); // ส่ง totalUsedAmount ไปด้วย
-                updateSummary(report);
-
-            } catch (e) {
-                console.error(`Error fetching report data: ${e.message}`);
-            } finally {
-                showReportBtn.disabled = false;
-                showReportBtn.textContent = 'แสดงรายงาน';
-            }
-        }
-
-        async function loadDepartments() {
-            const DEPARTMENTS_CACHE_KEY = 'departments_cache';
-            const DEPARTMENTS_CACHE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
-
-            try {
-                const cachedData = localStorage.getItem(DEPARTMENTS_CACHE_KEY);
-                if (cachedData) {
-                    const { departments, timestamp } = JSON.parse(cachedData);
-                    if (Date.now() - timestamp < DEPARTMENTS_CACHE_EXPIRY_MS) {
-                        renderDepartmentOptions(departments);
-                        console.log('Departments loaded from cache.');
-                        return;
-                    } else {
-                        console.log('Departments cache expired, fetching new data.');
-                        localStorage.removeItem(DEPARTMENTS_CACHE_KEY);
-                    }
+            } else if (coupon.coupon_type === 'OT') {
+                report.otData.totalGranted++; // นับ Granted
+                if (coupon.status === 'USED') {
+                    report.otData.totalUsed++;
+                    report.otData.totalUsedAmount += (coupon.coupon_value || 0);
                 }
-
-                const { data: { session } } = await _supabase.auth.getSession();
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
-                    headers: { 'Authorization': `Bearer ${session.access_token}` }
-                });
-
-                if (!response.ok) throw new Error('Failed to load departments');
-                
-                const departments = await response.json();
-                
-                localStorage.setItem(DEPARTMENTS_CACHE_KEY, JSON.stringify({
-                    departments,
-                    timestamp: Date.now()
-                }));
-
-                renderDepartmentOptions(departments);
-                console.log('Departments loaded from server and cached.');
-
-            } catch (error) {
-                console.error("Failed to load departments:", error);
             }
         }
 
-        function renderDepartmentOptions(departments) {
-            departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>';
-            departments.forEach(dept => {
-                const option = document.createElement('option');
-                option.value = dept.id;
-                option.textContent = dept.name;
-                departmentSelect.appendChild(option);
-            });
-        }
-
-        async function initializeApp() {
-            try {
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
-                const config = await response.json();
-                
-                const { createClient } = supabase;
-                _supabase = createClient(config.supabaseUrl, config.supabaseKey);
-
-                const { data: { session } } = await _supabase.auth.getSession();
-                if (session) {
-                    mainContent.classList.remove('hidden');
-                    
-                    datePicker = flatpickr("#date-picker", {
-                        mode: "range",
-                        dateFormat: "Y-m-d",
-                        defaultDate: [new Date(), new Date()]
-                    });
-
-                    await loadDepartments();
-                    await fetchReportData(); 
-                    document.getElementById('show-report-btn').addEventListener('click', fetchReportData);
-
-                } else {
-                    unauthorizedMessage.classList.remove('hidden');
+        // เพิ่มการคำนวณจาก temporary_coupon_requests
+        for (const tempReq of tempRequests) {
+            if (tempReq.coupon_type === 'NORMAL') {
+                // สำหรับ temp requests, นับทุกสถานะที่ถือว่า "ออกไปแล้ว" เป็น Granted
+                if (['ISSUED', 'USED', 'ACTIVE'].includes(tempReq.status)) { // เพิ่ม 'ACTIVE' หากใช้ในอนาคต
+                    report.normalData.totalGranted++;
                 }
-            } catch (error) {
-                console.error('Initialization failed:', error);
-                unauthorizedMessage.classList.remove('hidden');
+                if (tempReq.status === 'USED') {
+                    report.normalData.totalUsed++;
+                    report.normalData.totalUsedAmount += (tempReq.coupon_value || 0);
+                }
+            } else if (tempReq.coupon_type === 'OT') {
+                if (['ISSUED', 'USED', 'ACTIVE'].includes(tempReq.status)) {
+                    report.otData.totalGranted++;
+                }
+                if (tempReq.status === 'USED') {
+                    report.otData.totalUsed++;
+                    report.otData.totalUsedAmount += (tempReq.coupon_value || 0);
+                }
             }
         }
-        
-        document.addEventListener('DOMContentLoaded', initializeApp);
-    </script>
-</body>
-</html>
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify(report),
+        };
+
+    } catch (error) {
+        console.error('Get Report Data Error:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ message: 'Failed to fetch report data', error: error.message }),
+        };
+    }
+};
