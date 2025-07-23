@@ -1,99 +1,105 @@
-const express = require('express');
-const mysql = require('mysql2/promise');
+import { createClient } from '@supabase/supabase-js';
 
-// Database connection (โปรดตรวจสอบว่าถูกต้อง)
-const dbConfig = {
-  host: 'localhost',
-  user: 'your_username',
-  password: 'your_password',
-  database: 'coupon_system'
-};
+const supabaseUrl = process.env.SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
-const getReportData = async (req, res) => {
-  try {
-    const { startDate, endDate, departmentId } = req.query;
-    
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: 'Start date and end date are required' });
+export const handler = async (event, context) => {
+    const token = event.headers.authorization?.split('Bearer ')[1];
+    if (!token) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
     }
-
-    const connection = await mysql.createConnection(dbConfig);
-
-    // Query สำหรับ daily_coupons ที่ปรับปรุงใหม่
-    // ใช้ coupon_date, เช็ค used_at และ SUM(coupon_value)
-    let dailyQuery = `
-      SELECT
-        coupon_type,
-        COUNT(*) AS totalGranted,
-        COUNT(dc.used_at) AS totalUsed,
-        SUM(CASE WHEN dc.used_at IS NOT NULL THEN dc.coupon_value ELSE 0 END) AS totalAmount
-      FROM daily_coupons dc
-      LEFT JOIN employees e ON dc.employee_id = e.id
-      WHERE dc.coupon_date BETWEEN ? AND ?
-    `;
-    
-    // Query สำหรับ temporary_coupon_requests ที่ปรับปรุงใหม่
-    // ใช้ request_date, เช็ค used_at และ SUM(coupon_value)
-    let tempQuery = `
-      SELECT
-        coupon_type,
-        COUNT(*) AS totalGranted,
-        COUNT(tr.used_at) AS totalUsed,
-        SUM(CASE WHEN tr.used_at IS NOT NULL THEN tr.coupon_value ELSE 0 END) AS totalAmount
-      FROM temporary_coupon_requests tr
-      LEFT JOIN employees e ON tr.employee_id = e.id
-      WHERE tr.request_date BETWEEN ? AND ?
-      -- หมายเหตุ: กรองสถานะของ temporary coupon ที่ถือว่าเป็น 'สิทธิ์ที่แจกไปแล้ว'
-      -- จาก schema ค่า default คือ 'ISSUED' ดังนั้นจึงใช้สถานะนี้เป็นหลัก
-      AND tr.status IN ('ISSUED', 'APPROVED', 'USED')
-    `;
-
-    let queryParams = [startDate, endDate];
-    
-    // เพิ่มเงื่อนไขแผนกถ้ามีการเลือก
-    if (departmentId && departmentId !== 'all') {
-      dailyQuery += ` AND e.department_id = ?`;
-      tempQuery += ` AND e.department_id = ?`;
-      queryParams.push(departmentId);
-    }
-
-    dailyQuery += ` GROUP BY coupon_type`;
-    tempQuery += ` GROUP BY coupon_type`;
-
-    // Execute queries
-    const [dailyResults] = await connection.execute(dailyQuery, queryParams);
-    const [tempResults] = await connection.execute(tempQuery, queryParams);
-
-    await connection.end();
-
-    // รวมผลลัพธ์จากทั้งสอง Query
-    const combinedData = {};
-
-    [...dailyResults, ...tempResults].forEach(row => {
-        const type = row.coupon_type.toLowerCase(); // 'normal' หรือ 'ot'
-        if (!combinedData[type]) {
-            combinedData[type] = { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 };
+    try {
+        const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+        if (userError || !user) {
+            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
         }
-        combinedData[type].totalGranted += Number(row.totalGranted);
-        combinedData[type].totalUsed += Number(row.totalUsed);
-        combinedData[type].totalUsedAmount += Number(row.totalAmount);
-    });
     
-    // จัดรูปแบบข้อมูลให้ตรงกับที่ Frontend ต้องการ
-    const finalResponse = {
-        normalData: combinedData.normal || { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 },
-        otData: combinedData.ot || { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 }
-    };
+        const { startDate, endDate, departmentId } = event.queryStringParameters;
+        if (!startDate || !endDate) {
+            return { statusCode: 400, body: JSON.stringify({ message: 'Start date and end date are required.' }) };
+        }
 
-    res.json(finalResponse);
+        // --- 1. ดึงข้อมูลคูปองจาก daily_coupons (สำหรับพนักงานประจำ) ---
+        // เพิ่ม coupon_value ใน select ด้วย
+        let dailyCouponsQuery = supabaseAdmin
+            .from('daily_coupons')
+            .select('coupon_type, status, coupon_value, employees!inner(department_id)', { count: 'exact' })
+            .gte('coupon_date', startDate)
+            .lte('coupon_date', endDate);
 
-  } catch (error) {
-    console.error('Error fetching report data:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message 
-    });
-  }
+        if (departmentId && departmentId !== 'all') {
+            dailyCouponsQuery = dailyCouponsQuery.eq('employees.department_id', departmentId);
+        }
+
+        const { data: dailyCoupons, error: dailyCouponsError } = await dailyCouponsQuery;
+        if (dailyCouponsError) {
+            console.error('Error fetching daily coupons for report:', dailyCouponsError);
+            throw dailyCouponsError;
+        }
+
+        // --- 2. ดึงข้อมูลคูปองชั่วคราวจาก temporary_coupon_requests (สำหรับบุคคลใหม่/ไม่รู้จัก) ---
+        // (เราจะรวมเฉพาะที่ employee_id เป็น NULL เพื่อหลีกเลี่ยงการนับซ้ำกับ Daily_Coupons)
+        // เพิ่ม coupon_value ใน select ด้วย
+        let tempRequestsQuery = supabaseAdmin
+            .from('temporary_coupon_requests')
+            .select('coupon_type, status, coupon_value', { count: 'exact' })
+            .gte('request_date', startDate)
+            .lte('request_date', endDate)
+            .is('employee_id', null); // <<< สำคัญ: กรองเฉพาะบุคคลใหม่/ไม่รู้จัก
+
+        const { data: tempRequests, error: tempRequestsError } = await tempRequestsQuery;
+        if (tempRequestsError) {
+            console.error('Error fetching temporary requests for report:', tempRequestsError);
+            throw tempRequestsError;
+        }
+
+        // --- 3. รวมและคำนวณรายงาน ---
+        const report = {
+            normalData: { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 },
+            otData: { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 }
+        };
+
+        // คำนวณจาก daily_coupons
+        for (const coupon of dailyCoupons) {
+            if (coupon.coupon_type === 'NORMAL') {
+                report.normalData.totalGranted++;
+                if (coupon.status === 'USED') {
+                    report.normalData.totalUsed++;
+                    report.normalData.totalUsedAmount += (coupon.coupon_value || 0);
+                }
+            } else if (coupon.coupon_type === 'OT') {
+                report.otData.totalGranted++;
+                if (coupon.status === 'USED') {
+                    report.otData.totalUsed++;
+                    report.otData.totalUsedAmount += (coupon.coupon_value || 0);
+                }
+            }
+        }
+
+        // เพิ่มการคำนวณจาก temporary_coupon_requests (เฉพาะ totalUsed และ totalUsedAmount)
+        for (const tempReq of tempRequests) {
+            if (tempReq.status === 'USED') {
+                if (tempReq.coupon_type === 'NORMAL') {
+                    report.normalData.totalUsed++;
+                    report.normalData.totalUsedAmount += (tempReq.coupon_value || 0);
+                } else if (tempReq.coupon_type === 'OT') {
+                    report.otData.totalUsed++;
+                    report.otData.totalUsedAmount += (tempReq.coupon_value || 0);
+                }
+            }
+        }
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify(report),
+        };
+
+    } catch (error) {
+        console.error('Get Report Data Error:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ message: 'Failed to fetch report data', error: error.message }),
+        };
+    }
 };
-
-module.exports = { getReportData };
