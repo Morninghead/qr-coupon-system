@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Main Menu - Employee Coupon System</title>
+    <title>เมนูหลัก - ระบบคูปองพนักงาน</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -11,14 +11,81 @@
             --light-gray: #F3F4F6;
             --dark-gray: #1F2937;
             --text-gray: #4B5563;
+            --success-color: #10B981;
+            --error-color: #EF4444;
+            --info-color: #3B82F6;
             --border-color: #E5E7EB;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: var(--light-gray);
             margin: 0;
+            padding: 24px;
         }
-        /* CSS สำหรับซ่อน/แสดง และหน้าแจ้งเตือน */
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .header h1 {
+            color: var(--dark-gray);
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        .header p {
+            color: var(--text-gray);
+            font-size: 16px;
+        }
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .menu-item {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 18px;
+            font-weight: 600;
+            transition: background-color 0.2s, transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100px;
+        }
+        .menu-item:hover {
+            background-color: #4f46e5;
+            transform: translateY(-3px);
+        }
+        .logout-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-top: 32px;
+            background-color: var(--error-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        .logout-btn:hover {
+            background-color: #dc2626;
+        }
+
+        /* Unauthorized Message (คล้ายกับไฟล์อื่นๆ) */
         .hidden { display: none !important; }
         .unauthorized-container {
             display: flex;
@@ -40,45 +107,13 @@
         .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
         .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
         .unauthorized-button {
-            display: inline-block;
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            color: white;
+            display: inline-block; width: 100%; padding: 12px;
+            font-size: 16px; font-weight: 600; color: white;
             background-color: var(--primary-color);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-            transition: background-color 0.2s;
+            border: none; border-radius: 8px; cursor: pointer;
+            text-decoration: none; transition: background-color 0.2s;
         }
         .unauthorized-button:hover { background-color: #4F46E5; }
-
-        /* CSS เดิมของหน้า */
-        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
-        .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
-        .user-info { text-align: right; }
-        .user-info span { display: block; color: var(--text-gray); font-weight: 500; }
-        #logout-btn { background: none; border: none; color: var(--primary-color); font-weight: 600; cursor: pointer; font-size: 16px; padding: 4px 0 0 0; transition: opacity 0.2s; }
-        #logout-btn:hover { opacity: 0.8; }
-        .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
-        .menu-item { background-color: white; border-radius: 16px; padding: 24px; text-decoration: none; color: var(--dark-gray); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); transition: transform 0.2s ease, box-shadow 0.2s ease; display: none; /* ซ่อนไว้ก่อนเสมอ */ }
-        .menu-item:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); }
-        .menu-item h2 { margin-top: 0; margin-bottom: 8px; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .menu-item p { margin: 0; color: var(--text-gray); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        @media (max-width: 768px) {
-            .container { padding: 16px; }
-            .header { flex-direction: column; align-items: flex-start; gap: 8px; }
-            .header h1 { font-size: 24px; }
-            .user-info { text-align: left; width: 100%; }
-            .menu-grid { gap: 16px; }
-            .menu-item { padding: 20px; }
-            .menu-item h2 { font-size: 17px; }
-            .menu-item p { font-size: 13px; }
-        }
     </style>
 </head>
 <body>
@@ -86,7 +121,7 @@
         <div class="unauthorized-box">
             <h1>กรุณาลงชื่อเข้าใช้</h1>
             <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
-            <a class='unauthorized-button' href='/'>ไปที่หน้าลงชื่อเข้าใช้</a>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
     </div>
 
@@ -94,94 +129,34 @@
         <div class="container">
             <div class="header">
                 <h1>เมนูหลัก</h1>
-                <div class="user-info">
-                    <span id="user-email"></span>
-                    <button id="logout-btn">ออกจากระบบ</button>
-                </div>
+                <p>เลือกการดำเนินการที่คุณต้องการ</p>
             </div>
-
-            <div class="menu-grid" id="menu-grid">
-                <a class='menu-item' href='/add-employee.html' id='menu-add-employee'>
-                    <h2>📝 เพิ่มรายชื่อพนักงานใหม่</h2>
-                    <p>สำหรับเพิ่มข้อมูลพนักงานใหม่เข้าสู่ระบบ</p>
-                </a>
-                <a class='menu-item' href='/issue-temp-coupon.html' id='menu-issue-temp-coupon'>
-                    <h2>🔑 ออก QR Code ชั่วคราว</h2>
-                    <p>สำหรับพนักงานสำรอง, OT, หรือลืมบัตร</p>
-                </a>
-                <a class='menu-item' href='/grant-coupons.html' id='menu-grant-coupons'>
-                    <h2>🎁 ให้สิทธิ์คูปอง</h2>
-                    <p>นำเข้ารายชื่อพนักงานเพื่อให้สิทธิ์รายวัน/OT</p>
-                </a>
-                <a class='menu-item' href='/scanner.html' id='menu-scanner'>
-                    <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
-                    <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
-                </a>
-                <a class='menu-item' href='/reports.html' id='menu-reports'>
-                    <h2>📊 หน้าจอแสดงรายงาน</h2>
-                    <p>ดูสรุปและสถิติการใช้งานคูปองทั้งหมด</p>
-                </a>
-            </div>
+            <div class="menu-grid">
+                <a href="/add-employee.html" class="menu-item">เพิ่มพนักงาน</a>
+                <a href="/issue-temp-coupon.html" class="menu-item">ออก QR Code ชั่วคราว</a>
+                <a href="/manage-employees.html" class="menu-item">จัดการข้อมูลพนักงาน</a>
+                <a href="/upload-employee-photo.html" class="menu-item">อัปโหลดรูปพนักงาน</a> </div>
+            <button id="logout-btn" class="logout-btn">ออกจากระบบ</button>
         </div>
     </div>
 
     <script>
         const mainContent = document.getElementById('main-content');
         const unauthorizedMessage = document.getElementById('unauthorized-message');
+        const logoutBtn = document.getElementById('logout-btn');
         let _supabase;
 
-        const userEmailSpan = document.getElementById('user-email');
-        const logoutButton = document.getElementById('logout-btn');
-
-        async function getCurrentUserRole() {
-            if (!_supabase) return null;
-            const { data: { user } } = await _supabase.auth.getUser();
-            if (!user) return null;
-            const { data: profile } = await _supabase.from('profiles').select('role').eq('id', user.id).single();
-            return profile ? profile.role : null;
-        }
-
-        function displayMenusByRole(role) {
-            // เมนูที่ทุกคนเห็น (ถ้าเข้าถึงได้)
-            const publicMenus = ['menu-scanner', 'menu-reports'];
-            // เมนูสำหรับ Admin (Superuser หรือ Department Admin)
-            const adminMenus = ['menu-add-employee', 'menu-grant-coupons'];
-            // เมนูสำหรับ Superuser เท่านั้น (ใหม่)
-            const superuserOnlyMenus = ['menu-issue-temp-coupon'];
-
-            publicMenus.forEach(id => {
-                const menuItem = document.getElementById(id);
-                if (menuItem) menuItem.style.display = 'block';
-            });
-
-            if (role === 'superuser' || role === 'department_admin') {
-                adminMenus.forEach(id => {
-                    const menuItem = document.getElementById(id);
-                    if (menuItem) menuItem.style.display = 'block';
-                });
-            }
-            
-            // แสดงเมนูสำหรับ Superuser เท่านั้น
-            if (role === 'superuser') {
-                superuserOnlyMenus.forEach(id => {
-                    const menuItem = document.getElementById(id);
-                    if (menuItem) menuItem.style.display = 'block';
-                });
-            }
-        }
+        const baseUrl = window.location.origin;
 
         async function initializeApp() {
             try {
-                const response = await fetch('/.netlify/functions/get-config');
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
                 const config = await response.json();
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    userEmailSpan.textContent = session.user.email;
-                    const userRole = await getCurrentUserRole();
-                    displayMenusByRole(userRole);
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
@@ -191,13 +166,13 @@
             }
         }
 
-        logoutButton.addEventListener('click', async () => {
-            if (!_supabase) return;
+        logoutBtn.addEventListener('click', async () => {
             const { error } = await _supabase.auth.signOut();
-            if (!error) {
-                window.location.href = '/index.html';
+            if (error) {
+                console.error('Error logging out:', error.message);
+                alert('เกิดข้อผิดพลาดในการออกจากระบบ: ' + error.message);
             } else {
-                console.error('Logout Error:', error.message);
+                window.location.href = '/index.html'; // กลับไปหน้า Login
             }
         });
 
