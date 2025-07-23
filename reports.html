@@ -153,15 +153,15 @@
                 const subFontSize = (height / 400).toFixed(2);
                 ctx.font = `bold ${subFontSize}em sans-serif`;
                 ctx.textBaseline = 'middle';
-                const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
+                const textX = Math.round((width - ctx.measureText(subText).width) / 2);
                 ctx.fillStyle = '#6B7280';
-                ctx.fillText(subText, textX, textY - 30); // แก้ไข: ใช้ textX แทน subTextX
+                ctx.fillText(subText, textX, textY - 30);
                 const text = total.toLocaleString('th-TH');
                 const fontSize = (height / 114).toFixed(2);
                 ctx.font = `bold ${fontSize}em sans-serif`;
-                const textX2 = Math.round((width - ctx.measureText(text).width) / 2); // สร้างตัวแปรใหม่เพื่อไม่ให้สับสน
+                const textX2 = Math.round((width - ctx.measureText(text).width) / 2);
                 ctx.fillStyle = '#1F2937';
-                ctx.fillText(text, textX2, textY + 15); // แก้ไข: ใช้ textX2 แทน textX
+                ctx.fillText(text, textX2, textY + 15);
                 ctx.save();
             }
         };
@@ -208,8 +208,9 @@
         }
 
         function updateSummary(reportData) {
-            const normalAmount = (reportData.normalData?.totalUsed || 0) * 45;
-            const otAmount = (reportData.otData?.totalUsed || 0) * 45;
+            // ใช้ totalUsedAmount ที่คำนวณมาจาก backend
+            const normalAmount = reportData.normalData?.totalUsedAmount || 0;
+            const otAmount = reportData.otData?.totalUsedAmount || 0;
             const totalAmount = normalAmount + otAmount;
             const formatCurrency = (amount) => `฿ ${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
             
@@ -264,8 +265,8 @@
                 }
                 const report = await response.json();
 
-                createDoughnutChart('normal-chart', report.normalData || { totalGranted: 0, totalUsed: 0 });
-                createDoughnutChart('ot-chart', report.otData || { totalGranted: 0, totalUsed: 0 });
+                createDoughnutChart('normal-chart', report.normalData || { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 }); // ส่ง totalUsedAmount ไปด้วย
+                createDoughnutChart('ot-chart', report.otData || { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 }); // ส่ง totalUsedAmount ไปด้วย
                 updateSummary(report);
 
             } catch (e) {
@@ -277,9 +278,8 @@
         }
 
         async function loadDepartments() {
-            // --- เริ่มต้นการแก้ไขเพื่อแคชข้อมูลแผนก ---
             const DEPARTMENTS_CACHE_KEY = 'departments_cache';
-            const DEPARTMENTS_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ชั่วโมง
+            const DEPARTMENTS_CACHE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
 
             try {
                 const cachedData = localStorage.getItem(DEPARTMENTS_CACHE_KEY);
@@ -295,7 +295,6 @@
                     }
                 }
 
-                // ถ้าไม่มี Cache หรือ Cache หมดอายุ ให้ดึงข้อมูลจาก Server
                 const { data: { session } } = await _supabase.auth.getSession();
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
@@ -319,7 +318,7 @@
         }
 
         function renderDepartmentOptions(departments) {
-            departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>'; // เพิ่ม option "ทุกแผนก"
+            departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>';
             departments.forEach(dept => {
                 const option = document.createElement('option');
                 option.value = dept.id;
@@ -327,7 +326,6 @@
                 departmentSelect.appendChild(option);
             });
         }
-        // --- สิ้นสุดการแก้ไขเพื่อแคชข้อมูลแผนก ---
 
         async function initializeApp() {
             try {
