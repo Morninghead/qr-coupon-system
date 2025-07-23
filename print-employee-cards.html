@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>พิมพ์บัตรพนักงาน - ระบบคูปองพนักงาน</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #6366F1;
+            --light-gray: #F3F4F6;
+            --dark-gray: #1F2937;
+            --text-gray: #4B5563;
+            --border-color: #E5E7EB;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--light-gray); /* พื้นหลังสำหรับหน้าจอ */
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header h1 {
+            color: var(--dark-gray);
+            font-size: 28px;
+            margin: 0;
+        }
+        .back-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .actions-section {
+            background: var(--light-gray);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+        .actions-section button {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .actions-section button.load-btn { background-color: var(--primary-color); }
+        .actions-section button.load-btn:hover { background-color: #4F46E5; }
+        .actions-section button.print-btn { background-color: var(--success-color); }
+        .actions-section button.print-btn:hover { background-color: #059669; }
+        .actions-section button:disabled { background-color: #A5B4FC; cursor: not-allowed; }
+
+        #cards-preview-area {
+            border: 1px dashed var(--border-color);
+            padding: 10px;
+            min-height: 300px;
+            background-color: #fcfcfc;
+            border-radius: 8px;
+            overflow: auto; /* เพื่อให้เลื่อนดูได้ถ้าบัตรเยอะ */
+        }
+        #cards-preview-area p {
+            text-align: center;
+            color: var(--text-gray);
+            font-size: 1.1em;
+            margin-top: 100px;
+        }
+        /* Unauthorized Message (เหมือนไฟล์อื่นๆ) */
+        .hidden { display: none !important; }
+        .unauthorized-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100%;
+            position: fixed; top: 0; left: 0;
+            background-color: var(--light-gray);
+        }
+        .unauthorized-box {
+            background: white;
+            padding: 40px 48px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 450px;
+        }
+        .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
+        .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
+        .unauthorized-button {
+            display: inline-block; width: 100%; padding: 12px;
+            font-size: 16px; font-weight: 600; color: white;
+            background-color: var(--primary-color);
+            border: none; border-radius: 8px; cursor: pointer;
+            text-decoration: none; transition: background-color 0.2s;
+        }
+        .unauthorized-button:hover { background-color: #4F46E5; }
+
+        /* --- CSS สำหรับ Card Layout ที่ส่งมาจาก Backend --- */
+        /* General styles for the print area/page */
+        .print-area-wrapper { /* ใช้ห่อหุ้ม cardsHtml เพื่อส่งให้ html2pdf */
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10mm; /* A4 margins */
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10mm; /* Space between cards */
+            justify-content: center; /* Center cards on the page */
+        }
+
+        .employee-card-container { /* Container for one employee's card (front + back side-by-side) */
+            display: flex;
+            flex-direction: column; /* Stacks cards in column for print container */
+            page-break-inside: avoid; /* Important for print: keeps card together */
+            margin-bottom: 10mm;
+        }
+        
+        .employee-card-page-layout {
+            display: flex; /* Arrange front and back side-by-side on the same print area */
+            gap: 5mm; /* Space between front and back of a single card */
+            page-break-inside: avoid; /* Keep front and back together */
+        }
+
+        /* Common styles for both card sides */
+        .card-side {
+            width: 53.98mm; /* CR80 width (portrait) */
+            height: 85.60mm; /* CR80 height (portrait) */
+            border: 0.5mm solid #ddd; /* Thin border for clean cut */
+            box-sizing: border-box; /* Include padding/border in total dimensions */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 5mm;
+            text-align: center;
+            overflow: hidden; /* Hide anything that goes beyond boundaries */
+            position: relative;
+            justify-content: space-between; /* Distribute content vertically */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Subtle shadow for screen view */
+        }
+
+        /* Front of the card specific styles */
+        .card-front {
+            background-color: #ffffff;
+            color: #333333;
+        }
+        .card-front .company-logo {
+            width: 20mm; /* Adjust logo size */
+            height: auto;
+            margin-bottom: 5mm;
+            max-width: 100%;
+            max-height: 20mm;
+        }
+        .card-front .company-name {
+            font-size: 8pt;
+            font-weight: bold;
+            margin: 0 0 5mm 0;
+            color: var(--primary-color);
+        }
+        .card-front .employee-photo {
+            width: 30mm;
+            height: 30mm;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 5mm;
+            border: 1px solid #eee;
+        }
+        .card-front .employee-name {
+            font-size: 11pt;
+            font-weight: bold;
+            margin: 0;
+            line-height: 1.2;
+            color: #1F2937;
+        }
+        .card-front .employee-id {
+            font-size: 9pt;
+            color: #555555;
+            margin: 0;
+        }
+        .card-front .department {
+            font-size: 8pt;
+            color: #777777;
+            margin-top: 2mm;
+        }
+        .card-front .card-tagline {
+            font-size: 7pt;
+            color: #999999;
+            margin-top: auto;
+            border-top: 0.5px solid #eee;
+            padding-top: 2mm;
+            width: 100%;
+        }
+
+        /* Back of the card specific styles */
+        .card-back {
+            background-color: #fefefe;
+            color: #333333;
+        }
+        .card-back .qr-code-area {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-grow: 1;
+            width: 100%;
+        }
+        .card-back .qr-code-image {
+            width: 40mm;
+            height: 40mm;
+            object-fit: contain;
+            display: block;
+        }
+        .card-back .scan-info {
+            font-size: 8pt;
+            color: #555555;
+            margin-top: 5mm;
+            margin-bottom: 0;
+        }
+        .card-back .card-note {
+            font-size: 7pt;
+            color: #888888;
+            margin-top: auto;
+            border-top: 0.5px solid #eee;
+            padding-top: 2mm;
+            width: 100%;
+        }
+
+        /* Media queries for actual printing */
+        @page {
+            size: A4 portrait;
+            margin: 10mm;
+        }
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+                background: none;
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+            .print-area-wrapper {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                width: auto;
+                align-content: flex-start;
+                gap: 5mm; /* ลด gap สำหรับการพิมพ์ */
+            }
+            .employee-card-container {
+                margin-bottom: 5mm;
+                break-inside: avoid;
+            }
+            .card-side {
+                border: 0.2mm solid #bbb;
+            }
+            .header, .actions-section, .unauthorized-container {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="unauthorized-message" class="unauthorized-container hidden">
+        <div class="unauthorized-box">
+            <h1>กรุณาลงชื่อเข้าใช้</h1>
+            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
+        </div>
+    </div>
+
+    <div id="main-content" class="hidden">
+        <div class="container">
+            <div class="header">
+                <h1>พิมพ์บัตรพนักงาน</h1>
+                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+            </div>
+
+            <div class="actions-section">
+                <button id="load-cards-btn" class="load-btn">แสดงตัวอย่างบัตร</button>
+                <button id="print-pdf-btn" class="print-btn" disabled>พิมพ์เป็น PDF</button>
+            </div>
+
+            <div id="cards-preview-area">
+                <p>คลิก 'แสดงตัวอย่างบัตร' เพื่อสร้างและดูบัตรพนักงานทั้งหมด</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const mainContent = document.getElementById('main-content');
+        const unauthorizedMessage = document.getElementById('unauthorized-message');
+        let _supabase;
+
+        const loadCardsBtn = document.getElementById('load-cards-btn');
+        const printPdfBtn = document.getElementById('print-pdf-btn');
+        const cardsPreviewArea = document.getElementById('cards-preview-area');
+
+        const baseUrl = window.location.origin;
+
+        async function initializeApp() {
+            try {
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+                const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (session) {
+                    mainContent.classList.remove('hidden');
+                } else {
+                    unauthorizedMessage.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                unauthorizedMessage.classList.remove('hidden');
+            }
+        }
+
+        // --- ฟังก์ชันสำหรับโหลดและแสดงผลบัตรพนักงาน ---
+        loadCardsBtn.addEventListener('click', async () => {
+            loadCardsBtn.disabled = true;
+            printPdfBtn.disabled = true;
+            cardsPreviewArea.innerHTML = '<p>กำลังสร้างบัตรตัวอย่าง...</p>';
+
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (!session) {
+                    throw new Error('ไม่ได้ลงชื่อเข้าใช้ กรุณาเข้าสู่ระบบใหม่');
+                }
+
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-employee-card`, { // อ้างอิงถึงชื่อใหม่
+                    headers: { 'Authorization': `Bearer ${session.access_token}` }
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.message || 'ไม่สามารถโหลดข้อมูลบัตรพนักงานได้');
+                }
+
+                if (result.html) {
+                    // สร้าง div เพื่อห่อหุ้ม HTML ที่ได้มา เพื่อให้ html2pdf ประมวลผลได้ง่าย
+                    const wrapper = document.createElement('div');
+                    wrapper.classList.add('print-area-wrapper'); // ใช้ class นี้สำหรับ print layout
+                    wrapper.innerHTML = result.html;
+                    cardsPreviewArea.innerHTML = ''; // ล้างข้อความ 'กำลังสร้าง...'
+                    cardsPreviewArea.appendChild(wrapper); // แสดง HTML ของบัตร
+
+                    printPdfBtn.disabled = false;
+                } else {
+                    cardsPreviewArea.innerHTML = '<p>ไม่พบข้อมูลพนักงานที่จะสร้างบัตร</p>';
+                }
+            } catch (error) {
+                console.error('Error loading cards:', error);
+                cardsPreviewArea.innerHTML = `<p style="color:red;">ผิดพลาด: ${error.message}</p>`;
+            } finally {
+                loadCardsBtn.disabled = false;
+            }
+        });
+
+        // --- ฟังก์ชันสำหรับพิมพ์เป็น PDF ---
+        printPdfBtn.addEventListener('click', () => {
+            const element = cardsPreviewArea.querySelector('.print-area-wrapper'); // เลือก div ที่มีบัตรทั้งหมด
+            if (!element) {
+                console.error('No cards to print.');
+                return;
+            }
+
+            // ตั้งค่าการแปลงเป็น PDF
+            const opt = {
+                margin:       10, // A4 margins (mm)
+                filename:     'employee_id_cards.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, logging: true, dpi: 300, letterRendering: true }, // เพิ่ม dpi เป็น 300 เพื่อคุณภาพที่ดี
+                jsPDF:        { unit: 'mm', format: 'A4', orientation: 'portrait' },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // พยายามไม่ให้บัตรขาดหน้า
+            };
+
+            // ใช้ html2pdf เพื่อสร้าง PDF
+            html2pdf().set(opt).from(element).save();
+        });
+
+        initializeApp();
+    </script>
+</body>
+</html>
