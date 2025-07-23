@@ -21,7 +21,6 @@ export const handler = async (event, context) => {
         }
 
         // --- 1. ดึงข้อมูลคูปองจาก daily_coupons (สำหรับพนักงานประจำ) ---
-        // เพิ่ม coupon_value ใน select ด้วย
         let dailyCouponsQuery = supabaseAdmin
             .from('daily_coupons')
             .select('coupon_type, status, coupon_value, employees!inner(department_id)', { count: 'exact' })
@@ -39,14 +38,12 @@ export const handler = async (event, context) => {
         }
 
         // --- 2. ดึงข้อมูลคูปองชั่วคราวจาก temporary_coupon_requests (สำหรับบุคคลใหม่/ไม่รู้จัก) ---
-        // (เราจะรวมเฉพาะที่ employee_id เป็น NULL เพื่อหลีกเลี่ยงการนับซ้ำกับ Daily_Coupons)
-        // เพิ่ม coupon_value ใน select ด้วย
         let tempRequestsQuery = supabaseAdmin
             .from('temporary_coupon_requests')
             .select('coupon_type, status, coupon_value', { count: 'exact' })
             .gte('request_date', startDate)
             .lte('request_date', endDate)
-            .is('employee_id', null); // <<< สำคัญ: กรองเฉพาะบุคคลใหม่/ไม่รู้จัก
+            .is('employee_id', null);
 
         const { data: tempRequests, error: tempRequestsError } = await tempRequestsQuery;
         if (tempRequestsError) {
@@ -63,13 +60,13 @@ export const handler = async (event, context) => {
         // คำนวณจาก daily_coupons
         for (const coupon of dailyCoupons) {
             if (coupon.coupon_type === 'NORMAL') {
-                report.normalData.totalGranted++;
+                report.normalData.totalGranted++; // นับ Granted
                 if (coupon.status === 'USED') {
                     report.normalData.totalUsed++;
                     report.normalData.totalUsedAmount += (coupon.coupon_value || 0);
                 }
             } else if (coupon.coupon_type === 'OT') {
-                report.otData.totalGranted++;
+                report.otData.totalGranted++; // นับ Granted
                 if (coupon.status === 'USED') {
                     report.otData.totalUsed++;
                     report.otData.totalUsedAmount += (coupon.coupon_value || 0);
@@ -77,13 +74,22 @@ export const handler = async (event, context) => {
             }
         }
 
-        // เพิ่มการคำนวณจาก temporary_coupon_requests (เฉพาะ totalUsed และ totalUsedAmount)
+        // เพิ่มการคำนวณจาก temporary_coupon_requests
         for (const tempReq of tempRequests) {
-            if (tempReq.status === 'USED') {
-                if (tempReq.coupon_type === 'NORMAL') {
+            if (tempReq.coupon_type === 'NORMAL') {
+                // สำหรับ temp requests, นับทุกสถานะที่ถือว่า "ออกไปแล้ว" เป็น Granted
+                if (['ISSUED', 'USED', 'ACTIVE'].includes(tempReq.status)) { // เพิ่ม 'ACTIVE' หากใช้ในอนาคต
+                    report.normalData.totalGranted++;
+                }
+                if (tempReq.status === 'USED') {
                     report.normalData.totalUsed++;
                     report.normalData.totalUsedAmount += (tempReq.coupon_value || 0);
-                } else if (tempReq.coupon_type === 'OT') {
+                }
+            } else if (tempReq.coupon_type === 'OT') {
+                if (['ISSUED', 'USED', 'ACTIVE'].includes(tempReq.status)) {
+                    report.otData.totalGranted++;
+                }
+                if (tempReq.status === 'USED') {
                     report.otData.totalUsed++;
                     report.otData.totalUsedAmount += (tempReq.coupon_value || 0);
                 }
