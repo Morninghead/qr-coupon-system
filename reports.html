@@ -14,7 +14,6 @@
             --light-gray: #F3F4F6;
             --dark-gray: #1F2937;
             --text-gray: #4B5563;
-            --border-color: #E5E7EB;
             --success-color: #10B981;
             --warning-color: #F59E0B;
         }
@@ -143,47 +142,85 @@
         const centerTextPlugin = {
             id: 'centerText',
             afterDraw: (chart) => {
-                if (chart.config.type !== 'doughnut' || chart.data.datasets[0].data.reduce((a, b) => a + b, 0) === 0) return;
+                const total = chart.config.options.plugins.centerText.total;
+                if (total === undefined || total === null) return;
+
                 const ctx = chart.ctx;
                 const { width, height } = chart;
-                const total = chart.config.options.plugins.centerText.total;
                 ctx.restore();
+                
                 const textY = height / 2;
                 const subText = 'สิทธิ์ทั้งหมด';
-                const subFontSize = (height / 400).toFixed(2);
-                ctx.font = `bold ${subFontSize}em sans-serif`;
+                const subFontSize = Math.max(12, (height / 30)); 
+                ctx.font = `bold ${subFontSize}px sans-serif`; 
                 ctx.textBaseline = 'middle';
-                const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
+                const subTextWidth = ctx.measureText(subText).width;
+                const subTextX = (width - subTextWidth) / 2;
                 ctx.fillStyle = '#6B7280';
-                ctx.fillText(subText, textX, textY - 30); // แก้ไข: ใช้ textX แทน subTextX
-                const text = total.toLocaleString('th-TH');
-                const fontSize = (height / 114).toFixed(2);
-                ctx.font = `bold ${fontSize}em sans-serif`;
-                const textX2 = Math.round((width - ctx.measureText(text).width) / 2); // สร้างตัวแปรใหม่เพื่อไม่ให้สับสน
+                ctx.fillText(subText, subTextX, textY - (subFontSize * 0.8)); 
+
+                const totalText = total.toLocaleString('th-TH');
+                const fontSize = Math.max(24, (height / 80)); 
+                ctx.font = `bold ${fontSize}px sans-serif`; 
+                const totalTextWidth = ctx.measureText(totalText).width;
+                const totalTextX = (width - totalTextWidth) / 2;
                 ctx.fillStyle = '#1F2937';
-                ctx.fillText(text, textX2, textY + 15); // แก้ไข: ใช้ textX2 แทน textX
+                ctx.fillText(totalText, totalTextX, textY + (fontSize * 0.4)); 
+
                 ctx.save();
             }
         };
 
         function createDoughnutChart(canvasId, data) {
             const ctx = document.getElementById(canvasId).getContext('2d');
-            const notUsed = data.totalGranted - data.totalUsed;
+            const notUsed = Math.max(0, data.totalGranted - data.totalUsed); 
+
+            let chartData = [];
+            let chartLabels = [];
+            let backgroundColors = [];
+            let borderColors = ['#ffffff'];
+            let offsets = [0, 10]; 
+
+            if (data.totalGranted === 0 && data.totalUsed === 0) { // If absolutely no data
+                chartData = [1]; 
+                chartLabels = ['ไม่มีสิทธิ์'];
+                backgroundColors = ['#D1D5DB']; 
+                offsets = [0]; 
+            } else {
+                // Determine raw values for chart slices
+                const usedRaw = data.totalUsed;
+                const notUsedRaw = notUsed;
+
+                chartLabels = [`ใช้สิทธิ์ (${usedRaw})`, `ไม่ใช้สิทธิ์ (${notUsedRaw})`];
+                backgroundColors = ['rgba(16, 185, 129, 0.8)', 'rgba(245, 158, 11, 0.8)'];
+
+                // Ensure slices are visible even if value is 0
+                const usedSliceValue = usedRaw > 0 ? usedRaw : 0.001;
+                const notUsedSliceValue = notUsedRaw > 0 ? notUsedRaw : 0.001;
+
+                chartData = [usedSliceValue, notUsedSliceValue];
+            }
+
+
             if (window[canvasId + '_chart']) {
                 window[canvasId + '_chart'].destroy();
             }
+
             window[canvasId + '_chart'] = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: [`ใช้สิทธิ์ (${data.totalUsed})`, `ไม่ใช้สิทธิ์ (${notUsed < 0 ? 0 : notUsed})`],
+                    labels: chartLabels,
                     datasets: [{
-                        data: [data.totalUsed, notUsed < 0 ? 0 : notUsed],
-                        backgroundColor: ['rgba(16, 185, 129, 0.8)', 'rgba(245, 158, 11, 0.8)'],
-                        borderColor: ['#ffffff'], borderWidth: 4, offset: [0, 10]
+                        data: chartData,
+                        backgroundColor: backgroundColors,
+                        borderColor: borderColors, 
+                        borderWidth: 4, 
+                        offset: offsets 
                     }]
                 },
                 options: {
-                    responsive: true, cutout: '60%',
+                    responsive: true, 
+                    cutout: '60%',
                     plugins: {
                         centerText: { total: data.totalGranted },
                         legend: { position: 'bottom' },
@@ -191,12 +228,22 @@
                             callbacks: {
                                 label: function(context) {
                                     let label = context.label || '';
-                                    if (label) { label += ': '; }
-                                    if (context.parsed !== null) {
-                                        const total = data.totalGranted > 0 ? data.totalGranted : 1;
-                                        const percentage = (context.parsed / total * 100).toFixed(1);
-                                        label += `${context.raw} คน (${percentage}%)`;
+                                    
+                                    let rawValue = 0;
+                                    // Determine the actual raw value for the tooltip based on the slice index
+                                    if (data.totalGranted === 0 && data.totalUsed === 0) {
+                                        rawValue = 0;
+                                    } else if (context.dataIndex === 0) { // First slice is "Used"
+                                        rawValue = data.totalUsed;
+                                    } else { // Second slice is "Not Used"
+                                        rawValue = notUsed;
                                     }
+
+                                    const totalForPercentage = data.totalGranted > 0 ? data.totalGranted : (usedRaw + notUsedRaw > 0 ? (usedRaw + notUsedRaw) : 1); // Handle case where totalGranted is 0 but used/notUsed have values (due to tiny slices)
+                                    const percentage = (rawValue / totalForPercentage * 100).toFixed(1);
+
+                                    // Ensure label shows actual count, not 0.001
+                                    label = `${context.label.split('(')[0].trim()}: ${rawValue} คน (${percentage}%)`;
                                     return label;
                                 }
                             }
@@ -262,11 +309,12 @@
                     const errorResult = await response.json();
                     throw new Error(errorResult.message || "Failed to load report data");
                 }
-                const report = await response.json();
+                const data = await response.json(); // Renamed to 'data' to avoid conflict with 'report' in general.
 
-                createDoughnutChart('normal-chart', report.normalData || { totalGranted: 0, totalUsed: 0 });
-                createDoughnutChart('ot-chart', report.otData || { totalGranted: 0, totalUsed: 0 });
-                updateSummary(report);
+                // Pass the report data directly to the chart creation function
+                createDoughnutChart('normal-chart', data.normalData || { totalGranted: 0, totalUsed: 0 });
+                createDoughnutChart('ot-chart', data.otData || { totalGranted: 0, totalUsed: 0 });
+                updateSummary(data); // Pass the raw data object to update summary
 
             } catch (e) {
                 console.error(`Error fetching report data: ${e.message}`);
@@ -277,7 +325,6 @@
         }
 
         async function loadDepartments() {
-            // --- เริ่มต้นการแก้ไขเพื่อแคชข้อมูลแผนก ---
             const DEPARTMENTS_CACHE_KEY = 'departments_cache';
             const DEPARTMENTS_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ชั่วโมง
 
@@ -295,7 +342,6 @@
                     }
                 }
 
-                // ถ้าไม่มี Cache หรือ Cache หมดอายุ ให้ดึงข้อมูลจาก Server
                 const { data: { session } } = await _supabase.auth.getSession();
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
@@ -319,7 +365,7 @@
         }
 
         function renderDepartmentOptions(departments) {
-            departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>'; // เพิ่ม option "ทุกแผนก"
+            departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>'; 
             departments.forEach(dept => {
                 const option = document.createElement('option');
                 option.value = dept.id;
@@ -327,7 +373,6 @@
                 departmentSelect.appendChild(option);
             });
         }
-        // --- สิ้นสุดการแก้ไขเพื่อแคชข้อมูลแผนก ---
 
         async function initializeApp() {
             try {
