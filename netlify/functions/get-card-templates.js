@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // ใช้ Service Role Key เพื่อให้มีสิทธิ์เข้าถึงทุกข้อมูลที่จำเป็น
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
 const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
 export const handler = async (event, context) => {
@@ -10,7 +10,6 @@ export const handler = async (event, context) => {
     }
 
     try {
-        // 1. Authentication and Authorization Check
         const token = event.headers.authorization?.split('Bearer ')[1];
         if (!token) {
             return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
@@ -21,16 +20,14 @@ export const handler = async (event, context) => {
         }
 
         const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
-        // อนุญาตให้ superuser หรือ department_admin ดูได้
         if (profile?.role !== 'superuser' && profile?.role !== 'department_admin') {
             return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied. Superuser or Department Admin role required.' }) };
         }
 
-        // 2. ดึงข้อมูล Card Templates ทั้งหมด
         const { data: templates, error } = await supabaseAdmin
             .from('card_templates')
-            .select('*') // ดึงทุกคอลัมน์
-            .order('template_name', { ascending: true }); // เรียงตามชื่อ Template
+            .select('*, orientation') // <<< เพิ่ม orientation ที่นี่
+            .order('template_name', { ascending: true });
 
         if (error) throw error;
 

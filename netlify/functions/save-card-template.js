@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // ใช้ Service Role Key เพื่อให้มีสิทธิ์ INSERT/UPDATE
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
 const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
 export const handler = async (event, context) => {
@@ -10,7 +10,6 @@ export const handler = async (event, context) => {
     }
 
     try {
-        // 1. Authentication and Authorization Check
         const token = event.headers.authorization?.split('Bearer ')[1];
         if (!token) {
             return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
@@ -21,24 +20,23 @@ export const handler = async (event, context) => {
         }
 
         const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
-        // การบันทึก/แก้ไข Template ควรจำกัดเฉพาะ superuser เท่านั้น
         if (profile?.role !== 'superuser') {
             return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied. Superuser role required to manage card templates.' }) };
         }
 
-        // 2. Parse Request Body
         const { 
-            id, // จะมีค่าเมื่อเป็นการแก้ไข, ไม่มีค่าเมื่อเป็นการสร้างใหม่
+            id, 
             template_name, 
             company_name, 
             logo_url, 
             background_front_url, 
             background_back_url, 
-            layout_config 
+            layout_config,
+            orientation // <<< เพิ่ม orientation ที่นี่
         } = JSON.parse(event.body);
 
-        if (!template_name) {
-            return { statusCode: 400, body: JSON.stringify({ message: 'Template name is required.' }) };
+        if (!template_name || !orientation) { // <<< เพิ่ม orientation ในเงื่อนไขบังคับ
+            return { statusCode: 400, body: JSON.stringify({ message: 'Template name and orientation are required.' }) };
         }
 
         const templateData = {
@@ -47,15 +45,15 @@ export const handler = async (event, context) => {
             logo_url: logo_url || null,
             background_front_url: background_front_url || null,
             background_back_url: background_back_url || null,
-            layout_config: layout_config || {} // ใช้ object เปล่าถ้าไม่มีการกำหนด
+            layout_config: layout_config || {},
+            orientation: orientation // <<< เพิ่ม orientation ใน templateData
         };
 
         let result = null;
         let error = null;
 
         if (id) {
-            // Update existing template
-            templateData.updated_at = new Date().toISOString(); // อัปเดต timestamp
+            templateData.updated_at = new Date().toISOString();
             const { data, error: updateError } = await supabaseAdmin
                 .from('card_templates')
                 .update(templateData)
@@ -64,11 +62,10 @@ export const handler = async (event, context) => {
                 .single();
             result = data;
             error = updateError;
-            if (error && error.code === 'PGRST116') { // No rows found to update
+            if (error && error.code === 'PGRST116') {
                 return { statusCode: 404, body: JSON.stringify({ message: 'Card template not found for update.' }) };
             }
         } else {
-            // Insert new template
             templateData.created_at = new Date().toISOString();
             templateData.updated_at = new Date().toISOString();
             const { data, error: insertError } = await supabaseAdmin
