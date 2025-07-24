@@ -125,6 +125,10 @@
                     <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
                     <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
                 </a>
+                <a class='menu-item' href='/daily-scan-report-standalone.html' id='menu-daily-scan-report-standalone'>
+                    <h2>📈 รายงานสแกนรายวัน</h2>
+                    <p>ดูประวัติการสแกนคูปองประจำวันนี้</p>
+                </a>
                 <a class='menu-item' href='/reports.html' id='menu-reports'>
                     <h2>📊 หน้าจอแสดงรายงาน</h2>
                     <p>ดูสรุปและสถิติการใช้งานคูปองทั้งหมด</p>
@@ -150,9 +154,9 @@
         }
 
         function displayMenusByRole(role) {
-            const publicMenus = ['menu-scanner', 'menu-reports'];
-            const adminMenus = ['menu-add-employee', 'menu-grant-coupons', 'menu-upload-employee-photo', 'menu-print-employee-cards']; // เพิ่ม menu-print-employee-cards
-            const superuserOnlyMenus = ['menu-issue-temp-coupon']; // ถ้าต้องการให้ superuser เท่านั้นที่ออกคูปองชั่วคราวได้
+            const publicMenus = ['menu-scanner', 'menu-reports', 'menu-daily-scan-report-standalone']; // <<< เพิ่ม ID เมนูใหม่
+            const adminMenus = ['menu-add-employee', 'menu-grant-coupons', 'menu-upload-employee-photo', 'menu-print-employee-cards'];
+            const superuserOnlyMenus = ['menu-issue-temp-coupon'];
 
             publicMenus.forEach(id => {
                 const menuItem = document.getElementById(id);
@@ -166,7 +170,7 @@
                 });
             }
             
-            if (role === 'superuser') { // ถ้ามีเมนูสำหรับ Superuser เท่านั้น
+            if (role === 'superuser') {
                 superuserOnlyMenus.forEach(id => {
                     const menuItem = document.getElementById(id);
                     if (menuItem) menuItem.style.display = 'block';
