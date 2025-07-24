@@ -78,6 +78,26 @@
         .result-success { background-color: #D1FAE5; color: #065F46; }
         .result-error { background-color: #FEE2E2; color: #991B1B; }
         .result-info { background-color: #E0E7FF; color: #3730A3; }
+
+        /* New styles for radio group */
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            color: var(--text-gray);
+            cursor: pointer;
+        }
+        .radio-group input[type="radio"] {
+            width: auto;
+            margin-right: 8px;
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
@@ -99,26 +119,26 @@
     
             <div class="grant-container">
                 <div class="form-section">
-                    <h2>คูปองทำงานปกติ (NORMAL)</h2>
-                    <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) หรือนำเข้าจากไฟล์</p>
-                    <textarea id="normal-ids-textarea" placeholder="18096\n24062\n25077"></textarea>
-                    <div class="file-preview" id="normal-preview"></div>
-                    <div class="button-group">
-                        <button id="normal-btn" class="submit-btn">ให้สิทธิ์ NORMAL</button>
-                        <button class="import-btn" onclick="document.getElementById('normal-file-input').click()">📁 Import File</button>
-                        <input type="file" id="normal-file-input" accept=".csv, .xlsx">
+                    <h2>กำหนดประเภทคูปอง</h2>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="coupon-type-selection" value="NORMAL" checked>
+                            คูปองอาหารกลางวัน (NORMAL)
+                        </label>
+                        <label>
+                            <input type="radio" name="coupon-type-selection" value="OT">
+                            คูปองอาหารโอที (OT)
+                        </label>
                     </div>
-                </div>
-    
-                <div class="form-section">
-                    <h2>คูปองโอที (OT)</h2>
+
+                    <h2>นำเข้ารายชื่อพนักงาน</h2>
                     <p>วางรหัสพนักงาน (1 รหัสต่อ 1 บรรทัด) หรือนำเข้าจากไฟล์</p>
-                    <textarea id="ot-ids-textarea" placeholder="18023\n25050"></textarea>
-                    <div class="file-preview" id="ot-preview"></div>
+                    <textarea id="employee-ids-textarea" placeholder="18096\n24062\n25077"></textarea>
+                    <div class="file-preview" id="file-preview"></div>
                     <div class="button-group">
-                        <button id="ot-btn" class="submit-btn">ให้สิทธิ์ OT</button>
-                        <button class="import-btn" onclick="document.getElementById('ot-file-input').click()">📁 Import File</button>
-                        <input type="file" id="ot-file-input" accept=".csv, .xlsx">
+                        <button id="grant-coupon-btn" class="submit-btn">ให้สิทธิ์คูปองที่เลือก</button>
+                        <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File</button>
+                        <input type="file" id="file-input" accept=".csv, .xlsx">
                     </div>
                 </div>
     
@@ -132,19 +152,16 @@
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
 
-        const normalFileInput = document.getElementById('normal-file-input');
-        const otFileInput = document.getElementById('ot-file-input');
-        const normalBtn = document.getElementById('normal-btn');
-        const otBtn = document.getElementById('ot-btn');
-        const normalPreview = document.getElementById('normal-preview');
-        const otPreview = document.getElementById('ot-preview');
-        const normalIdsTextarea = document.getElementById('normal-ids-textarea');
-        const otIdsTextarea = document.getElementById('ot-ids-textarea');
+        const fileInput = document.getElementById('file-input');
+        const grantCouponBtn = document.getElementById('grant-coupon-btn');
+        const filePreview = document.getElementById('file-preview');
+        const employeeIdsTextarea = document.getElementById('employee-ids-textarea');
         const resultMessageDiv = document.getElementById('result-message');
+        const couponTypeRadios = document.querySelectorAll('input[name="coupon-type-selection"]'); // New
+        
         const baseUrl = window.location.origin;
 
-        let normalEmployeeIdsFromFile = [];
-        let otEmployeeIdsFromFile = [];
+        let employeeIdsFromFile = []; // Stores IDs from imported file
 
         async function initializeApp() {
             try {
@@ -155,7 +172,6 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    // ไม่มีฟังก์ชันที่ต้องโหลดเริ่มต้นในหน้านี้
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
@@ -186,14 +202,9 @@
 
                     const employeeIds = json.slice(1).map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
                     
-                    if (idStore === 'normal') {
-                        normalEmployeeIdsFromFile = employeeIds;
-                        normalIdsTextarea.value = '';
-                    } else {
-                        otEmployeeIdsFromFile = employeeIds;
-                        otIdsTextarea.value = '';
-                    }
-
+                    employeeIdsFromFile = employeeIds; // Store in common variable
+                    employeeIdsTextarea.value = ''; // Clear textarea if importing
+                    
                     previewElement.textContent = `พบ ${employeeIds.length} รหัสพนักงานในไฟล์ "${file.name}"`;
                 } catch (err) {
                     previewElement.textContent = `ผิดพลาด: ${err.message}`;
@@ -202,17 +213,29 @@
             reader.readAsArrayBuffer(file);
         }
 
-        normalFileInput.addEventListener('change', (e) => handleFile(e.target.files[0], normalPreview, 'normal'));
-        otFileInput.addEventListener('change', (e) => handleFile(e.target.files[0], otPreview, 'ot'));
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0], filePreview)); // Pass filePreview
 
-        async function grantCoupons(couponType, employeeIds) {
-            if (employeeIds.length === 0) {
+        // Event listener for the unified grant button
+        grantCouponBtn.addEventListener('click', () => {
+            const selectedCouponType = document.querySelector('input[name="coupon-type-selection"]:checked').value; // Get selected coupon type
+
+            const idsFromText = employeeIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
+            const idsToProcess = idsFromText.length > 0 ? idsFromText : employeeIdsFromFile;
+
+            if (idsToProcess.length === 0) {
                 showResult('ไม่มีรหัสพนักงานให้ดำเนินการ', 'error');
                 return;
             }
+            if (!selectedCouponType) {
+                showResult('กรุณาเลือกประเภทคูปอง', 'error');
+                return;
+            }
 
-            normalBtn.disabled = true;
-            otBtn.disabled = true;
+            grantCoupons(selectedCouponType, idsToProcess);
+        });
+
+        async function grantCoupons(couponType, employeeIds) {
+            grantCouponBtn.disabled = true;
             showResult('กำลังดำเนินการ...', 'info');
 
             try {
@@ -244,8 +267,12 @@
             } catch (error) {
                 showResult(`ผิดพลาด: ${error.message}`, 'error');
             } finally {
-                normalBtn.disabled = false;
-                otBtn.disabled = false;
+                grantCouponBtn.disabled = false;
+                // Clear inputs after successful grant (optional, based on user flow)
+                employeeIdsTextarea.value = '';
+                fileInput.value = '';
+                employeeIdsFromFile = [];
+                filePreview.textContent = '';
             }
         }
 
@@ -254,18 +281,6 @@
             resultMessageDiv.textContent = message;
             resultMessageDiv.className = type === 'success' ? 'result-success' : (type === 'error' ? 'result-error' : 'result-info');
         }
-
-        normalBtn.addEventListener('click', () => {
-            const idsFromText = normalIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
-            const idsToProcess = idsFromText.length > 0 ? idsFromText : normalEmployeeIdsFromFile;
-            grantCoupons('NORMAL', idsToProcess);
-        });
-
-        otBtn.addEventListener('click', () => {
-            const idsFromText = otIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
-            const idsToProcess = idsFromText.length > 0 ? idsFromText : otEmployeeIdsFromFile;
-            grantCoupons('OT', idsToProcess);
-        });
 
         initializeApp();
     </script>
