@@ -73,10 +73,11 @@
         select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         textarea { height: 150px; resize: vertical; margin-bottom: 16px; }
         .button-group { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
-        .submit-btn, .import-btn { padding: 12px 24px; font-size: 16px; font-weight: 600; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        .submit-btn, .import-btn, .download-template-btn { padding: 12px 24px; font-size: 16px; font-weight: 600; color: white; border: none; border-radius: 8px; cursor: pointer; }
         .submit-btn { background-color: var(--primary-color); }
         .submit-btn:disabled { background-color: #A5B4FC; cursor: not-allowed; }
         .import-btn { background-color: var(--secondary-color); }
+        .download-template-btn { background-color: #10B981; } /* Success color for download */
         input[type="file"] { display: none; }
         .file-preview { font-size: 14px; color: var(--text-gray); margin-top: 12px; font-weight: 500; min-height: 20px; }
         #result-message { margin-top: 24px; padding: 16px; border-radius: 8px; display: none; white-space: pre-wrap; }
@@ -101,20 +102,15 @@
             </div>
             <div class="form-container">
                 <div class="form-section">
-                    <label for="department-select">เลือกแผนกสำหรับพนักงานใหม่ทั้งหมด</label>
-                    <select id="department-select">
-                        <option value="">กำลังโหลดแผนก...</option>
-                    </select>
-                </div>
-                <div class="form-section">
                     <label>เพิ่มข้อมูลพนักงาน (วางข้อมูล หรือ นำเข้าไฟล์)</label>
-                    <textarea id="employees-textarea" placeholder="วางข้อมูลจาก Excel ที่นี่ (คอลัมน์ Employee_ID และ Name)"></textarea>
+                    <textarea id="employees-textarea" placeholder="วางข้อมูลจาก Excel ที่นี่ (คอลัมน์ Employee_ID, Name, และ Department - แผนกไม่บังคับ)&#10;ตัวอย่าง:&#10;Employee_ID	Name	Department&#10;12345	สมชาย ดีใจ	Production&#10;12346	สมศรี ยิ้มแย้ม	HR&#10;12347	จอห์น โด"></textarea>
                     <div class="file-preview" id="file-preview"></div>
                 </div>
                 <div class="button-group">
                     <button id="submit-btn" class="submit-btn" disabled>เพิ่มพนักงาน</button>
                     <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
                     <input type="file" id="file-input" accept=".csv, .xlsx">
+                    <button id="download-template-btn" class="download-template-btn">⬇️ Download Template</button>
                 </div>
                 <div id="result-message"></div>
             </div>
@@ -125,15 +121,16 @@
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
 
-        const departmentSelect = document.getElementById('department-select');
+        const departmentSelect = document.getElementById('department-select'); // This element is removed from HTML but was referenced. Removing from JS too.
         const employeesTextarea = document.getElementById('employees-textarea');
         const fileInput = document.getElementById('file-input');
         const filePreview = document.getElementById('file-preview');
         const submitBtn = document.getElementById('submit-btn');
+        const downloadTemplateBtn = document.getElementById('download-template-btn'); // New
         const resultMessageDiv = document.getElementById('result-message');
         const baseUrl = window.location.origin;
 
-        let employeesToSubmit = [];
+        let employeesToSubmit = []; // Array of { employee_id, name, department_name }
 
         async function initializeApp() {
             try {
@@ -144,8 +141,9 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    // ถ้าล็อกอินแล้ว ให้โหลดข้อมูลแผนก
-                    await loadDepartments();
+                    // No need to load departments into a select box if department is imported directly.
+                    // If you still want a department filter/display for other purposes on this page, keep it.
+                    // If not, remove departmentSelect related code.
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
@@ -155,77 +153,22 @@
             }
         }
 
-        // --- เริ่มต้นการแก้ไขเพื่อแคชข้อมูลแผนก ---
-        const DEPARTMENTS_CACHE_KEY = 'departments_cache';
-        const DEPARTMENTS_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ชั่วโมง
-
-        async function loadDepartments() {
-            try {
-                // ตรวจสอบ Cache ก่อน
-                const cachedData = localStorage.getItem(DEPARTMENTS_CACHE_KEY);
-                if (cachedData) {
-                    const { departments, timestamp } = JSON.parse(cachedData);
-                    if (Date.now() - timestamp < DEPARTMENTS_CACHE_EXPIRY_MS) {
-                        // ใช้ข้อมูลจาก Cache หากยังไม่หมดอายุ
-                        renderDepartmentOptions(departments);
-                        console.log('Departments loaded from cache.');
-                        return;
-                    } else {
-                        console.log('Departments cache expired, fetching new data.');
-                        localStorage.removeItem(DEPARTMENTS_CACHE_KEY); // ล้าง Cache เก่า
-                    }
-                }
-
-                // ถ้าไม่มี Cache หรือ Cache หมดอายุ ให้ดึงข้อมูลจาก Server
-                const { data: { session } } = await _supabase.auth.getSession();
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
-                    headers: { 'Authorization': `Bearer ${session.access_token}` }
-                });
-
-                if (!response.ok) throw new Error('Failed to fetch departments from server.');
-
-                const departments = await response.json();
-                
-                // เก็บข้อมูลลง Cache
-                localStorage.setItem(DEPARTMENTS_CACHE_KEY, JSON.stringify({
-                    departments,
-                    timestamp: Date.now()
-                }));
-
-                renderDepartmentOptions(departments);
-                console.log('Departments loaded from server and cached.');
-
-            } catch (error) {
-                departmentSelect.innerHTML = '<option value="">ไม่สามารถโหลดแผนกได้</option>';
-                console.error("Failed to load departments:", error);
-            }
-        }
-
-        function renderDepartmentOptions(departments) {
-            departmentSelect.innerHTML = '<option value="">-- กรุณาเลือกแผนก --</option>';
-            departments.forEach(dept => {
-                const option = document.createElement('option');
-                option.value = dept.id;
-                option.textContent = dept.name;
-                departmentSelect.appendChild(option);
-            });
-        }
-        // --- สิ้นสุดการแก้ไขเพื่อแคชข้อมูลแผนก ---
-
         function parseEmployeeData(data) {
             if (data.length < 2) throw new Error('ไฟล์/ข้อมูลว่างเปล่าหรือมีแค่หัวข้อ');
             const header = data[0].map(h => String(h).toLowerCase().trim());
             const idIndex = header.indexOf('employee_id');
             const nameIndex = header.indexOf('name');
+            const departmentIndex = header.indexOf('department'); // New: Find department column
 
             if (idIndex === -1 || nameIndex === -1) {
-                throw new Error('ไม่พบคอลัมน์ "employee_id" และ/หรือ "name"');
+                throw new Error('ไม่พบคอลัมน์ "employee_id" และ/หรือ "name" ที่จำเป็น');
             }
 
             return data.slice(1).map(row => ({
                 employee_id: String(row[idIndex]).trim(),
-                name: String(row[nameIndex]).trim()
-            })).filter(emp => emp.employee_id && emp.name);
+                name: String(row[nameIndex]).trim(),
+                department_name: departmentIndex !== -1 && row[departmentIndex] ? String(row[departmentIndex]).trim() : null // New: Get department name, allow null
+            })).filter(emp => emp.employee_id && emp.name); // Still require ID and Name
         }
 
         function handleFile(file) {
@@ -258,12 +201,14 @@
                 if (!textData) {
                     employeesToSubmit = [];
                     submitBtn.disabled = true;
+                    filePreview.textContent = ''; // Clear file preview if textarea is cleared
                     return;
                 }
+                // Handle tab-separated data from Excel paste
                 const rows = textData.split('\n').map(row => row.split('\t'));
                 employeesToSubmit = parseEmployeeData(rows);
                 filePreview.textContent = `พบ ${employeesToSubmit.length} รายการจากที่วาง`;
-                fileInput.value = '';
+                fileInput.value = ''; // Clear file input if pasting
                 submitBtn.disabled = false;
              } catch(err) {
                  filePreview.textContent = `ผิดพลาด: ${err.message}`;
@@ -271,12 +216,19 @@
              }
         });
 
+        // Download Template functionality
+        downloadTemplateBtn.addEventListener('click', () => {
+            const worksheet = XLSX.utils.aoa_to_sheet([
+                ["Employee_ID", "Name", "Department"] // Header row
+            ]);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
+            XLSX.writeFile(workbook, "employee_template.xlsx");
+        });
+
+
         submitBtn.addEventListener('click', async () => {
-            const departmentId = departmentSelect.value;
-            if (!departmentId) {
-                showResult('กรุณาเลือกแผนก', 'error');
-                return;
-            }
+            // Removed departmentSelect.value as department is now per employee
             if (employeesToSubmit.length === 0) {
                 showResult('ไม่มีข้อมูลพนักงานให้เพิ่ม', 'error');
                 return;
@@ -294,7 +246,7 @@
                         'Authorization': `Bearer ${session.access_token}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ employees: employeesToSubmit, department_id: departmentId })
+                    body: JSON.stringify({ employees: employeesToSubmit /* department_id is no longer a single value */ })
                 });
 
                 const result = await response.json();
@@ -304,16 +256,18 @@
                 if (result.duplicates && result.duplicates.length > 0) {
                     finalMessage += `\nรหัสซ้ำ (ไม่ถูกเพิ่ม): ${result.duplicates.join(', ')}`;
                 }
+                if (result.invalidDepartments && result.invalidDepartments.length > 0) { // New: Show invalid departments
+                    finalMessage += `\nแผนกไม่ถูกต้อง (ไม่ถูกผูกกับแผนก): ${result.invalidDepartments.join(', ')}`;
+                }
                 showResult(finalMessage, 'success');
 
-                // Delay clearing inputs and hiding message to allow user to read
                 setTimeout(() => {
                     employeesTextarea.value = '';
                     fileInput.value = '';
                     filePreview.textContent = '';
                     employeesToSubmit = [];
-                    resultMessageDiv.style.display = 'none'; // Hide the message after clearing
-                }, 5000); // 5 seconds delay
+                    resultMessageDiv.style.display = 'none'; 
+                }, 5000); 
 
             } catch (error) {
                 showResult(`ผิดพลาด: ${error.message}`, 'error');
