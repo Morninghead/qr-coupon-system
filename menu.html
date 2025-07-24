@@ -125,6 +125,10 @@
                     <h2>👥 จัดการรายชื่อพนักงาน</h2>
                     <p>แก้ไข, ลบ, ดูสถานะพนักงานทั้งหมด</p>
                 </a>
+                <a class='menu-item' href='/manage-card-templates.html' id='menu-manage-card-templates'>
+                    <h2>🎨 จัดการ Template บัตร</h2>
+                    <p>สร้างและแก้ไขรูปแบบบัตรพนักงาน</p>
+                </a>
                 <a class='menu-item' href='/scanner.html' id='menu-scanner'>
                     <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
                     <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
@@ -159,8 +163,8 @@
 
         function displayMenusByRole(role) {
             const publicMenus = ['menu-scanner', 'menu-reports', 'menu-daily-scan-report-standalone']; 
-            const adminMenus = ['menu-add-employee', 'menu-grant-coupons', 'menu-upload-employee-photo', 'menu-print-employee-cards']; 
-            const superuserOnlyMenus = ['menu-issue-temp-coupon', 'menu-manage-employees']; // <<< เพิ่ม ID เมนูใหม่ 'menu-manage-employees' ที่นี่
+            const adminMenus = ['menu-add-employee', 'menu-grant-coupons', 'menu-upload-employee-photo', 'menu-print-employee-cards', 'menu-manage-employees']; // <<< เพิ่ม ID เมนู 'manage-employees' ใน adminMenus
+            const superuserOnlyMenus = ['menu-issue-temp-coupon', 'menu-manage-card-templates']; // <<< เพิ่ม ID เมนู 'manage-card-templates' ใน superuserOnlyMenus
 
             publicMenus.forEach(id => {
                 const menuItem = document.getElementById(id);
