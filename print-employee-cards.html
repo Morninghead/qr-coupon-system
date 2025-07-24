@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>พิมพ์บัตรพนักงาน - ระบบคูปองพนักงาน</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root {
             --primary-color: #6366F1;
@@ -13,77 +14,15 @@
             --dark-gray: #1F2937;
             --text-gray: #4B5563;
             --border-color: #E5E7EB;
+            --success-color: #10B981;
+            --error-color: #EF4444;
+            --warning-color: #F59E0B;
         }
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: var(--light-gray); /* พื้นหลังสำหรับหน้าจอ */
-        }
-        .container {
-            max-width: 1200px;
-            margin: 20px auto;
-            background: white;
-            padding: 32px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-        .header h1 {
-            color: var(--dark-gray);
-            font-size: 28px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-gray);
             margin: 0;
         }
-        .back-link {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 600;
-        }
-        .actions-section {
-            background: var(--light-gray);
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-        }
-        .actions-section button {
-            padding: 10px 20px;
-            font-size: 16px;
-            font-weight: 600;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .actions-section button.load-btn { background-color: var(--primary-color); }
-        .actions-section button.load-btn:hover { background-color: #4F46E5; }
-        .actions-section button.print-btn { background-color: var(--success-color); }
-        .actions-section button.print-btn:hover { background-color: #059669; }
-        .actions-section button:disabled { background-color: #A5B4FC; cursor: not-allowed; }
-
-        #cards-preview-area {
-            border: 1px dashed var(--border-color);
-            padding: 10px;
-            min-height: 300px;
-            background-color: #fcfcfc;
-            border-radius: 8px;
-            overflow: auto; /* เพื่อให้เลื่อนดูได้ถ้าบัตรเยอะ */
-        }
-        #cards-preview-area p {
-            text-align: center;
-            color: var(--text-gray);
-            font-size: 1.1em;
-            margin-top: 100px;
-        }
-        /* Unauthorized Message (เหมือนไฟล์อื่นๆ) */
         .hidden { display: none !important; }
         .unauthorized-container {
             display: flex;
@@ -113,164 +52,213 @@
         }
         .unauthorized-button:hover { background-color: #4F46E5; }
 
-        /* --- CSS สำหรับ Card Layout ที่ส่งมาจาก Backend --- */
-        /* General styles for the print area/page */
-        .print-area-wrapper { /* ใช้ห่อหุ้ม cardsHtml เพื่อส่งให้ html2pdf */
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 10mm; /* A4 margins */
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
+        .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+
+        .controls-card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 32px;
             display: flex;
+            gap: 16px;
             flex-wrap: wrap;
-            gap: 10mm; /* Space between cards */
-            justify-content: center; /* Center cards on the page */
-        }
-
-        .employee-card-container { /* Container for one employee's card (front + back side-by-side) */
-            display: flex;
-            flex-direction: column; /* Stacks cards in column for print container */
-            page-break-inside: avoid; /* Important for print: keeps card together */
-            margin-bottom: 10mm;
-        }
-        
-        .employee-card-page-layout {
-            display: flex; /* Arrange front and back side-by-side on the same print area */
-            gap: 5mm; /* Space between front and back of a single card */
-            page-break-inside: avoid; /* Keep front and back together */
-        }
-
-        /* Common styles for both card sides */
-        .card-side {
-            width: 53.98mm; /* CR80 width (portrait) */
-            height: 85.60mm; /* CR80 height (portrait) */
-            border: 0.5mm solid #ddd; /* Thin border for clean cut */
-            box-sizing: border-box; /* Include padding/border in total dimensions */
-            display: flex;
-            flex-direction: column;
             align-items: center;
-            padding: 5mm;
-            text-align: center;
-            overflow: hidden; /* Hide anything that goes beyond boundaries */
-            position: relative;
-            justify-content: space-between; /* Distribute content vertically */
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Subtle shadow for screen view */
         }
+        .controls-card input[type="text"],
+        .controls-card select {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            flex-grow: 1;
+            min-width: 150px;
+        }
+        .controls-card button {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .controls-card button:hover { background-color: #4F46E5; }
 
-        /* Front of the card specific styles */
-        .card-front {
-            background-color: #ffffff;
-            color: #333333;
+        .table-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow-x: auto;
+            margin-bottom: 32px;
         }
-        .card-front .company-logo {
-            width: 20mm; /* Adjust logo size */
-            height: auto;
-            margin-bottom: 5mm;
-            max-width: 100%;
-            max-height: 20mm;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            white-space: nowrap; 
         }
-        .card-front .company-name {
-            font-size: 8pt;
-            font-weight: bold;
-            margin: 0 0 5mm 0;
-            color: var(--primary-color);
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
         }
-        .card-front .employee-photo {
-            width: 30mm;
-            height: 30mm;
+        th {
+            background-color: #F9FAFB;
+            font-weight: 600;
+            color: var(--text-gray);
+        }
+        td input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+        td img.employee-photo-thumb {
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             object-fit: cover;
-            margin-bottom: 5mm;
-            border: 1px solid #eee;
+            border: 1px solid var(--border-color);
+            vertical-align: middle;
         }
-        .card-front .employee-name {
-            font-size: 11pt;
-            font-weight: bold;
-            margin: 0;
-            line-height: 1.2;
-            color: #1F2937;
+        .select-all-header {
+            text-align: center;
         }
-        .card-front .employee-id {
-            font-size: 9pt;
-            color: #555555;
-            margin: 0;
-        }
-        .card-front .department {
-            font-size: 8pt;
-            color: #777777;
-            margin-top: 2mm;
-        }
-        .card-front .card-tagline {
-            font-size: 7pt;
-            color: #999999;
-            margin-top: auto;
-            border-top: 0.5px solid #eee;
-            padding-top: 2mm;
-            width: 100%;
+        .select-all-header input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
         }
 
-        /* Back of the card specific styles */
-        .card-back {
-            background-color: #fefefe;
-            color: #333333;
+        .pagination { display: flex; justify-content: center; align-items: center; padding: 24px; gap: 8px; }
+        .pagination button { padding: 8px 16px; border: 1px solid var(--border-color); background-color: white; border-radius: 8px; cursor: pointer; }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pagination button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+        
+        #message { margin-top: 20px; padding: 12px; border-radius: 8px; font-weight: 500; display: block; min-height: 48px; text-align: center; }
+        .message-success { background-color: #D1FAE5; color: #065F46; }
+        .message-error { background-color: #FEE2E2; color: #991B1B; }
+        .message-info { background-color: #E0E7FF; color: #3730A3; }
+
+        /* Card Preview Area */
+        .card-preview-area {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 32px;
         }
-        .card-back .qr-code-area {
+        .card-preview-area h2 {
+            margin-top: 0;
+            color: var(--dark-gray);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+        .card-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Adjust card width */
+            gap: 20px;
+            justify-content: center;
+        }
+
+        /* Employee Card Styles (for printing) - MUST MATCH manage-card-templates.html .template-card-preview-inner */
+        .employee-card {
+            width: 280px; 
+            height: 177px; 
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden; 
+            position: relative;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .employee-card .background {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            z-index: 0;
+        }
+        .employee-card .card-content {
+            position: relative; 
+            z-index: 1;
+            width: 100%;
+            height: 100%;
+        }
+        /* Styles for elements inside the card, controlled by layout_config */
+        .employee-card .card-element {
+            position: absolute; 
+            box-sizing: border-box;
+            background-color: rgba(255,255,255,0.7); 
+            padding: 2px 5px;
+            border-radius: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #000; 
+        }
+        .employee-card .card-element.text {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-weight: 500;
+        }
+        .employee-card .card-element.img {
+            background-color: transparent; 
+            border: none;
+            padding: 0;
+        }
+        .employee-card .card-element.qr {
+            background-color: transparent;
+            border: none;
+            padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
-            flex-grow: 1;
-            width: 100%;
         }
-        .card-back .qr-code-image {
-            width: 40mm;
-            height: 40mm;
-            object-fit: contain;
-            display: block;
-        }
-        .card-back .scan-info {
-            font-size: 8pt;
-            color: #555555;
-            margin-top: 5mm;
-            margin-bottom: 0;
-        }
-        .card-back .card-note {
-            font-size: 7pt;
-            color: #888888;
-            margin-top: auto;
-            border-top: 0.5px solid #eee;
-            padding-top: 2mm;
-            width: 100%;
+        .employee-card .card-element.qr canvas {
+            width: 100% !important;
+            height: 100% !important;
         }
 
-        /* Media queries for actual printing */
-        @page {
-            size: A4 portrait;
-            margin: 10mm;
-        }
+
+        /* Print specific styles */
         @media print {
-            body {
-                margin: 0;
-                padding: 0;
-                background: none;
-                -webkit-print-color-adjust: exact;
-                color-adjust: exact;
+            body > *:not(.print-area) {
+                display: none; 
             }
-            .print-area-wrapper {
-                box-shadow: none;
-                margin: 0;
-                padding: 0;
+            .print-area {
+                display: block;
                 width: auto;
-                align-content: flex-start;
-                gap: 5mm; /* ลด gap สำหรับการพิมพ์ */
+                margin: 0;
+                padding: 0;
             }
-            .employee-card-container {
-                margin-bottom: 5mm;
-                break-inside: avoid;
+            .employee-card {
+                box-shadow: none;
+                border: 0.5mm solid #ccc; 
+                page-break-inside: avoid; 
+                margin: 5mm; 
             }
-            .card-side {
-                border: 0.2mm solid #bbb;
+            .card-preview-grid {
+                display: flex; 
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                align-items: flex-start;
             }
-            .header, .actions-section, .unauthorized-container {
-                display: none !important;
-            }
+        }
+
+        #pdf-generation-progress {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #e0e7ff;
+            border-radius: 8px;
+            text-align: center;
+            color: #3730a3;
+            font-weight: 600;
+            display: none;
         }
     </style>
 </head>
@@ -278,7 +266,7 @@
     <div id="unauthorized-message" class="unauthorized-container hidden">
         <div class="unauthorized-box">
             <h1>กรุณาลงชื่อเข้าใช้</h1>
-            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
+            <p>คุณไม่ได้รับอนุญาตให้เข้าถึงหน้านี้ หรือไม่ได้ลงชื่อเข้าใช้</p>
             <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
     </div>
@@ -287,30 +275,97 @@
         <div class="container">
             <div class="header">
                 <h1>พิมพ์บัตรพนักงาน</h1>
-                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+                <a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
+            </div>
+            
+            <div class="controls-card">
+                <label for="template-select" style="margin-right: 10px; font-weight: 600; color: var(--dark-gray);">เลือก Template บัตร:</label>
+                <select id="template-select" style="flex-grow: 0; min-width: 200px;">
+                    <option value="">กำลังโหลด Template...</option>
+                </select>
             </div>
 
-            <div class="actions-section">
-                <button id="load-cards-btn" class="load-btn">แสดงตัวอย่างบัตร</button>
-                <button id="print-pdf-btn" class="print-btn" disabled>พิมพ์เป็น PDF</button>
+            <div class="controls-card">
+                <input type="text" id="search-input" placeholder="ค้นหาด้วยรหัสพนักงาน หรือชื่อ...">
+                <select id="department-filter">
+                    <option value="all">ทุกแผนก</option>
+                    </select>
+                <select id="status-filter">
+                    <option value="all">สถานะทั้งหมด</option>
+                    <option value="active">ใช้งาน</option>
+                    <option value="inactive">ไม่ใช้งาน</option>
+                </select>
+                <button id="apply-filters-btn">ค้นหา/กรอง</button>
             </div>
 
-            <div id="cards-preview-area">
-                <p>คลิก 'แสดงตัวอย่างบัตร' เพื่อสร้างและดูบัตรพนักงานทั้งหมด</p>
+            <div class="table-container">
+                <table id="employee-selection-table">
+                    <thead>
+                        <tr>
+                            <th class="select-all-header"><input type="checkbox" id="select-all-employees"></th>
+                            <th>รูป</th>
+                            <th>รหัสพนักงาน</th>
+                            <th>ชื่อ-สกุล</th>
+                            <th>แผนก</th>
+                            <th>Permanent Token</th>
+                        </tr>
+                    </thead>
+                    <tbody id="employee-table-body">
+                        <tr><td colspan="6" style="text-align:center;">กำลังโหลดข้อมูลพนักงาน...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" id="pagination-controls">
+                </div>
+            <div id="message" class="hidden"></div>
+
+            <div class="card-preview-area">
+                <h2>บัตรที่เลือกสำหรับพิมพ์</h2>
+                <div class="card-preview-grid" id="card-preview-grid">
+                    <p style="text-align: center; color: var(--text-gray);">เลือกพนักงานจากตารางด้านบนและเลือก Template บัตร</p>
+                </div>
+                <button id="print-selected-cards-btn" class="controls-card-button" style="background-color: var(--success-color); margin-top: 20px;" disabled>
+                    🖨️ พิมพ์บัตรที่เลือก (Generate PDF)
+                </button>
+                <div id="pdf-generation-progress" style="display: none;">
+                    กำลังสร้าง PDF... (โปรดรอ)
+                </div>
             </div>
         </div>
     </div>
 
+    <script src="/js/qrcode.min.js"></script> 
     <script>
         const mainContent = document.getElementById('main-content');
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
+        let currentUserRole = null;
+        let allDepartments = [];
+        let allTemplates = []; // Store all available templates
+        let selectedTemplate = null; // Stores the currently selected template object
+        let allEmployees = []; 
 
-        const loadCardsBtn = document.getElementById('load-cards-btn');
-        const printPdfBtn = document.getElementById('print-pdf-btn');
-        const cardsPreviewArea = document.getElementById('cards-preview-area');
+        const employeeTableBody = document.getElementById('employee-table-body');
+        const paginationControls = document.getElementById('pagination-controls');
+        const searchInput = document.getElementById('search-input');
+        const departmentFilter = document.getElementById('department-filter');
+        const statusFilter = document.getElementById('status-filter');
+        const applyFiltersBtn = document.getElementById('apply-filters-btn');
+        const messageDiv = document.getElementById('message');
+        const selectAllCheckbox = document.getElementById('select-all-employees');
+        const cardPreviewGrid = document.getElementById('card-preview-grid');
+        const printSelectedCardsBtn = document.getElementById('print-selected-cards-btn');
+        const pdfGenerationProgress = document.getElementById('pdf-generation-progress');
+        const templateSelect = document.getElementById('template-select'); // New Template Select
 
         const baseUrl = window.location.origin;
+        let currentPage = 1;
+        const itemsPerPage = 10; 
+
+        let selectedEmployeeIds = new Set(); 
+
+        const { jsPDF } = window.jspdf;
+        const QR_CODE_BUCKET = 'employee-qrcodes'; 
 
         async function initializeApp() {
             try {
@@ -319,79 +374,458 @@
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
                 const { data: { session } } = await _supabase.auth.getSession();
-                if (session) {
-                    mainContent.classList.remove('hidden');
-                } else {
+                if (!session) {
                     unauthorizedMessage.classList.remove('hidden');
+                    return;
                 }
+
+                const { data: profileData, error: profileError } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
+                if (profileError || !profileData || !['superuser', 'department_admin'].includes(profileData.role)) {
+                    unauthorizedMessage.classList.remove('hidden');
+                    return;
+                }
+                currentUserRole = profileData.role;
+                mainContent.classList.remove('hidden');
+
+                await loadDepartments();
+                await loadCardTemplates(); // Load card templates
+                await fetchEmployees(currentPage);
+
+                applyFiltersBtn.addEventListener('click', () => {
+                    currentPage = 1; 
+                    selectedEmployeeIds.clear(); 
+                    updatePrintButtonStatus();
+                    fetchEmployees(currentPage);
+                });
+
+                selectAllCheckbox.addEventListener('change', toggleSelectAll);
+                printSelectedCardsBtn.addEventListener('click', generatePdfForSelectedCards);
+                templateSelect.addEventListener('change', handleTemplateChange); // New event listener
+                
             } catch (error) {
                 console.error('Initialization failed:', error);
+                showMessage('เกิดข้อผิดพลาดในการโหลดระบบ: ' + error.message, 'error');
                 unauthorizedMessage.classList.remove('hidden');
             }
         }
 
-        // --- ฟังก์ชันสำหรับโหลดและแสดงผลบัตรพนักงาน ---
-        loadCardsBtn.addEventListener('click', async () => {
-            loadCardsBtn.disabled = true;
-            printPdfBtn.disabled = true;
-            cardsPreviewArea.innerHTML = '<p>กำลังสร้างบัตรตัวอย่าง...</p>';
+        async function loadDepartments() {
+            const DEPARTMENTS_CACHE_KEY = 'departments_cache';
+            const DEPARTMENTS_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+            try {
+                const cachedData = localStorage.getItem(DEPARTMENTS_CACHE_KEY);
+                if (cachedData) {
+                    const { departments, timestamp } = JSON.parse(cachedData);
+                    if (Date.now() - timestamp < DEPARTMENTS_CACHE_EXPIRY_MS) {
+                        renderDepartmentOptions(departments);
+                        console.log('Departments loaded from cache.');
+                        return;
+                    } else {
+                        console.log('Departments cache expired, fetching new data.');
+                        localStorage.removeItem(DEPARTMENTS_CACHE_KEY);
+                    }
+                }
+
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
+                    headers: { 'Authorization': `Bearer ${session.access_token}` }
+                });
+                if (!response.ok) throw new Error('Failed to load departments');
+                
+                allDepartments = await response.json();
+                localStorage.setItem(DEPARTMENTS_CACHE_KEY, JSON.stringify({
+                    departments: allDepartments,
+                    timestamp: Date.now()
+                }));
+                renderDepartmentOptions(allDepartments);
+            } catch (error) {
+                console.error("Failed to load departments:", error);
+                showMessage('ไม่สามารถโหลดข้อมูลแผนกได้', 'error');
+            }
+        }
+
+        function renderDepartmentOptions(departments) {
+            departmentFilter.innerHTML = '<option value="all">ทุกแผนก</option>';
+            departments.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept.id;
+                option.textContent = dept.name;
+                departmentFilter.appendChild(option);
+            });
+        }
+
+        async function loadCardTemplates() {
+            templateSelect.innerHTML = '<option value="">กำลังโหลด Template...</option>';
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-card-templates`, {
+                    headers: { 'Authorization': `Bearer ${session.access_token}` }
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to load card templates.');
+                }
+                allTemplates = await response.json();
+                renderTemplateOptions(allTemplates);
+            } catch (error) {
+                console.error("Failed to load card templates:", error);
+                showMessage('ไม่สามารถโหลด Template บัตรได้', 'error');
+                templateSelect.innerHTML = '<option value="">ไม่สามารถโหลด Template ได้</option>';
+            }
+        }
+
+        function renderTemplateOptions(templates) {
+            templateSelect.innerHTML = '<option value="">-- เลือก Template บัตร --</option>';
+            if (templates.length === 0) {
+                templateSelect.innerHTML = '<option value="">ไม่มี Template บัตร</option>';
+                return;
+            }
+            templates.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = template.template_name;
+                templateSelect.appendChild(option);
+            });
+        }
+
+        function handleTemplateChange(event) {
+            const templateId = event.target.value;
+            selectedTemplate = allTemplates.find(t => t.id === templateId);
+            updatePreviewCards(); // Re-render previews with new template
+            updatePrintButtonStatus(); // Re-evaluate print button status
+        }
+
+        async function fetchEmployees(page = 1) {
+            showMessage('กำลังโหลดข้อมูลพนักงาน...', 'info');
+            employeeTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">กำลังโหลดข้อมูลพนักงาน...</td></tr>`;
+            
+            const searchTerm = searchInput.value.trim();
+            const departmentId = departmentFilter.value;
+            const status = statusFilter.value; 
 
             try {
                 const { data: { session } } = await _supabase.auth.getSession();
-                if (!session) {
-                    throw new Error('ไม่ได้ลงชื่อเข้าใช้ กรุณาเข้าสู่ระบบใหม่');
-                }
-
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-employee-card`, { // อ้างอิงถึงชื่อใหม่
+                // We only want regular employees (is_active: true) for printing cards by default
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-employees?page=${page}&limit=${itemsPerPage}&search=${searchTerm}&department=${departmentId}&status=active`, { 
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
 
-                const result = await response.json();
                 if (!response.ok) {
-                    throw new Error(result.message || 'ไม่สามารถโหลดข้อมูลบัตรพนักงานได้');
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to fetch employee data for printing.');
                 }
 
-                if (result.html) {
-                    // สร้าง div เพื่อห่อหุ้ม HTML ที่ได้มา เพื่อให้ html2pdf ประมวลผลได้ง่าย
-                    const wrapper = document.createElement('div');
-                    wrapper.classList.add('print-area-wrapper'); // ใช้ class นี้สำหรับ print layout
-                    wrapper.innerHTML = result.html;
-                    cardsPreviewArea.innerHTML = ''; // ล้างข้อความ 'กำลังสร้าง...'
-                    cardsPreviewArea.appendChild(wrapper); // แสดง HTML ของบัตร
+                const data = await response.json();
+                allEmployees = data.employees.filter(emp => emp.employee_type === 'regular'); 
+                renderEmployeeTable(allEmployees);
+                renderPagination(data.currentPage, data.totalPages);
+                showMessage('โหลดข้อมูลพนักงานสำเร็จ', 'success');
 
-                    printPdfBtn.disabled = false;
-                } else {
-                    cardsPreviewArea.innerHTML = '<p>ไม่พบข้อมูลพนักงานที่จะสร้างบัตร</p>';
-                }
             } catch (error) {
-                console.error('Error loading cards:', error);
-                cardsPreviewArea.innerHTML = `<p style="color:red;">ผิดพลาด: ${error.message}</p>`;
-            } finally {
-                loadCardsBtn.disabled = false;
+                console.error('Error fetching employees:', error);
+                employeeTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--error-color);">ไม่สามารถโหลดข้อมูลพนักงานได้: ${error.message}</td></tr>`;
+                showMessage('ไม่สามารถโหลดข้อมูลพนักงานได้: ' + error.message, 'error');
+                paginationControls.innerHTML = '';
             }
-        });
+        }
 
-        // --- ฟังก์ชันสำหรับพิมพ์เป็น PDF ---
-        printPdfBtn.addEventListener('click', () => {
-            const element = cardsPreviewArea.querySelector('.print-area-wrapper'); // เลือก div ที่มีบัตรทั้งหมด
-            if (!element) {
-                console.error('No cards to print.');
+        function renderEmployeeTable(employees) {
+            employeeTableBody.innerHTML = '';
+            if (employees.length === 0) {
+                employeeTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">ไม่พบข้อมูลพนักงาน</td></tr>`;
                 return;
             }
 
-            // ตั้งค่าการแปลงเป็น PDF
-            const opt = {
-                margin:       10, // A4 margins (mm)
-                filename:     'employee_id_cards.pdf',
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, logging: true, dpi: 300, letterRendering: true }, // เพิ่ม dpi เป็น 300 เพื่อคุณภาพที่ดี
-                jsPDF:        { unit: 'mm', format: 'A4', orientation: 'portrait' },
-                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] } // พยายามไม่ให้บัตรขาดหน้า
-            };
+            selectAllCheckbox.checked = true; 
+            employees.forEach(emp => {
+                const row = document.createElement('tr');
+                
+                let photoUrl = '';
+                if (emp.photo_url) {
+                    photoUrl = emp.photo_url;
+                } else if (emp.employee_id) {
+                    photoUrl = `${_supabase.supabaseUrl}/storage/v1/object/public/employee-photos/${emp.employee_id}.jpg`; 
+                }
+                const finalPhotoUrl = photoUrl || 'https://via.placeholder.com/30?text=No+Photo';
 
-            // ใช้ html2pdf เพื่อสร้าง PDF
-            html2pdf().set(opt).from(element).save();
-        });
+                row.innerHTML = `
+                    <td><input type="checkbox" class="employee-checkbox" data-id="${emp.id}" ${selectedEmployeeIds.has(emp.id) ? 'checked' : ''}></td>
+                    <td><img src="${finalPhotoUrl}" alt="${emp.name}" class="employee-photo-thumb" onerror="this.onerror=null;this.src='https://via.placeholder.com/30?text=Error'"></td>
+                    <td>${emp.employee_id || 'N/A'}</td>
+                    <td>${emp.name}</td>
+                    <td>${emp.department_name || 'N/A'}</td>
+                    <td>${emp.permanent_token || 'N/A'}</td>
+                `;
+                employeeTableBody.appendChild(row);
+
+                if (!selectedEmployeeIds.has(emp.id)) {
+                    selectAllCheckbox.checked = false;
+                }
+            });
+
+            document.querySelectorAll('.employee-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateSelectedEmployees);
+            });
+            updatePrintButtonStatus();
+            updatePreviewCards(); // Update preview when table re-renders
+        }
+
+        function renderPagination(currentPage, totalPages) {
+            paginationControls.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            let buttonsHtml = `<button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>ก่อนหน้า</button>`;
+            buttonsHtml += `<span>หน้า ${currentPage} / ${totalPages}</span>`;
+            buttonsHtml += `<button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>ถัดไป</button>`;
+            
+            paginationControls.innerHTML = buttonsHtml;
+        }
+
+        function goToPage(page) {
+            if (page < 1 || page > parseInt(paginationControls.querySelector('span').textContent.split('/')[1].trim())) return;
+            currentPage = page;
+            fetchEmployees(currentPage);
+        }
+
+        function showMessage(message, type) {
+            messageDiv.classList.remove('hidden', 'message-success', 'message-error', 'message-info');
+            messageDiv.textContent = message;
+            messageDiv.classList.add(`message-${type}`);
+            setTimeout(() => {
+                messageDiv.classList.add('hidden');
+            }, 5000); 
+        }
+
+        function toggleSelectAll(event) {
+            const isChecked = event.target.checked;
+            document.querySelectorAll('.employee-checkbox').forEach(checkbox => {
+                checkbox.checked = isChecked;
+                updateSelectedEmployees({ target: checkbox });
+            });
+        }
+
+        function updateSelectedEmployees(event) {
+            const employeeId = event.target.dataset.id;
+            if (event.target.checked) {
+                selectedEmployeeIds.add(employeeId);
+            } else {
+                selectedEmployeeIds.delete(employeeId);
+            }
+            updatePrintButtonStatus();
+            updatePreviewCards(); // Update preview when selection changes
+        }
+
+        function updatePrintButtonStatus() {
+            // Button is enabled if at least one employee is selected AND a template is selected
+            printSelectedCardsBtn.disabled = selectedEmployeeIds.size === 0 || !selectedTemplate;
+            if (selectedEmployeeIds.size === 0 || !selectedTemplate) {
+                cardPreviewGrid.innerHTML = '<p style="text-align: center; color: var(--text-gray);">เลือกพนักงานจากตารางด้านบนและเลือก Template บัตร</p>';
+            }
+        }
+
+        async function updatePreviewCards() {
+            cardPreviewGrid.innerHTML = ''; 
+            if (selectedEmployeeIds.size === 0 || !selectedTemplate) {
+                updatePrintButtonStatus(); 
+                return;
+            }
+
+            const selectedEmployees = allEmployees.filter(emp => selectedEmployeeIds.has(emp.id));
+
+            if (selectedEmployees.length > 0) {
+                showMessage('กำลังสร้างตัวอย่างบัตร...', 'info');
+            }
+
+            for (const emp of selectedEmployees) {
+                const cardDiv = document.createElement('div');
+                cardDiv.classList.add('employee-card');
+                
+                // --- Prepare card content based on template ---
+                const cardContentHtml = await generateCardHtml(emp, selectedTemplate);
+                cardDiv.innerHTML = cardContentHtml;
+                cardPreviewGrid.appendChild(cardDiv);
+
+                // Re-generate QR Code after card HTML is in DOM
+                const qrCodeElement = cardDiv.querySelector('.card-element.qr > div');
+                if (qrCodeElement && emp.permanent_token && window.QRCode) {
+                    const qrCodeData = `${baseUrl}/scanner?token=${emp.permanent_token}`;
+                    new QRCode(qrCodeElement, {
+                        text: qrCodeData,
+                        width: qrCodeElement.offsetWidth || 100, // Use actual rendered width or default
+                        height: qrCodeElement.offsetHeight || 100, // Use actual rendered height or default
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H 
+                    });
+                }
+            }
+            showMessage('', 'hidden'); 
+        }
+
+        async function generateCardHtml(employee, template) {
+            let photoUrl = employee.photo_url || `${_supabase.supabaseUrl}/storage/v1/object/public/employee-photos/${employee.employee_id}.jpg`;
+            const finalPhotoUrl = photoUrl || 'https://via.placeholder.com/80?text=No+Photo';
+
+            let cardHtml = '';
+            if (template.background_front_url) {
+                cardHtml += `<img src="${template.background_front_url}" class="background" onerror="this.onerror=null;this.src='https://via.placeholder.com/280x177?text=BG+Error'">`;
+            }
+            cardHtml += `<div class="card-content">`;
+
+            // Render elements based on layout_config
+            const layout = template.layout_config || {};
+            for (const key in layout) {
+                if (Object.hasOwnProperty.call(layout, key)) {
+                    const style = layout[key];
+                    let content = '';
+                    let className = 'card-element';
+
+                    if (key === "logo") {
+                        className += ' img';
+                        content = `<img src="${template.logo_url || 'https://via.placeholder.com/50?text=Logo'}" style="width:100%;height:100%;object-fit:contain;" onerror="this.onerror=null;this.src='https://via.placeholder.com/50?text=Logo+Error'">`;
+                    } else if (key === "company_name") {
+                        className += ' text';
+                        content = template.company_name || '';
+                    } else if (key === "employee_name") {
+                        className += ' text';
+                        content = employee.name;
+                    } else if (key === "employee_id") {
+                        className += ' text';
+                        content = `ID: ${employee.employee_id}`;
+                    } else if (key === "qr_code") {
+                        className += ' qr';
+                        content = `<div></div>`; // QR code will be rendered into this div later
+                    } else {
+                        // For custom text fields defined in layout_config
+                        className += ' text';
+                        content = style.text || ''; // Assume 'text' property in style for custom text
+                    }
+                    
+                    let styleStr = '';
+                    for (const prop in style) {
+                        if (Object.hasOwnProperty.call(style, prop) && prop !== 'text') { // Exclude 'text' property
+                            styleStr += `${prop}: ${style[prop]};`;
+                        }
+                    }
+
+                    cardHtml += `<div class="${className}" style="${styleStr}">${content}</div>`;
+                }
+            }
+            cardHtml += `</div>`; // Close card-content
+
+            return cardHtml;
+        }
+
+
+        async function generatePdfForSelectedCards() {
+            if (selectedEmployeeIds.size === 0) {
+                showMessage('กรุณาเลือกพนักงานที่ต้องการพิมพ์อย่างน้อยหนึ่งคน', 'error');
+                return;
+            }
+            if (!selectedTemplate) {
+                showMessage('กรุณาเลือก Template บัตรก่อนพิมพ์', 'error');
+                return;
+            }
+
+            pdfGenerationProgress.style.display = 'block';
+            printSelectedCardsBtn.disabled = true;
+            showMessage('กำลังสร้างไฟล์ PDF... อาจใช้เวลาสักครู่', 'info');
+
+            try {
+                const doc = new jsPDF({
+                    orientation: 'portrait', 
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const cardWidthPx = 280; 
+                const cardHeightPx = 177; 
+                
+                const scale = 3; // Increased scale for better PDF quality
+                const cardWidthMm = cardWidthPx * 0.264583 * (scale / 1); 
+                const cardHeightMm = cardHeightPx * 0.264583 * (scale / 1);
+
+                const margin = 10; 
+                let currentX = margin;
+                let currentY = margin;
+                
+                // Hide other content for html2canvas
+                document.body.classList.add('print-area'); 
+
+                const selectedEmployeesForPdf = allEmployees.filter(emp => selectedEmployeeIds.has(emp.id));
+
+                for (let i = 0; i < selectedEmployeesForPdf.length; i++) {
+                    const emp = selectedEmployeesForPdf[i];
+                    
+                    // Create a temporary div to render the card for html2canvas
+                    const tempCardContainer = document.createElement('div');
+                    tempCardContainer.style.width = `${cardWidthPx}px`;
+                    tempCardContainer.style.height = `${cardHeightPx}px`;
+                    tempCardContainer.style.position = 'absolute';
+                    tempCardContainer.style.left = '-9999px'; // Move off-screen
+                    tempCardContainer.style.top = '-9999px';
+                    tempCardContainer.style.background = 'white'; // Ensure white background for rendering
+                    tempCardContainer.style.border = 'none'; // No border needed for rendering
+
+                    // Generate card HTML for this employee using the selected template
+                    tempCardContainer.innerHTML = await generateCardHtml(emp, selectedTemplate);
+                    document.body.appendChild(tempCardContainer); // Append to body to be rendered by html2canvas
+
+                    // Re-generate QR Code for the off-screen card
+                    const qrCodeElement = tempCardContainer.querySelector('.card-element.qr > div');
+                    if (qrCodeElement && emp.permanent_token && window.QRCode) {
+                        const qrCodeData = `${baseUrl}/scanner?token=${emp.permanent_token}`;
+                        new QRCode(qrCodeElement, {
+                            text: qrCodeData,
+                            width: qrCodeElement.offsetWidth || 100,
+                            height: qrCodeElement.offsetHeight || 100,
+                            colorDark : "#000000",
+                            colorLight : "#ffffff",
+                            correctLevel : QRCode.CorrectLevel.H 
+                        });
+                    }
+
+                    // Wait for QR code canvas to render (small delay)
+                    await new Promise(resolve => setTimeout(resolve, 100)); 
+
+                    // Render temporary HTML card to canvas
+                    const canvas = await html2canvas(tempCardContainer, { scale: scale, logging: false, removeContainer: true }); // removeContainer: true cleans up
+                    const imgData = canvas.toDataURL('image/jpeg', 0.9); 
+
+                    // Remove the temporary container
+                    tempCardContainer.remove();
+
+                    // Add image to PDF
+                    if (currentX + cardWidthMm > doc.internal.pageSize.getWidth() - margin) {
+                        currentX = margin;
+                        currentY += cardHeightMm + margin;
+                        if (currentY + cardHeightMm > doc.internal.pageSize.getHeight() - margin) {
+                            doc.addPage();
+                            currentY = margin;
+                        }
+                    }
+
+                    doc.addImage(imgData, 'JPEG', currentX, currentY, cardWidthMm, cardHeightMm);
+                    currentX += cardWidthMm + margin;
+
+                    pdfGenerationProgress.textContent = `กำลังสร้าง PDF... (${i + 1}/${selectedEmployeesForPdf.length} บัตร)`;
+                }
+
+                document.body.classList.remove('print-area'); 
+                pdfGenerationProgress.style.display = 'none';
+
+                doc.save('employee_cards.pdf');
+                showMessage('สร้างไฟล์ PDF สำหรับพิมพ์สำเร็จ', 'success');
+
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                showMessage('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF: ' + error.message, 'error');
+                pdfGenerationProgress.style.display = 'none';
+            } finally {
+                printSelectedCardsBtn.disabled = false;
+            }
+        }
 
         initializeApp();
     </script>

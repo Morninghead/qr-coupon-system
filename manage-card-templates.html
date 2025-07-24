@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการ Template บัตร - ระบบคูปองพนักงาน</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/js/qrcode.min.js"></script> <style>
+        :root {
+            --primary-color: #6366F1;
+            --light-gray: #F3F4F6;
+            --dark-gray: #1F2937;
+            --text-gray: #4B5563;
+            --border-color: #E5E7EB;
+            --success-color: #10B981;
+            --error-color: #EF4444;
+            --warning-color: #F59E0B;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+        }
+        .hidden { display: none !important; }
+        .unauthorized-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100%;
+            position: fixed; top: 0; left: 0;
+            background-color: var(--light-gray);
+        }
+        .unauthorized-box {
+            background: white;
+            padding: 40px 48px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 450px;
+        }
+        .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
+        .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
+        .unauthorized-button {
+            display: inline-block; width: 100%; padding: 12px;
+            font-size: 16px; font-weight: 600; color: white;
+            background-color: var(--primary-color);
+            border: none; border-radius: 8px; cursor: pointer;
+            text-decoration: none; transition: background-color 0.2s;
+        }
+        .unauthorized-button:hover { background-color: #4F46E5; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
+        .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+
+        .controls-card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin-bottom: 32px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end; /* Align to right for Add button */
+        }
+        .controls-card button {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .controls-card button:hover { background-color: #4F46E5; }
+
+        .table-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            overflow-x: auto;
+            margin-bottom: 32px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            white-space: nowrap; 
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: #F9FAFB;
+            font-weight: 600;
+            color: var(--text-gray);
+        }
+        td .action-btn {
+            padding: 8px 12px;
+            margin-right: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+        }
+        td .edit-btn { background-color: #E0E7FF; color: var(--primary-color); border: 1px solid var(--primary-color); }
+        td .edit-btn:hover { background-color: #C7D2FE; }
+        td .delete-btn { background-color: #FEE2E2; color: var(--error-color); border: 1px solid var(--error-color); }
+        td .delete-btn:hover { background-color: #FCA5A5; }
+
+        #message { margin-top: 20px; padding: 12px; border-radius: 8px; font-weight: 500; display: block; min-height: 48px; text-align: center; }
+        .message-success { background-color: #D1FAE5; color: #065F46; }
+        .message-error { background-color: #FEE2E2; color: #991B1B; }
+        .message-info { background-color: #E0E7FF; color: #3730A3; }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 30px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 800px; /* Wider for template editor */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        .close-button {
+            color: #aaa;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .modal-content h2 {
+            margin-top: 0;
+            color: var(--dark-gray);
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .modal-form-group {
+            margin-bottom: 15px;
+        }
+        .modal-form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+        .modal-form-group input[type="text"],
+        .modal-form-group textarea {
+            width: calc(100% - 24px); 
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 25px;
+        }
+        .modal-actions button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .modal-save-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+        }
+        .modal-save-btn:hover { background-color: #4F46E5; }
+        .modal-cancel-btn {
+            background-color: var(--light-gray);
+            color: var(--text-gray);
+            border: 1px solid var(--border-color);
+        }
+        .modal-cancel-btn:hover { background-color: #E5E7EB; }
+
+        /* Template Editor Specific Styles */
+        .template-editor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .template-editor-form {
+            grid-column: 1 / 2;
+        }
+        .template-card-preview {
+            grid-column: 2 / 3;
+            padding: 15px;
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+            background-color: var(--light-gray);
+            flex-direction: column;
+            gap: 10px;
+        }
+        .template-card-preview-inner {
+            width: 280px; /* Same as print-employee-cards.html */
+            height: 177px; 
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden; /* Hide anything outside card bounds */
+            position: relative;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .template-card-preview-inner img.background {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            z-index: 0;
+        }
+        .template-card-preview-content {
+            position: relative; /* Ensure content is above background */
+            z-index: 1;
+            width: 100%;
+            height: 100%;
+        }
+        /* Styles for draggable/positionable elements within preview */
+        .preview-element {
+            position: absolute; /* Controlled by layout_config */
+            box-sizing: border-box;
+            background-color: rgba(255,255,255,0.7); /* Semi-transparent background for text clarity */
+            padding: 2px 5px;
+            border-radius: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #000; /* Default text color */
+        }
+        .preview-element.text {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-weight: 500;
+        }
+        .preview-element.img {
+            background-color: transparent; /* No background for images */
+            border: none;
+            padding: 0;
+        }
+        .preview-element.qr {
+            background-color: transparent;
+            border: none;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .preview-element.qr canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="unauthorized-message" class="unauthorized-container hidden">
+        <div class="unauthorized-box">
+            <h1>กรุณาลงชื่อเข้าใช้</h1>
+            <p>คุณไม่ได้รับอนุญาตให้เข้าถึงหน้านี้ หรือไม่ได้ลงชื่อเข้าใช้</p>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
+        </div>
+    </div>
+
+    <div id="main-content" class="hidden">
+        <div class="container">
+            <div class="header">
+                <h1>จัดการ Template บัตร</h1>
+                <a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
+            </div>
+            
+            <div class="controls-card">
+                <button id="add-template-btn">➕ สร้าง Template ใหม่</button>
+            </div>
+
+            <div class="table-container">
+                <table id="template-table">
+                    <thead>
+                        <tr>
+                            <th>ชื่อ Template</th>
+                            <th>ชื่อบริษัท</th>
+                            <th>Logo URL</th>
+                            <th>Background หน้า</th>
+                            <th>Background หลัง</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="template-table-body">
+                        <tr><td colspan="6" style="text-align:center;">กำลังโหลด Template บัตร...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="message" class="hidden"></div>
+        </div>
+    </div>
+
+    <div id="templateModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 id="template-modal-title">สร้าง Template บัตรใหม่</h2>
+            <div class="template-editor-grid">
+                <form id="templateForm" class="template-editor-form">
+                    <input type="hidden" id="template-id">
+
+                    <div class="modal-form-group">
+                        <label for="template-name">ชื่อ Template</label>
+                        <input type="text" id="template-name" required>
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="company-name">ชื่อบริษัท</label>
+                        <input type="text" id="company-name">
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="logo-url">Logo URL (ใน Supabase Storage)</label>
+                        <input type="text" id="logo-url" placeholder="เช่น https://your.supabase.co/storage/v1/object/public/card-assets/logo.png">
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="background-front-url">Background หน้า URL</label>
+                        <input type="text" id="background-front-url" placeholder="เช่น https://your.supabase.co/storage/v1/object/public/card-assets/bg_front.jpg">
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="background-back-url">Background หลัง URL</label>
+                        <input type="text" id="background-back-url" placeholder="เช่น https://your.supabase.co/storage/v1/object/public/card-assets/bg_back.jpg">
+                    </div>
+
+                    <h3>การจัดวางองค์ประกอบ (Layout Config - JSON)</h3>
+                    <div class="modal-form-group">
+                        <label for="layout-config">
+                            JSON (ตำแหน่ง/สไตล์ขององค์ประกอบ) 
+                            <br>
+                            <small>เช่น: {"logo": {"top": "10px", "left": "10px"}, "employee_name": {"top": "50%", "textAlign": "center"}}</small>
+                        </label>
+                        <textarea id="layout-config" rows="10"></textarea>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="modal-cancel-btn">ยกเลิก</button>
+                        <button type="submit" class="modal-save-btn">บันทึก Template</button>
+                    </div>
+                </form>
+
+                <div class="template-card-preview">
+                    <h3>ตัวอย่างบัตร (หน้า)</h3>
+                    <div class="template-card-preview-inner" id="card-preview-front">
+                        </div>
+                    <p style="font-size: 0.8em; color: var(--text-gray);">
+                        ตัวอย่างข้อมูล: <br>
+                        ชื่อ: **สมศรี สุขใจ** <br>
+                        รหัส: **12345**
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const mainContent = document.getElementById('main-content');
+        const unauthorizedMessage = document.getElementById('unauthorized-message');
+        let _supabase;
+        let currentUserRole = null;
+
+        const templateTableBody = document.getElementById('template-table-body');
+        const messageDiv = document.getElementById('message');
+        const addTemplateBtn = document.getElementById('add-template-btn');
+
+        // Modal elements
+        const templateModal = document.getElementById('templateModal');
+        const closeModalButton = templateModal.querySelector('.close-button');
+        const modalCancelButton = templateModal.querySelector('.modal-cancel-btn');
+        const templateModalTitle = document.getElementById('template-modal-title');
+        const templateForm = document.getElementById('templateForm');
+        const templateIdInput = document.getElementById('template-id');
+        const templateNameInput = document.getElementById('template-name');
+        const companyNameInput = document.getElementById('company-name');
+        const logoUrlInput = document.getElementById('logo-url');
+        const backgroundFrontUrlInput = document.getElementById('background-front-url');
+        const backgroundBackUrlInput = document.getElementById('background-back-url');
+        const layoutConfigInput = document.getElementById('layout-config');
+        const cardPreviewFront = document.getElementById('card-preview-front');
+
+        const baseUrl = window.location.origin;
+
+        // Sample data for previewing layout
+        const previewEmployee = {
+            name: "สมศรี สุขใจ",
+            employee_id: "12345",
+            permanent_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" // Dummy token
+        };
+
+        async function initializeApp() {
+            try {
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+                const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (!session) {
+                    unauthorizedMessage.classList.remove('hidden');
+                    return;
+                }
+
+                const { data: profileData, error: profileError } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
+                if (profileError || !profileData || profileData.role !== 'superuser') { // Only Superuser can access this page
+                    unauthorizedMessage.classList.remove('hidden');
+                    return;
+                }
+                currentUserRole = profileData.role;
+                mainContent.classList.remove('hidden');
+
+                await fetchTemplates();
+
+                addTemplateBtn.addEventListener('click', () => openTemplateModal());
+                closeModalButton.addEventListener('click', () => templateModal.style.display = 'none');
+                modalCancelButton.addEventListener('click', () => templateModal.style.display = 'none');
+                window.addEventListener('click', (event) => {
+                    if (event.target == templateModal) {
+                        templateModal.style.display = 'none';
+                    }
+                });
+
+                templateForm.addEventListener('submit', handleTemplateFormSubmit);
+                // Listen for changes to update preview
+                templateNameInput.addEventListener('input', updatePreview);
+                companyNameInput.addEventListener('input', updatePreview);
+                logoUrlInput.addEventListener('input', updatePreview);
+                backgroundFrontUrlInput.addEventListener('input', updatePreview);
+                layoutConfigInput.addEventListener('input', updatePreview);
+
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                showMessage('เกิดข้อผิดพลาดในการโหลดระบบ: ' + error.message, 'error');
+                unauthorizedMessage.classList.remove('hidden');
+            }
+        }
+
+        async function fetchTemplates() {
+            showMessage('กำลังโหลด Template บัตร...', 'info');
+            templateTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">กำลังโหลด Template บัตร...</td></tr>`;
+            
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-card-templates`, {
+                    headers: { 'Authorization': `Bearer ${session.access_token}` }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to fetch card templates.');
+                }
+
+                const templates = await response.json();
+                renderTemplateTable(templates);
+                showMessage('โหลด Template บัตรสำเร็จ', 'success');
+
+            } catch (error) {
+                console.error('Error fetching templates:', error);
+                templateTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--error-color);">ไม่สามารถโหลด Template บัตรได้: ${error.message}</td></tr>`;
+                showMessage('ไม่สามารถโหลด Template บัตรได้: ' + error.message, 'error');
+            }
+        }
+
+        function renderTemplateTable(templates) {
+            templateTableBody.innerHTML = '';
+            if (templates.length === 0) {
+                templateTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">ไม่พบ Template บัตร</td></tr>`;
+                return;
+            }
+
+            templates.forEach(template => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${template.template_name}</td>
+                    <td>${template.company_name || '-'}</td>
+                    <td><a href="${template.logo_url}" target="_blank">${template.logo_url ? 'ดู Logo' : '-'}</a></td>
+                    <td><a href="${template.background_front_url}" target="_blank">${template.background_front_url ? 'ดูรูป' : '-'}</a></td>
+                    <td><a href="${template.background_back_url}" target="_blank">${template.background_back_url ? 'ดูรูป' : '-'}</a></td>
+                    <td>
+                        <button class="action-btn edit-btn" data-id="${template.id}">แก้ไข</button>
+                        <button class="action-btn delete-btn" data-id="${template.id}">ลบ</button>
+                    </td>
+                `;
+                templateTableBody.appendChild(row);
+            });
+
+            document.querySelectorAll('.edit-btn').forEach(button => {
+                button.addEventListener('click', (e) => openTemplateModal(e.target.dataset.id));
+            });
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', (e) => handleDeleteTemplate(e.target.dataset.id));
+            });
+        }
+
+        function showMessage(message, type) {
+            messageDiv.classList.remove('hidden', 'message-success', 'message-error', 'message-info');
+            messageDiv.textContent = message;
+            messageDiv.classList.add(`message-${type}`);
+            setTimeout(() => {
+                messageDiv.classList.add('hidden');
+            }, 5000); 
+        }
+
+        async function openTemplateModal(templateId = null) {
+            templateForm.reset();
+            templateIdInput.value = '';
+            templateModalTitle.textContent = 'สร้าง Template บัตรใหม่';
+            cardPreviewFront.innerHTML = ''; // Clear preview
+
+            // Set default layout_config for easy start
+            const defaultLayout = {
+                "logo": {"top": "10%", "left": "50%", "width": "50px", "height": "50px", "transform": "translateX(-50%)"},
+                "company_name": {"top": "25%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.1em", "fontWeight": "600"},
+                "employee_name": {"top": "40%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.2em", "fontWeight": "700"},
+                "employee_id": {"top": "55%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "0.9em", "color": "#6B7280"},
+                "qr_code": {"top": "65%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)"}
+            };
+            layoutConfigInput.value = JSON.stringify(defaultLayout, null, 2); // Pretty print JSON
+
+            if (templateId) {
+                showMessage('กำลังดึงข้อมูล Template...', 'info');
+                try {
+                    const { data: { session } } = await _supabase.auth.getSession();
+                    const response = await fetch(`${baseUrl}/.netlify/functions/get-card-templates`, {
+                        headers: { 'Authorization': `Bearer ${session.access_token}` }
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Failed to fetch template details.');
+                    }
+                    const templates = await response.json();
+                    const template = templates.find(t => t.id === templateId);
+
+                    if (!template) throw new Error('Template not found.');
+
+                    templateModalTitle.textContent = 'แก้ไข Template บัตร';
+                    templateIdInput.value = template.id;
+                    templateNameInput.value = template.template_name;
+                    companyNameInput.value = template.company_name || '';
+                    logoUrlInput.value = template.logo_url || '';
+                    backgroundFrontUrlInput.value = template.background_front_url || '';
+                    backgroundBackUrlInput.value = template.background_back_url || '';
+                    layoutConfigInput.value = JSON.stringify(template.layout_config || {}, null, 2);
+                    
+                    updatePreview(); // Update preview with loaded data
+                    showMessage('', 'hidden');
+                } catch (error) {
+                    console.error('Error opening template modal:', error);
+                    showMessage('ไม่สามารถดึงข้อมูล Template เพื่อแก้ไขได้: ' + error.message, 'error');
+                    return;
+                }
+            }
+
+            templateModal.style.display = 'flex';
+            updatePreview(); // Initial preview rendering
+        }
+
+        function updatePreview() {
+            cardPreviewFront.innerHTML = '';
+            const template = {
+                company_name: companyNameInput.value || "ชื่อบริษัทของคุณ",
+                logo_url: logoUrlInput.value,
+                background_front_url: backgroundFrontUrlInput.value,
+                layout_config: {}
+            };
+            try {
+                template.layout_config = JSON.parse(layoutConfigInput.value);
+            } catch (e) {
+                console.error("Invalid JSON for layout_config", e);
+                // Display an error in the preview area instead of crashing
+                cardPreviewFront.innerHTML = `<p style="color: var(--error-color);">JSON Layout Config ผิดพลาด!</p>`;
+                return;
+            }
+
+            // Set background image
+            if (template.background_front_url) {
+                const bgImg = document.createElement('img');
+                bgImg.src = template.background_front_url;
+                bgImg.classList.add('background');
+                bgImg.onerror = () => bgImg.src = 'https://via.placeholder.com/280x177?text=BG+Error';
+                cardPreviewFront.appendChild(bgImg);
+            }
+
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add('template-card-preview-content');
+            cardPreviewFront.appendChild(contentDiv);
+
+            // Render elements based on layout_config
+            for (const key in template.layout_config) {
+                if (Object.hasOwnProperty.call(template.layout_config, key)) {
+                    const style = template.layout_config[key];
+                    const elementDiv = document.createElement('div');
+                    elementDiv.classList.add('preview-element');
+                    
+                    // Apply styles from JSON
+                    for (const prop in style) {
+                        if (Object.hasOwnProperty.call(style, prop)) {
+                            elementDiv.style[prop] = style[prop];
+                        }
+                    }
+
+                    // Populate content
+                    if (key === "logo") {
+                        elementDiv.classList.add('img');
+                        const logoImg = document.createElement('img');
+                        logoImg.src = template.logo_url || 'https://via.placeholder.com/50?text=Logo';
+                        logoImg.style.width = '100%';
+                        logoImg.style.height = '100%';
+                        logoImg.style.objectFit = 'contain';
+                        logoImg.onerror = () => logoImg.src = 'https://via.placeholder.com/50?text=Logo+Error';
+                        elementDiv.appendChild(logoImg);
+                    } else if (key === "company_name") {
+                        elementDiv.classList.add('text');
+                        elementDiv.textContent = template.company_name;
+                    } else if (key === "employee_name") {
+                        elementDiv.classList.add('text');
+                        elementDiv.textContent = previewEmployee.name;
+                    } else if (key === "employee_id") {
+                        elementDiv.classList.add('text');
+                        elementDiv.textContent = `ID: ${previewEmployee.employee_id}`;
+                    } else if (key === "qr_code") {
+                        elementDiv.classList.add('qr');
+                        const qrDiv = document.createElement('div');
+                        qrDiv.id = `preview-qr-${key}`; // Unique ID for QR code
+                        elementDiv.appendChild(qrDiv);
+                        if (window.QRCode) {
+                            new QRCode(qrDiv, {
+                                text: `${baseUrl}/scanner?token=${previewEmployee.permanent_token}`,
+                                width: parseInt(style.width) || 80,
+                                height: parseInt(style.height) || 80,
+                                colorDark : "#000000",
+                                colorLight : "#ffffff",
+                                correctLevel : QRCode.CorrectLevel.H 
+                            });
+                        } else {
+                            qrDiv.textContent = 'QR Code Lib Not Loaded';
+                        }
+                    }
+                    contentDiv.appendChild(elementDiv);
+                }
+            }
+        }
+
+        async function handleTemplateFormSubmit(event) {
+            event.preventDefault();
+            const templateId = templateIdInput.value || null;
+            const templateName = templateNameInput.value.trim();
+            const companyName = companyNameInput.value.trim();
+            const logoUrl = logoUrlInput.value.trim();
+            const backgroundFrontUrl = backgroundFrontUrlInput.value.trim();
+            const backgroundBackUrl = backgroundBackUrlInput.value.trim();
+            let layoutConfig = {};
+
+            try {
+                layoutConfig = JSON.parse(layoutConfigInput.value);
+            } catch (e) {
+                showMessage('Layout Config (JSON) ไม่ถูกต้อง กรุณาตรวจสอบ', 'error');
+                return;
+            }
+
+            if (!templateName) {
+                showMessage('กรุณากรอกชื่อ Template', 'error');
+                return;
+            }
+
+            showMessage('กำลังบันทึก Template...', 'info');
+            templateForm.querySelector('.modal-save-btn').disabled = true;
+
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/save-card-template`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({ 
+                        id: templateId, 
+                        template_name: templateName, 
+                        company_name: companyName, 
+                        logo_url: logoUrl, 
+                        background_front_url: backgroundFrontUrl, 
+                        background_back_url: backgroundBackUrl, 
+                        layout_config: layoutConfig 
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to save template.');
+                }
+
+                showMessage('บันทึก Template สำเร็จ', 'success');
+                templateModal.style.display = 'none';
+                fetchTemplates(); // Refresh table
+
+            } catch (error) {
+                console.error('Error saving template:', error);
+                showMessage('บันทึก Template ไม่สำเร็จ: ' + error.message, 'error');
+            } finally {
+                templateForm.querySelector('.modal-save-btn').disabled = false;
+            }
+        }
+
+        async function handleDeleteTemplate(id) {
+            if (!confirm(`คุณแน่ใจหรือไม่ที่ต้องการลบ Template นี้? (ID: ${id})`)) {
+                return;
+            }
+
+            showMessage('กำลังลบ Template...', 'info');
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/delete-card-template`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({ id: id })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to delete template.');
+                }
+
+                showMessage('ลบ Template สำเร็จ', 'success');
+                fetchTemplates(); // Refresh table
+
+            } catch (error) {
+                console.error('Error deleting template:', error);
+                showMessage('ลบ Template ไม่สำเร็จ: ' + error.message, 'error');
+            }
+        }
+
+        initializeApp();
+    </script>
+</body>
+</html>
