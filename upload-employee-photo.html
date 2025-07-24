@@ -65,7 +65,7 @@
             margin-bottom: 15px;
         }
         input[type="checkbox"] {
-            width: auto;
+            width: auto; /* ไม่ให้กว้างเต็ม */
             margin-right: 8px;
         }
         button {
@@ -97,7 +97,7 @@
         .message-error { background-color: #FEE2E2; color: #991B1B; }
         .message-info { background-color: #E0E7FF; color: #3730A3; }
 
-        #photo-preview-container-single {
+        #photo-preview-container {
             border: 1px dashed var(--border-color);
             border-radius: 8px;
             padding: 15px;
@@ -106,15 +106,14 @@
             margin-bottom: 20px;
             background-color: var(--light-gray);
         }
-        #photo-preview-img-single {
+        #photo-preview-img {
             max-width: 100%;
             height: auto;
             border-radius: 8px;
-            display: block;
-            margin: 0 auto;
+            display: none;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        #photo-preview-message-single {
+        #photo-preview-message {
             font-size: 0.9em;
             color: var(--text-gray);
             margin-top: 10px;
@@ -144,10 +143,8 @@
             display: inline-block; width: 100%; padding: 12px;
             font-size: 16px; font-weight: 600; color: white;
             background-color: var(--primary-color);
-            border: none; border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-            transition: background-color 0.2s;
+            border: none; border-radius: 8px; cursor: pointer;
+            text-decoration: none; transition: background-color 0.2s;
         }
         .unauthorized-button:hover { background-color: #4F46E5; }
 
@@ -168,7 +165,7 @@
         .checkbox-group {
             display: flex;
             align-items: center;
-            margin-top: -10px;
+            margin-top: -10px; /* ชิดกับ input file */
             margin-bottom: 20px;
         }
         .checkbox-group label {
@@ -257,8 +254,8 @@
         const messageDiv = document.getElementById('message');
 
         const baseUrl = window.location.origin;
-        let resizedImageBase64 = null;
-        let filesToUploadBatch = [];
+        let resizedImageBase64 = null; // สำหรับโหมด single
+        let filesToUploadBatch = []; // สำหรับโหมด batch
 
         async function initializeApp() {
             try {
@@ -269,8 +266,8 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
+                    // ตั้งค่าเริ่มต้นให้โหมด Single
                     showUploadMode('single');
-                    photoPreviewImgSingle.style.display = 'none'; // ซ่อนรูปภาพตอนเริ่มต้น
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
@@ -280,26 +277,24 @@
             }
         }
 
+        // --- ฟังก์ชันสลับโหมดการอัปโหลด ---
         function showUploadMode(mode) {
             if (mode === 'single') {
                 singleUploadSection.classList.remove('hidden');
                 batchUploadSection.classList.add('hidden');
-                batchPreviewSummary.textContent = '';
-                filesToUploadBatch = [];
-                photoUploadBatchInput.value = '';
-                photoPreviewImgSingle.style.display = 'none'; // ซ่อนเมื่อเปลี่ยนโหมด
-                photoPreviewMessageSingle.textContent = 'เลือกรูปภาพเพื่อดูตัวอย่าง (จะถูกปรับขนาด)';
-                resizedImageBase64 = null;
-            } else {
+                batchPreviewSummary.textContent = ''; // เคลียร์ preview
+                filesToUploadBatch = []; // เคลียร์ไฟล์ในโหมด batch
+                photoUploadBatchInput.value = ''; // เคลียร์ input file
+            } else { // batch
                 singleUploadSection.classList.add('hidden');
                 batchUploadSection.classList.remove('hidden');
-                employeeIdForPhotoInput.value = '';
-                photoUploadSingleInput.value = '';
-                photoPreviewImgSingle.style.display = 'none';
+                employeeIdForPhotoInput.value = ''; // เคลียร์ ID
+                photoUploadSingleInput.value = ''; // เคลียร์ input file
+                photoPreviewImgSingle.style.display = 'none'; // ซ่อน preview
                 photoPreviewMessageSingle.textContent = 'เลือกรูปภาพเพื่อดูตัวอย่าง (จะถูกปรับขนาด)';
-                resizedImageBase664 = null;
+                resizedImageBase64 = null; // เคลียร์รูปในโหมด single
             }
-            showMessage('', 'info');
+            showMessage('', 'info'); // เคลียร์ข้อความสถานะ
         }
 
         uploadModeRadios.forEach(radio => {
@@ -308,6 +303,7 @@
             });
         });
 
+        // --- ฟังก์ชันปรับขนาดและบีบอัดรูปภาพ (ใช้สำหรับโหมด Single และ Batch หากไม่ได้ Optimize มาแล้ว) ---
         async function resizeAndCompressImage(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -322,9 +318,9 @@
                         let width = img.width;
                         let height = img.height;
 
-                        const MAX_WIDTH = 600;
-                        const MAX_HEIGHT = 600;
-                        const QUALITY = 0.8;
+                        const MAX_WIDTH = 600;   // กำหนดความกว้างสูงสุด
+                        const MAX_HEIGHT = 600;  // กำหนดความสูงสูงสุด
+                        const QUALITY = 0.8;    // คุณภาพการบีบอัด JPEG
 
                         if (width > height) {
                             if (width > MAX_WIDTH) {
@@ -337,23 +333,24 @@
                                 height = MAX_HEIGHT;
                             }
                         }
-
+                        
                         canvas.width = width;
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
 
-                        const resizedBase64 = canvas.toDataURL('image/jpeg', QUALITY);
-                        resolve(resizedBase64.split(',')[1]);
+                        resizedImageBase64 = canvas.toDataURL('image/jpeg', QUALITY);
+                        resolve(resizedImageBase64.split(',')[1]); // ส่งเฉพาะ Base64 data
                     };
                     img.onerror = (error) => reject(error);
                 };
                 reader.onerror = (error) => reject(error);
             });
         }
-
+        
+        // --- Event Listener สำหรับโหมด Single File ---
         photoUploadSingleInput.addEventListener('change', async (event) => {
-            const file = event.target.files [0];
+            const file = event.target.files[0];
             if (!file) {
                 photoPreviewMessageSingle.textContent = 'ไม่ได้เลือกรูปภาพ';
                 photoPreviewImgSingle.style.display = 'none';
@@ -375,21 +372,12 @@
 
             try {
                 const base64Data = await resizeAndCompressImage(file);
-                resizedImageBase64 = `data:image/jpeg;base64,${base64Data}`;
-
-                photoPreviewImgSingle.onload = () => {
-                    photoPreviewImgSingle.style.display = 'block';
-                    photoPreviewMessageSingle.textContent = `รูปภาพพร้อมอัปโหลด (ขนาดใหม่: ${Math.round(base64Data.length / 1024)} KB)`;
-                    uploadPhotoBtn.disabled = false;
-                };
-                photoPreviewImgSingle.onerror = () => { // Add onerror for broken image icon
-                    photoPreviewMessageSingle.textContent = 'เกิดข้อผิดพลาดในการโหลดรูปภาพตัวอย่าง';
-                    showMessage('เกิดข้อผิดพลาดในการโหลดรูปภาพตัวอย่าง', 'error');
-                    photoPreviewImgSingle.style.display = 'none'; // Hide if error
-                    uploadPhotoBtn.disabled = false;
-                };
+                resizedImageBase64 = `data:image/jpeg;base64,${base64Data}`; // เก็บเป็น Data URL
+                
                 photoPreviewImgSingle.src = resizedImageBase64;
-
+                photoPreviewImgSingle.style.display = 'block';
+                photoPreviewMessageSingle.textContent = `รูปภาพพร้อมอัปโหลด (ขนาดใหม่: ${base64Data.length / 1024} KB)`; // แสดงขนาดโดยประมาณ
+                uploadPhotoBtn.disabled = false;
             } catch (error) {
                 console.error('Error resizing image:', error);
                 photoPreviewMessageSingle.textContent = 'เกิดข้อผิดพลาดในการปรับขนาดรูปภาพ';
@@ -399,9 +387,10 @@
             }
         });
 
+        // --- Event Listener สำหรับโหมด Batch/Folder ---
         photoUploadBatchInput.addEventListener('change', async (event) => {
             filesToUploadBatch = Array.from(event.target.files).filter(file => file.type.startsWith('image/'));
-
+            
             if (filesToUploadBatch.length === 0) {
                 batchPreviewSummary.textContent = 'ไม่ได้เลือกรูปภาพ';
                 uploadPhotoBtn.disabled = true;
@@ -414,22 +403,24 @@
 
             if (!photosAreOptimizedCheckbox.checked) {
                 batchPreviewSummary.textContent += ' (จะถูกปรับขนาด)';
+                // ถ้าไม่ได้ Optimize มาแล้ว ก็ต้องบีบอัดทีละไฟล์ (อาจใช้เวลา)
                 let processedCount = 0;
                 for (const file of filesToUploadBatch) {
                     try {
                         const base64Data = await resizeAndCompressImage(file);
-                        file.optimizedBase64 = base64Data;
+                        file.optimizedBase64 = base64Data; // เก็บ Base64 ที่ Optimize แล้วไว้ใน object ไฟล์
                         processedCount++;
                         batchPreviewSummary.textContent = `พบ ${filesToUploadBatch.length} รูปภาพ (เตรียมแล้ว ${processedCount}/${filesToUploadBatch.length} รูป)`;
                     } catch (error) {
                         console.error(`Error processing file ${file.name}:`, error);
-                        file.optimizedBase64 = null;
+                        file.optimizedBase64 = null; // Mark as failed
                     }
                 }
-                filesToUploadBatch = filesToUploadBatch.filter(f => f.optimizedBase64 !== null);
+                filesToUploadBatch = filesToUploadBatch.filter(f => f.optimizedBase64 !== null); // กรองไฟล์ที่ประมวลผลสำเร็จ
                 batchPreviewSummary.textContent = `พร้อมอัปโหลด ${filesToUploadBatch.length} รูปภาพ (${filesToUploadBatch.length} รูปที่ปรับขนาดแล้ว)`;
             } else {
                 batchPreviewSummary.textContent += ' (จะอัปโหลดโดยตรง)';
+                // ถ้า Optimize มาแล้ว ก็อ่านเป็น Base64 ตรงๆ
                 let processedCount = 0;
                 for (const file of filesToUploadBatch) {
                     await new Promise((resolve, reject) => {
@@ -455,6 +446,7 @@
         });
 
 
+        // --- Event Listener สำหรับปุ่มอัปโหลดรูปภาพ ---
         uploadPhotoBtn.addEventListener('click', async () => {
             const selectedUploadMode = document.querySelector('input[name="upload-mode"]:checked').value;
             let photosDataToSend = [];
@@ -477,8 +469,8 @@
                     return;
                 }
                 photosDataToSend = filesToUploadBatch.map(file => ({
-                    employee_id: file.name.split('.')[0],
-                    photo_data: file.optimizedBase64
+                    employee_id: file.name.split('.')[0], // ดึง employee_id จากชื่อไฟล์ (เช่น "30000.jpg" -> "30000")
+                    photo_data: file.optimizedBase64 // ใช้ Base64 ที่ Optimize/อ่านมาแล้ว
                 }));
             }
 
@@ -490,13 +482,14 @@
                     throw new Error('ไม่ได้ลงชื่อเข้าใช้ กรุณาลองใหม่');
                 }
 
+                // เรียก Netlify Function (จะสร้างในส่วนถัดไป)
                 const response = await fetch(`${baseUrl}/.netlify/functions/upload-employee-photo`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${currentUserSession.access_token}`
                     },
-                    body: JSON.stringify({ photos: photosDataToSend })
+                    body: JSON.stringify({ photos: photosDataToSend }) // ส่งเป็น Array ของรูปภาพ
                 });
 
                 const result = await response.json();
@@ -508,6 +501,7 @@
                 }
                 showMessage(successMessage, 'success');
 
+                // รีเซ็ตฟอร์มหลังจากสำเร็จ
                 if (selectedUploadMode === 'single') {
                     employeeIdForPhotoInput.value = '';
                     photoUploadSingleInput.value = '';
@@ -528,6 +522,7 @@
             }
         });
 
+        // --- ฟังก์ชันสำหรับแสดงข้อความผลลัพธ์ ---
         function showMessage(message, type) {
             messageDiv.style.display = 'block';
             messageDiv.textContent = message;

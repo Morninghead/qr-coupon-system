@@ -64,13 +64,6 @@
         .chart-card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
         .chart-card h2 { margin-top: 0; color: var(--dark-gray); border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
         .chart-card canvas { filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); }
-        /* สไตล์สำหรับข้อความเมื่อไม่มี Chart */
-        .chart-card .no-data-message {
-            text-align: center;
-            color: var(--text-gray);
-            font-size: 1.1em;
-            margin-top: 50px;
-        }
         .summary-card { grid-column: 1 / -1; background: var(--dark-gray); color: white; padding: 32px; border-radius: 16px; text-align: center; }
         .summary-card .summary-title { font-size: 18px; font-weight: 500; opacity: 0.7; margin: 0 0 24px 0; }
         .summary-card h2 { margin-top: 0; font-size: 20px; opacity: 0.9; margin-bottom: 8px; }
@@ -115,12 +108,10 @@
                 <div class="chart-card">
                     <h2>คูปองอาหารกลางวัน (Normal)</h2>
                     <canvas id="normal-chart"></canvas>
-                    <p id="normal-no-data" class="no-data-message hidden">ไม่มีข้อมูลคูปองปกติในช่วงวันที่นี้</p>
                 </div>
                 <div class="chart-card">
                     <h2>คูปองอาหารโอที (OT)</h2>
                     <canvas id="ot-chart"></canvas>
-                    <p id="ot-no-data" class="no-data-message hidden">ไม่มีข้อมูลคูปองโอทีในช่วงวันที่นี้</p>
                 </div>
                 <div class="summary-card">
                     <p class="summary-title" id="summary-title"></p>
@@ -149,11 +140,6 @@
         const baseUrl = window.location.origin;
         const departmentSelect = document.getElementById('department-select');
 
-        const normalChartCanvas = document.getElementById('normal-chart');
-        const otChartCanvas = document.getElementById('ot-chart');
-        const normalNoDataMessage = document.getElementById('normal-no-data');
-        const otNoDataMessage = document.getElementById('ot-no-data');
-
         const centerTextPlugin = {
             id: 'centerText',
             afterDraw: (chart) => {
@@ -167,15 +153,15 @@
                 const subFontSize = (height / 400).toFixed(2);
                 ctx.font = `bold ${subFontSize}em sans-serif`;
                 ctx.textBaseline = 'middle';
-                const textX = Math.round((width - ctx.measureText(subText).width) / 2);
+                const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
                 ctx.fillStyle = '#6B7280';
-                ctx.fillText(subText, textX, textY - 30);
+                ctx.fillText(subText, textX, textY - 30); // แก้ไข: ใช้ textX แทน subTextX
                 const text = total.toLocaleString('th-TH');
                 const fontSize = (height / 114).toFixed(2);
                 ctx.font = `bold ${fontSize}em sans-serif`;
-                const textX2 = Math.round((width - ctx.measureText(text).width) / 2);
+                const textX2 = Math.round((width - ctx.measureText(text).width) / 2); // สร้างตัวแปรใหม่เพื่อไม่ให้สับสน
                 ctx.fillStyle = '#1F2937';
-                ctx.fillText(text, textX2, textY + 15);
+                ctx.fillText(text, textX2, textY + 15); // แก้ไข: ใช้ textX2 แทน textX
                 ctx.save();
             }
         };
@@ -183,23 +169,6 @@
         function createDoughnutChart(canvasId, data) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             const notUsed = data.totalGranted - data.totalUsed;
-            
-            // ซ่อน/แสดง Chart/ข้อความตามข้อมูล
-            const chartCanvas = document.getElementById(canvasId);
-            const noDataMessage = document.getElementById(canvasId.replace('-chart', '-no-data'));
-
-            if (data.totalGranted === 0) { // ถ้าไม่มีสิทธิ์ที่ออกเลย
-                chartCanvas.classList.add('hidden');
-                noDataMessage.classList.remove('hidden');
-                if (window[canvasId + '_chart']) {
-                    window[canvasId + '_chart'].destroy(); // ทำลาย Chart เก่าถ้ามี
-                }
-                return;
-            } else {
-                chartCanvas.classList.remove('hidden');
-                noDataMessage.classList.add('hidden');
-            }
-
             if (window[canvasId + '_chart']) {
                 window[canvasId + '_chart'].destroy();
             }
@@ -239,8 +208,8 @@
         }
 
         function updateSummary(reportData) {
-            const normalAmount = reportData.normalData?.totalUsedAmount || 0;
-            const otAmount = reportData.otData?.totalUsedAmount || 0;
+            const normalAmount = (reportData.normalData?.totalUsed || 0) * 45;
+            const otAmount = (reportData.otData?.totalUsed || 0) * 45;
             const totalAmount = normalAmount + otAmount;
             const formatCurrency = (amount) => `฿ ${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
             
@@ -295,8 +264,8 @@
                 }
                 const report = await response.json();
 
-                createDoughnutChart('normal-chart', report.normalData || { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 });
-                createDoughnutChart('ot-chart', report.otData || { totalGranted: 0, totalUsed: 0, totalUsedAmount: 0 });
+                createDoughnutChart('normal-chart', report.normalData || { totalGranted: 0, totalUsed: 0 });
+                createDoughnutChart('ot-chart', report.otData || { totalGranted: 0, totalUsed: 0 });
                 updateSummary(report);
 
             } catch (e) {
@@ -308,8 +277,9 @@
         }
 
         async function loadDepartments() {
+            // --- เริ่มต้นการแก้ไขเพื่อแคชข้อมูลแผนก ---
             const DEPARTMENTS_CACHE_KEY = 'departments_cache';
-            const DEPARTMENTS_CACHE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+            const DEPARTMENTS_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ชั่วโมง
 
             try {
                 const cachedData = localStorage.getItem(DEPARTMENTS_CACHE_KEY);
@@ -325,6 +295,7 @@
                     }
                 }
 
+                // ถ้าไม่มี Cache หรือ Cache หมดอายุ ให้ดึงข้อมูลจาก Server
                 const { data: { session } } = await _supabase.auth.getSession();
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
@@ -348,7 +319,7 @@
         }
 
         function renderDepartmentOptions(departments) {
-            departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>';
+            departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>'; // เพิ่ม option "ทุกแผนก"
             departments.forEach(dept => {
                 const option = document.createElement('option');
                 option.value = dept.id;
@@ -356,6 +327,7 @@
                 departmentSelect.appendChild(option);
             });
         }
+        // --- สิ้นสุดการแก้ไขเพื่อแคชข้อมูลแผนก ---
 
         async function initializeApp() {
             try {

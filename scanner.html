@@ -69,48 +69,49 @@
         /* สไตล์ใหม่สำหรับ scanResultDiv */
         #scanResult {
             margin-top: 16px;
-            padding: 20px;
-            font-size: 18px;
+            padding: 20px; /* เพิ่ม padding */
+            font-size: 18px; /* ปรับขนาดฟอนต์ */
             font-weight: bold;
             border-radius: 8px;
-            min-height: 80px;
+            min-height: 80px; /* เพิ่มความสูงขั้นต่ำ */
             display: flex;
-            flex-direction: column;
+            flex-direction: column; /* จัดให้เป็นคอลัมน์ */
             justify-content: center;
             align-items: center;
             text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            background-color: #fff;
-            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); /* เพิ่มเงา */
+            background-color: #fff; /* พื้นหลังสีขาว */
+            border: 1px solid var(--border-color); /* มีขอบ */
         }
         #scanResult .status-icon {
-            font-size: 3em;
+            font-size: 3em; /* ขนาดไอคอน */
             margin-bottom: 10px;
-            line-height: 1;
+            line-height: 1; /* ปรับระยะห่างบรรทัด */
         }
         #scanResult .main-message {
-            font-size: 1.2em;
+            font-size: 1.2em; /* ขนาดข้อความหลัก */
             margin-bottom: 5px;
             color: var(--dark-gray);
         }
         #scanResult .detail-text {
-            font-size: 0.9em;
+            font-size: 0.9em; /* ขนาดข้อความรายละเอียด */
             color: var(--text-gray);
             font-weight: normal;
         }
 
         /* สีตามสถานะ */
-        #scanResult.status-approved { background-color: #D1FAE5; border-color: var(--success-color); }
+        #scanResult.status-approved { background-color: #D1FAE5; border-color: var(--success-color); } /* อนุมัติ */
         #scanResult.status-approved .status-icon { color: var(--success-color); }
 
-        #scanResult.status-used { background-color: #FFEDD5; border-color: var(--warning-color); }
+        #scanResult.status-used { background-color: #FFEDD5; border-color: var(--warning-color); } /* ใช้ไปแล้ว */
         #scanResult.status-used .status-icon { color: var(--warning-color); }
 
-        #scanResult.status-error { background-color: #FEE2E2; border-color: var(--error-color); }
+        #scanResult.status-error { background-color: #FEE2E2; border-color: var(--error-color); } /* ไม่กำหนดสิทธิ์ / ข้อผิดพลาด */
         #scanResult.status-error .status-icon { color: var(--error-color); }
 
-        #scanResult.status-initial { background-color: #E0E7FF; border-color: #8C9EFF; }
+        #scanResult.status-initial { background-color: #E0E7FF; border-color: #8C9EFF; } /* เริ่มต้น */
         #scanResult.status-initial .status-icon { color: #8C9EFF; }
+
 
         .report-section h2 { color: var(--dark-gray); margin-bottom: 16px; }
         .table-container { background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); overflow-x: auto; }
@@ -120,13 +121,24 @@
         .pagination { display: flex; justify-content: center; align-items: center; padding: 24px; gap: 8px; }
         .pagination button { padding: 8px 16px; border: 1px solid var(--border-color); background-color: white; border-radius: 8px; cursor: pointer; }
         .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .pagination button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }    </style>
+        .pagination button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+    </style>
 </head>
 <body>
-    <div id="main-content"> <div class="container">
+
+    <div id="unauthorized-message" class="unauthorized-container hidden">
+        <div class="unauthorized-box">
+            <h1>กรุณาลงชื่อเข้าใช้</h1>
+            <p>คุณต้องลงชื่อเข้าใช้เพื่อเข้าถึงหน้านี้</p>
+            <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
+        </div>
+    </div>
+
+    <div id="main-content" class="hidden">
+        <div class="container">
             <div class="header">
                 <h1>หน้าจอร้านค้า</h1>
-                <a class='back-link' href='/menu'>กลับสู่เมนูหลัก</a>
+                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
             </div>
     
             <div class="scanner-section">
@@ -161,8 +173,8 @@
 
     <script>
         const mainContent = document.getElementById('main-content');
-        const unauthorizedMessage = document.getElementById('unauthorized-message'); // ยังคงต้องประกาศไว้แต่ไม่ได้ใช้แล้ว
-        let _supabase; // ยังคงต้องประกาศไว้แต่ไม่ได้ใช้ _supabase.auth.getSession() โดยตรงแล้ว
+        const unauthorizedMessage = document.getElementById('unauthorized-message');
+        let _supabase;
 
         const scanInput = document.getElementById('scanInput');
         const scanResultDiv = document.getElementById('scanResult');
@@ -170,35 +182,36 @@
         const paginationControls = document.getElementById('pagination-controls');
         
         let isProcessing = false;
-        const baseUrl = window.location.origin; // ยังคงต้องใช้ baseUrl
 
         async function initializeApp() {
             try {
-                // ไม่ต้องตรวจสอบ Session อีกต่อไป
-                // mainContent.classList.remove('hidden'); // แสดงหน้าหลักทันที
-                await fetchReport(1); // โหลดรายงานได้ทันที
+                const response = await fetch('/.netlify/functions/get-config');
+                const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (session) {
+                    mainContent.classList.remove('hidden');
+                    await fetchReport(1);
+                } else {
+                    unauthorizedMessage.classList.remove('hidden');
+                }
             } catch (error) {
                 console.error('Initialization failed:', error);
-                // ไม่ต้องแสดง unauthorized message แล้ว
-                // unauthorizedMessage.classList.remove('hidden');
-                reportTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:red;">ไม่สามารถโหลดรายงานได้</td></tr>`; // แสดง Error ในตารางแทน
+                unauthorizedMessage.classList.remove('hidden');
             }
         }
 
         async function fetchReport(page = 1) {
             try {
-                // ไม่ต้องส่ง Authorization header แล้ว เนื่องจาก get-scan-report.js ใช้ Service Role Key
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-scan-report?page=${page}`);
-                if (!response.ok) {
-                    const errorData = await response.json(); // อ่าน error message จาก backend
-                    throw new Error(errorData.message || 'Could not fetch the scan report.');
-                }
+                const response = await fetch(`/.netlify/functions/get-scan-report?page=${page}`);
+                if (!response.ok) throw new Error('Could not fetch the scan report.');
                 const report = await response.json();
                 renderReport(report.data);
                 renderPagination(report.currentPage, report.totalPages);
             } catch (error) {
                 console.error('Failed to fetch report:', error);
-                reportTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:red;">ผิดพลาด: ${error.message}</td></tr>`; // แสดง Error ในตารางแทน
+                reportTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:red;">ไม่สามารถโหลดรายงานได้</td></tr>`;
             }
         }
 
@@ -211,7 +224,9 @@
             reportTableBody.innerHTML = data.map(item => `
                 <tr>
                     <td>${new Date(item.used_at).toLocaleTimeString('th-TH')}</td>
-                    <td>${item.employee_id || 'N/A'}</td> <td>${item.name || 'ไม่ระบุชื่อ'}</td> <td>${item.coupon_type}</td>
+                    <td>${item.employees.employee_id}</td>
+                    <td>${item.employees.name}</td>
+                    <td>${item.coupon_type}</td>
                 </tr>
             `).join('');
         }
@@ -229,18 +244,19 @@
             paginationControls.innerHTML = buttonsHtml;
         }
 
+        // --- ฟังก์ชันใหม่: แสดงผลลัพธ์การสแกนใน scanResultDiv อย่างสวยงาม ---
         function displayScanResult(data) {
             let icon = '';
             let mainMessage = '';
-            let detailLine1 = '';
-            let detailLine2 = '';
-            let className = '';
+            let detailLine1 = ''; // ชื่อพนักงาน, รหัสพนักงาน
+            let detailLine2 = ''; // วันที่, เวลา, ประเภทคูปอง
+            let className = ''; // สำหรับสี
 
             if (data.success) {
                 icon = '✅';
                 className = 'status-approved';
-                mainMessage = data.message;
-                detailLine1 = `${data.name} (${data.employee_id || 'N/A'})`; 
+                mainMessage = data.message; // เช่น "อนุมัติ" หรือ "อนุมัติ (คูปองชั่วคราว)"
+                detailLine1 = `${data.name} (${data.employee_id || 'N/A'})`; // รหัสพนักงานอาจเป็น N/A ถ้าเป็นบุคคลชั่วคราว
                 
                 const scanDateTime = new Date(data.used_at).toLocaleString('th-TH', { 
                     year: 'numeric', month: 'numeric', day: 'numeric', 
@@ -250,18 +266,18 @@
 
             } else {
                 icon = '❌';
-                detailLine1 = `${data.name || 'N/A'} (${data.employee_id || 'N/A'})`; 
+                detailLine1 = `${data.name || 'N/A'} (${data.employee_id || 'N/A'})`; // อาจจะไม่มีชื่อ/รหัส
 
                 switch (data.status_code) {
                     case 'ALREADY_USED_TEMP':
-                        className = 'status-used';
+                        className = 'status-used'; // ส้ม
                         mainMessage = 'ใช้สิทธิ์ไปแล้ว';
-                        detailLine2 = data.message;
+                        detailLine2 = data.message; // "QR ชั่วคราวนี้ถูกใช้ไปแล้ว"
                         break;
                     case 'EXPIRED_TEMP':
-                        className = 'status-used';
+                        className = 'status-used'; // ส้ม
                         mainMessage = 'สิทธิ์หมดอายุ';
-                        detailLine2 = data.message;
+                        detailLine2 = data.message; // "QR ชั่วคราวนี้หมดอายุแล้ว"
                         break;
                     case 'EMP_NOT_FOUND':
                     case 'COUPON_NOT_READY':
@@ -271,9 +287,9 @@
                     case 'INVALID_INPUT':
                     case 'UPDATE_FAILED':
                     default:
-                        className = 'status-error';
+                        className = 'status-error'; // แดง
                         mainMessage = 'ไม่สามารถอนุมัติได้';
-                        detailLine2 = data.message || 'กรุณาติดต่อหัวหน้าแผนก';
+                        detailLine2 = data.message || 'กรุณาติดต่อหัวหน้าแผนก'; // ข้อความจาก Backend หรือ Default
                         break;
                 }
             }
@@ -286,6 +302,8 @@
                 <p class="detail-text">${detailLine2}</p>
             `;
         }
+        // --- สิ้นสุดฟังก์ชันใหม่ ---
+
 
         scanInput.addEventListener('change', async (event) => {
             const inputValue = event.target.value.trim();
@@ -293,13 +311,16 @@
 
             let token = inputValue;
             try {
+                 // รองรับทั้งการสแกนจาก QR Code ที่เป็น URL และการพิมพ์รหัสโดยตรง
                 const url = new URL(inputValue);
                 token = url.searchParams.get('token') || inputValue;
             } catch (e) {
+                // ไม่ใช่ URL, ใช้ inputValue ตรงๆ
                 token = inputValue;
             }
 
             isProcessing = true;
+            // แสดงสถานะ "กำลังประมวลผล" ก่อน
             scanResultDiv.className = 'status-result status-initial';
             scanResultDiv.innerHTML = `
                 <span class="status-icon">⏳</span>
@@ -307,14 +328,13 @@
             `;
 
             try {
-                // ไม่ต้องส่ง Authorization header แล้ว เนื่องจาก scan.js ใช้ Service Role Key
-                const response = await fetch(`${baseUrl}/.netlify/functions/scan?token=${token}`);
+                const response = await fetch(`/.netlify/functions/scan?token=${token}`);
                 const data = await response.json();
 
-                displayScanResult(data);
+                displayScanResult(data); // เรียกใช้ฟังก์ชันแสดงผลใหม่
 
                 if (data.success) {
-                    await fetchReport(1);
+                    await fetchReport(1); // Refresh report to the first page only on success
                 }
             } catch (err) {
                 scanResultDiv.className = 'status-result status-error';
@@ -327,6 +347,7 @@
 
             setTimeout(() => {
                 scanInput.value = '';
+                // รีเซ็ตกลับไปสถานะเริ่มต้นหลังจาก 3 วินาที (ไม่ล้างข้อมูลทันที)
                 scanResultDiv.className = 'status-result status-initial';
                 scanResultDiv.innerHTML = `
                     <span class="status-icon">🔍</span>
@@ -334,11 +355,20 @@
                 `;
                 isProcessing = false;
                 scanInput.focus();
-            }, 5000);
+            }, 3000); // แสดงผลลัพธ์ค้างไว้ 3 วินาที
 
         });
 
-        document.addEventListener('DOMContentLoaded', initializeApp);
+        // Auto-focus input
+        document.addEventListener('DOMContentLoaded', () => {
+             initializeApp().then(() => {
+                const scanInputEl = document.getElementById('scanInput');
+                if(scanInputEl) {
+                    scanInputEl.focus();
+                    document.body.addEventListener('click', () => scanInputEl.focus());
+                }
+             });
+        });
     </script>
 </body>
 </html>
