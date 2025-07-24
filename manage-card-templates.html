@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>จัดการ Template บัตร - ระบบคูปองพนักงาน</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="/js/qrcode.min.js"></script> <style>
+    <script src="/js/qrcode.min.js"></script> 
+    <style>
         :root {
             --primary-color: #6366F1;
             --light-gray: #F3F4F6;
@@ -65,7 +66,7 @@
             gap: 16px;
             flex-wrap: wrap;
             align-items: center;
-            justify-content: flex-end; /* Align to right for Add button */
+            justify-content: flex-end; 
         }
         .controls-card button {
             padding: 10px 20px;
@@ -82,6 +83,7 @@
 
         .table-container {
             background: white;
+            padding: 24px; /* Adjust padding here for better layout with radio buttons */
             border-radius: 16px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
             overflow-x: auto;
@@ -141,7 +143,7 @@
             padding: 30px;
             border-radius: 16px;
             width: 90%;
-            max-width: 800px; /* Wider for template editor */
+            max-width: 800px; 
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
             position: relative;
         }
@@ -234,15 +236,32 @@
             gap: 10px;
         }
         .template-card-preview-inner {
-            width: 280px; /* Same as print-employee-cards.html */
-            height: 177px; 
+            /* Adjust dimensions based on orientation */
             border: 1px solid #ccc;
             border-radius: 8px;
-            overflow: hidden; /* Hide anything outside card bounds */
+            overflow: hidden; 
             position: relative;
             background-color: #fff;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
+        .template-card-preview-inner.portrait {
+             width: 280px; 
+             height: 177px; /* For portrait (standard ID card aspect ratio, e.g., 85.6mm x 53.98mm) */
+        }
+        .template-card-preview-inner.landscape {
+             width: 280px; /* Swap width/height for landscape */
+             height: 177px; /* Standard portrait height becomes width for landscape */
+             /* The actual card size should be 85.6mm x 53.98mm. If you want landscape, it's 53.98mm (H) x 85.6mm (W) */
+             /* So, to keep aspect ratio, you would define one and calculate the other based on the standard.
+                Let's make cardWidth = 85.6mm (approx 325px at 96dpi), cardHeight = 53.98mm (approx 205px at 96dpi)
+                For preview, let's keep the smaller preview dimensions, but swap based on orientation.
+             */
+             width: 280px; /* keeping a fixed width for preview box, actual internal elements will rotate */
+             height: 177px; /* keeping a fixed height for preview box */
+             transform-origin: center center; /* Ensure rotation around center */
+        }
+
+        /* Styles for elements within preview */
         .template-card-preview-inner img.background {
             position: absolute;
             top: 0; left: 0;
@@ -251,29 +270,28 @@
             z-index: 0;
         }
         .template-card-preview-content {
-            position: relative; /* Ensure content is above background */
+            position: relative; 
             z-index: 1;
             width: 100%;
             height: 100%;
         }
-        /* Styles for draggable/positionable elements within preview */
         .preview-element {
-            position: absolute; /* Controlled by layout_config */
+            position: absolute; 
             box-sizing: border-box;
-            background-color: rgba(255,255,255,0.7); /* Semi-transparent background for text clarity */
+            background-color: rgba(255,255,255,0.7); 
             padding: 2px 5px;
             border-radius: 3px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            color: #000; /* Default text color */
+            color: #000; 
         }
         .preview-element.text {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-weight: 500;
         }
         .preview-element.img {
-            background-color: transparent; /* No background for images */
+            background-color: transparent; 
             border: none;
             padding: 0;
         }
@@ -288,6 +306,25 @@
         .preview-element.qr canvas {
             width: 100% !important;
             height: 100% !important;
+        }
+        /* Radio button group for orientation */
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            color: var(--text-gray);
+            cursor: pointer;
+        }
+        .radio-group input[type="radio"] {
+            width: auto;
+            margin-right: 8px;
+            margin-bottom: 0;
         }
     </style>
 </head>
@@ -317,15 +354,14 @@
                         <tr>
                             <th>ชื่อ Template</th>
                             <th>ชื่อบริษัท</th>
-                            <th>Logo URL</th>
+                            <th>Orientation</th> <th>Logo URL</th>
                             <th>Background หน้า</th>
                             <th>Background หลัง</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="template-table-body">
-                        <tr><td colspan="6" style="text-align:center;">กำลังโหลด Template บัตร...</td></tr>
-                    </tbody>
+                        <tr><td colspan="7" style="text-align:center;">กำลังโหลด Template บัตร...</td></tr> </tbody>
                 </table>
             </div>
             <div id="message" class="hidden"></div>
@@ -343,6 +379,19 @@
                     <div class="modal-form-group">
                         <label for="template-name">ชื่อ Template</label>
                         <input type="text" id="template-name" required>
+                    </div>
+                    <div class="modal-form-group">
+                        <label>Orientation บัตร</label>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="orientation-selection" value="portrait" checked>
+                                แนวตั้ง (Portrait)
+                            </label>
+                            <label>
+                                <input type="radio" name="orientation-selection" value="landscape">
+                                แนวนอน (Landscape)
+                            </label>
+                        </div>
                     </div>
                     <div class="modal-form-group">
                         <label for="company-name">ชื่อบริษัท</label>
@@ -366,7 +415,13 @@
                         <label for="layout-config">
                             JSON (ตำแหน่ง/สไตล์ขององค์ประกอบ) 
                             <br>
-                            <small>เช่น: {"logo": {"top": "10px", "left": "10px"}, "employee_name": {"top": "50%", "textAlign": "center"}}</small>
+                            <small>
+                                <strong>ตัวอย่างสำหรับแนวตั้ง (Portrait):</strong> <br>
+                                `{"photo": {"top": "15%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)", "borderRadius": "50%", "objectFit": "cover", "border": "2px solid #6366F1"}, "company_name": {"top": "35%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.1em", "fontWeight": "600"}, "employee_name": {"top": "50%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.2em", "fontWeight": "700"}, "employee_id": {"top": "60%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "0.9em", "color": "#6B7280"}, "qr_code": {"top": "75%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)"}}`
+                                <br><br>
+                                <strong>ตัวอย่างสำหรับแนวนอน (Landscape):</strong> <br>
+                                `{"photo": {"top": "10%", "left": "10%", "width": "60px", "height": "60px", "borderRadius": "50%", "objectFit": "cover", "border": "2px solid #6366F1"}, "company_name": {"top": "10%", "left": "30%", "width": "60%", "textAlign": "left", "fontSize": "1.1em", "fontWeight": "600"}, "employee_name": {"top": "35%", "left": "10%", "width": "80%", "textAlign": "left", "fontSize": "1.2em", "fontWeight": "700"}, "employee_id": {"top": "55%", "left": "10%", "width": "80%", "textAlign": "left", "fontSize": "0.9em", "color": "#6B7280"}, "qr_code": {"top": "10%", "right": "10%", "width": "80px", "height": "80px", "background": "#fff"}}`
+                            </small>
                         </label>
                         <textarea id="layout-config" rows="10"></textarea>
                     </div>
@@ -409,6 +464,7 @@
         const templateForm = document.getElementById('templateForm');
         const templateIdInput = document.getElementById('template-id');
         const templateNameInput = document.getElementById('template-name');
+        const orientationRadios = document.querySelectorAll('input[name="orientation-selection"]'); // New
         const companyNameInput = document.getElementById('company-name');
         const logoUrlInput = document.getElementById('logo-url');
         const backgroundFrontUrlInput = document.getElementById('background-front-url');
@@ -422,8 +478,16 @@
         const previewEmployee = {
             name: "สมศรี สุขใจ",
             employee_id: "12345",
-            permanent_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" // Dummy token
+            permanent_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", // Dummy token
+            photo_url: "https://via.placeholder.com/80?text=Photo" // Dummy photo
         };
+
+        // Standard card dimensions (e.g., credit card aspect ratio)
+        const CARD_WIDTH_PX_PORTRAIT = 280; // Example
+        const CARD_HEIGHT_PX_PORTRAIT = 177; // Example (for 85.6mm x 53.98mm ratio, 280px width -> 176.6px height)
+        const CARD_WIDTH_PX_LANDSCAPE = 280; // Fixed preview width for landscape
+        const CARD_HEIGHT_PX_LANDSCAPE = 177; // Fixed preview height for landscape
+
 
         async function initializeApp() {
             try {
@@ -438,7 +502,7 @@
                 }
 
                 const { data: profileData, error: profileError } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
-                if (profileError || !profileData || profileData.role !== 'superuser') { // Only Superuser can access this page
+                if (profileError || !profileData || profileData.role !== 'superuser') { 
                     unauthorizedMessage.classList.remove('hidden');
                     return;
                 }
@@ -459,6 +523,7 @@
                 templateForm.addEventListener('submit', handleTemplateFormSubmit);
                 // Listen for changes to update preview
                 templateNameInput.addEventListener('input', updatePreview);
+                orientationRadios.forEach(radio => radio.addEventListener('change', updatePreview)); // New
                 companyNameInput.addEventListener('input', updatePreview);
                 logoUrlInput.addEventListener('input', updatePreview);
                 backgroundFrontUrlInput.addEventListener('input', updatePreview);
@@ -473,7 +538,7 @@
 
         async function fetchTemplates() {
             showMessage('กำลังโหลด Template บัตร...', 'info');
-            templateTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">กำลังโหลด Template บัตร...</td></tr>`;
+            templateTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center;">กำลังโหลด Template บัตร...</td></tr>`; 
             
             try {
                 const { data: { session } } = await _supabase.auth.getSession();
@@ -492,7 +557,7 @@
 
             } catch (error) {
                 console.error('Error fetching templates:', error);
-                templateTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--error-color);">ไม่สามารถโหลด Template บัตรได้: ${error.message}</td></tr>`;
+                templateTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--error-color);">ไม่สามารถโหลด Template บัตรได้: ${error.message}</td></tr>`;
                 showMessage('ไม่สามารถโหลด Template บัตรได้: ' + error.message, 'error');
             }
         }
@@ -500,7 +565,7 @@
         function renderTemplateTable(templates) {
             templateTableBody.innerHTML = '';
             if (templates.length === 0) {
-                templateTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">ไม่พบ Template บัตร</td></tr>`;
+                templateTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center;">ไม่พบ Template บัตร</td></tr>`; 
                 return;
             }
 
@@ -509,7 +574,7 @@
                 row.innerHTML = `
                     <td>${template.template_name}</td>
                     <td>${template.company_name || '-'}</td>
-                    <td><a href="${template.logo_url}" target="_blank">${template.logo_url ? 'ดู Logo' : '-'}</a></td>
+                    <td>${template.orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}</td> <td><a href="${template.logo_url}" target="_blank">${template.logo_url ? 'ดู Logo' : '-'}</a></td>
                     <td><a href="${template.background_front_url}" target="_blank">${template.background_front_url ? 'ดูรูป' : '-'}</a></td>
                     <td><a href="${template.background_back_url}" target="_blank">${template.background_back_url ? 'ดูรูป' : '-'}</a></td>
                     <td>
@@ -541,17 +606,18 @@
             templateForm.reset();
             templateIdInput.value = '';
             templateModalTitle.textContent = 'สร้าง Template บัตรใหม่';
-            cardPreviewFront.innerHTML = ''; // Clear preview
+            cardPreviewFront.innerHTML = ''; 
 
             // Set default layout_config for easy start
             const defaultLayout = {
-                "logo": {"top": "10%", "left": "50%", "width": "50px", "height": "50px", "transform": "translateX(-50%)"},
-                "company_name": {"top": "25%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.1em", "fontWeight": "600"},
-                "employee_name": {"top": "40%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.2em", "fontWeight": "700"},
-                "employee_id": {"top": "55%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "0.9em", "color": "#6B7280"},
-                "qr_code": {"top": "65%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)"}
+                "photo": {"top": "15%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)", "borderRadius": "50%", "objectFit": "cover", "border": "2px solid var(--primary-color)"}, 
+                "company_name": {"top": "35%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.1em", "fontWeight": "600"},
+                "employee_name": {"top": "50%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.2em", "fontWeight": "700"},
+                "employee_id": {"top": "60%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "0.9em", "color": "#6B7280"},
+                "qr_code": {"top": "75%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)"}
             };
-            layoutConfigInput.value = JSON.stringify(defaultLayout, null, 2); // Pretty print JSON
+            layoutConfigInput.value = JSON.stringify(defaultLayout, null, 2); 
+            document.querySelector('input[name="orientation-selection"][value="portrait"]').checked = true; // Default to portrait
 
             if (templateId) {
                 showMessage('กำลังดึงข้อมูล Template...', 'info');
@@ -577,8 +643,9 @@
                     backgroundFrontUrlInput.value = template.background_front_url || '';
                     backgroundBackUrlInput.value = template.background_back_url || '';
                     layoutConfigInput.value = JSON.stringify(template.layout_config || {}, null, 2);
+                    document.querySelector(`input[name="orientation-selection"][value="${template.orientation || 'portrait'}"]`).checked = true; // Set loaded orientation
                     
-                    updatePreview(); // Update preview with loaded data
+                    updatePreview(); 
                     showMessage('', 'hidden');
                 } catch (error) {
                     console.error('Error opening template modal:', error);
@@ -588,22 +655,34 @@
             }
 
             templateModal.style.display = 'flex';
-            updatePreview(); // Initial preview rendering
+            updatePreview(); 
         }
 
         function updatePreview() {
             cardPreviewFront.innerHTML = '';
+            const selectedOrientation = document.querySelector('input[name="orientation-selection"]:checked').value; // Get selected orientation
+            
+            // Adjust card preview dimensions based on orientation
+            if (selectedOrientation === 'portrait') {
+                cardPreviewFront.classList.remove('landscape');
+                cardPreviewFront.classList.add('portrait');
+            } else { // landscape
+                cardPreviewFront.classList.remove('portrait');
+                cardPreviewFront.classList.add('landscape');
+            }
+
+
             const template = {
                 company_name: companyNameInput.value || "ชื่อบริษัทของคุณ",
                 logo_url: logoUrlInput.value,
                 background_front_url: backgroundFrontUrlInput.value,
-                layout_config: {}
+                layout_config: {},
+                orientation: selectedOrientation // Pass orientation to template object for rendering
             };
             try {
                 template.layout_config = JSON.parse(layoutConfigInput.value);
             } catch (e) {
                 console.error("Invalid JSON for layout_config", e);
-                // Display an error in the preview area instead of crashing
                 cardPreviewFront.innerHTML = `<p style="color: var(--error-color);">JSON Layout Config ผิดพลาด!</p>`;
                 return;
             }
@@ -636,7 +715,20 @@
                     }
 
                     // Populate content
-                    if (key === "logo") {
+                    if (key === "photo") { // Changed from "logo" to "photo" for employee photo
+                        elementDiv.classList.add('img');
+                        const photoImg = document.createElement('img');
+                        photoImg.src = previewEmployee.photo_url || 'https://via.placeholder.com/80?text=Photo';
+                        photoImg.style.width = '100%';
+                        photoImg.style.height = '100%';
+                        // Apply specific photo styles from layout_config like borderRadius, objectFit, border
+                        if (style.borderRadius) photoImg.style.borderRadius = style.borderRadius;
+                        if (style.objectFit) photoImg.style.objectFit = style.objectFit;
+                        if (style.border) photoImg.style.border = style.border;
+
+                        photoImg.onerror = () => photoImg.src = 'https://via.placeholder.com/80?text=Photo+Error';
+                        elementDiv.appendChild(photoImg);
+                    } else if (key === "logo") { // For company logo (separate from employee photo)
                         elementDiv.classList.add('img');
                         const logoImg = document.createElement('img');
                         logoImg.src = template.logo_url || 'https://via.placeholder.com/50?text=Logo';
@@ -645,7 +737,8 @@
                         logoImg.style.objectFit = 'contain';
                         logoImg.onerror = () => logoImg.src = 'https://via.placeholder.com/50?text=Logo+Error';
                         elementDiv.appendChild(logoImg);
-                    } else if (key === "company_name") {
+                    }
+                    else if (key === "company_name") {
                         elementDiv.classList.add('text');
                         elementDiv.textContent = template.company_name;
                     } else if (key === "employee_name") {
@@ -657,7 +750,7 @@
                     } else if (key === "qr_code") {
                         elementDiv.classList.add('qr');
                         const qrDiv = document.createElement('div');
-                        qrDiv.id = `preview-qr-${key}`; // Unique ID for QR code
+                        qrDiv.id = `preview-qr-${key}`; 
                         elementDiv.appendChild(qrDiv);
                         if (window.QRCode) {
                             new QRCode(qrDiv, {
@@ -671,6 +764,9 @@
                         } else {
                             qrDiv.textContent = 'QR Code Lib Not Loaded';
                         }
+                    } else {
+                        className += ' text';
+                        elementDiv.textContent = style.text || ''; 
                     }
                     contentDiv.appendChild(elementDiv);
                 }
@@ -681,6 +777,7 @@
             event.preventDefault();
             const templateId = templateIdInput.value || null;
             const templateName = templateNameInput.value.trim();
+            const selectedOrientation = document.querySelector('input[name="orientation-selection"]:checked').value; // Get selected orientation
             const companyName = companyNameInput.value.trim();
             const logoUrl = logoUrlInput.value.trim();
             const backgroundFrontUrl = backgroundFrontUrlInput.value.trim();
@@ -694,8 +791,8 @@
                 return;
             }
 
-            if (!templateName) {
-                showMessage('กรุณากรอกชื่อ Template', 'error');
+            if (!templateName || !selectedOrientation) {
+                showMessage('กรุณากรอกชื่อ Template และเลือก Orientation', 'error');
                 return;
             }
 
@@ -717,7 +814,8 @@
                         logo_url: logoUrl, 
                         background_front_url: backgroundFrontUrl, 
                         background_back_url: backgroundBackUrl, 
-                        layout_config: layoutConfig 
+                        layout_config: layoutConfig,
+                        orientation: selectedOrientation // Send orientation to backend
                     })
                 });
 
@@ -728,7 +826,7 @@
 
                 showMessage('บันทึก Template สำเร็จ', 'success');
                 templateModal.style.display = 'none';
-                fetchTemplates(); // Refresh table
+                fetchTemplates(); 
 
             } catch (error) {
                 console.error('Error saving template:', error);
@@ -761,7 +859,7 @@
                 }
 
                 showMessage('ลบ Template สำเร็จ', 'success');
-                fetchTemplates(); // Refresh table
+                fetchTemplates(); 
 
             } catch (error) {
                 console.error('Error deleting template:', error);

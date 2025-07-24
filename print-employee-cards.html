@@ -161,21 +161,29 @@
         }
         .card-preview-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Adjust card width */
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
             gap: 20px;
             justify-content: center;
         }
 
-        /* Employee Card Styles (for printing) - MUST MATCH manage-card-templates.html .template-card-preview-inner */
+        /* Employee Card Styles (for printing) - MUST MATCH manage-card-templates.html */
         .employee-card {
-            width: 280px; 
-            height: 177px; 
             border: 1px solid #ccc;
             border-radius: 8px;
             overflow: hidden; 
             position: relative;
             background-color: #fff;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .employee-card.portrait {
+             width: 280px; 
+             height: 177px; 
+        }
+        .employee-card.landscape {
+             width: 280px; /* Adjusted to maintain fixed preview width for consistent scaling */
+             height: 177px;
+             /* Transform to represent landscape orientation in fixed preview box */
+             /* Note: Actual print orientation is handled by jspdf */
         }
         .employee-card .background {
             position: absolute;
@@ -341,8 +349,8 @@
         let _supabase;
         let currentUserRole = null;
         let allDepartments = [];
-        let allTemplates = []; // Store all available templates
-        let selectedTemplate = null; // Stores the currently selected template object
+        let allTemplates = []; 
+        let selectedTemplate = null; 
         let allEmployees = []; 
 
         const employeeTableBody = document.getElementById('employee-table-body');
@@ -356,7 +364,7 @@
         const cardPreviewGrid = document.getElementById('card-preview-grid');
         const printSelectedCardsBtn = document.getElementById('print-selected-cards-btn');
         const pdfGenerationProgress = document.getElementById('pdf-generation-progress');
-        const templateSelect = document.getElementById('template-select'); // New Template Select
+        const templateSelect = document.getElementById('template-select'); 
 
         const baseUrl = window.location.origin;
         let currentPage = 1;
@@ -366,6 +374,10 @@
 
         const { jsPDF } = window.jspdf;
         const QR_CODE_BUCKET = 'employee-qrcodes'; 
+
+        // Define standard ID card dimensions in mm (approximate)
+        const CARD_STANDARD_WIDTH_MM = 85.6;
+        const CARD_STANDARD_HEIGHT_MM = 53.98;
 
         async function initializeApp() {
             try {
@@ -388,7 +400,7 @@
                 mainContent.classList.remove('hidden');
 
                 await loadDepartments();
-                await loadCardTemplates(); // Load card templates
+                await loadCardTemplates(); 
                 await fetchEmployees(currentPage);
 
                 applyFiltersBtn.addEventListener('click', () => {
@@ -400,7 +412,7 @@
 
                 selectAllCheckbox.addEventListener('change', toggleSelectAll);
                 printSelectedCardsBtn.addEventListener('click', generatePdfForSelectedCards);
-                templateSelect.addEventListener('change', handleTemplateChange); // New event listener
+                templateSelect.addEventListener('change', handleTemplateChange); 
                 
             } catch (error) {
                 console.error('Initialization failed:', error);
@@ -492,8 +504,8 @@
         function handleTemplateChange(event) {
             const templateId = event.target.value;
             selectedTemplate = allTemplates.find(t => t.id === templateId);
-            updatePreviewCards(); // Re-render previews with new template
-            updatePrintButtonStatus(); // Re-evaluate print button status
+            updatePreviewCards(); 
+            updatePrintButtonStatus(); 
         }
 
         async function fetchEmployees(page = 1) {
@@ -506,7 +518,6 @@
 
             try {
                 const { data: { session } } = await _supabase.auth.getSession();
-                // We only want regular employees (is_active: true) for printing cards by default
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-employees?page=${page}&limit=${itemsPerPage}&search=${searchTerm}&department=${departmentId}&status=active`, { 
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
@@ -568,7 +579,7 @@
                 checkbox.addEventListener('change', updateSelectedEmployees);
             });
             updatePrintButtonStatus();
-            updatePreviewCards(); // Update preview when table re-renders
+            updatePreviewCards(); 
         }
 
         function renderPagination(currentPage, totalPages) {
@@ -613,11 +624,10 @@
                 selectedEmployeeIds.delete(employeeId);
             }
             updatePrintButtonStatus();
-            updatePreviewCards(); // Update preview when selection changes
+            updatePreviewCards(); 
         }
 
         function updatePrintButtonStatus() {
-            // Button is enabled if at least one employee is selected AND a template is selected
             printSelectedCardsBtn.disabled = selectedEmployeeIds.size === 0 || !selectedTemplate;
             if (selectedEmployeeIds.size === 0 || !selectedTemplate) {
                 cardPreviewGrid.innerHTML = '<p style="text-align: center; color: var(--text-gray);">เลือกพนักงานจากตารางด้านบนและเลือก Template บัตร</p>';
@@ -640,20 +650,20 @@
             for (const emp of selectedEmployees) {
                 const cardDiv = document.createElement('div');
                 cardDiv.classList.add('employee-card');
-                
-                // --- Prepare card content based on template ---
+                // Apply orientation class to the cardDiv
+                cardDiv.classList.add(selectedTemplate.orientation || 'portrait'); 
+
                 const cardContentHtml = await generateCardHtml(emp, selectedTemplate);
                 cardDiv.innerHTML = cardContentHtml;
                 cardPreviewGrid.appendChild(cardDiv);
 
-                // Re-generate QR Code after card HTML is in DOM
                 const qrCodeElement = cardDiv.querySelector('.card-element.qr > div');
                 if (qrCodeElement && emp.permanent_token && window.QRCode) {
                     const qrCodeData = `${baseUrl}/scanner?token=${emp.permanent_token}`;
                     new QRCode(qrCodeElement, {
                         text: qrCodeData,
-                        width: qrCodeElement.offsetWidth || 100, // Use actual rendered width or default
-                        height: qrCodeElement.offsetHeight || 100, // Use actual rendered height or default
+                        width: qrCodeElement.offsetWidth || 100, 
+                        height: qrCodeElement.offsetHeight || 100, 
                         colorDark : "#000000",
                         colorLight : "#ffffff",
                         correctLevel : QRCode.CorrectLevel.H 
@@ -673,7 +683,6 @@
             }
             cardHtml += `<div class="card-content">`;
 
-            // Render elements based on layout_config
             const layout = template.layout_config || {};
             for (const key in layout) {
                 if (Object.hasOwnProperty.call(layout, key)) {
@@ -681,10 +690,14 @@
                     let content = '';
                     let className = 'card-element';
 
-                    if (key === "logo") {
+                    if (key === "photo") { 
+                        className += ' img';
+                        content = `<img src="${finalPhotoUrl}" style="width:100%;height:100%;object-fit:contain;" onerror="this.onerror=null;this.src='https://via.placeholder.com/80?text=Photo+Error'">`;
+                    } else if (key === "logo") { 
                         className += ' img';
                         content = `<img src="${template.logo_url || 'https://via.placeholder.com/50?text=Logo'}" style="width:100%;height:100%;object-fit:contain;" onerror="this.onerror=null;this.src='https://via.placeholder.com/50?text=Logo+Error'">`;
-                    } else if (key === "company_name") {
+                    }
+                    else if (key === "company_name") {
                         className += ' text';
                         content = template.company_name || '';
                     } else if (key === "employee_name") {
@@ -695,16 +708,15 @@
                         content = `ID: ${employee.employee_id}`;
                     } else if (key === "qr_code") {
                         className += ' qr';
-                        content = `<div></div>`; // QR code will be rendered into this div later
+                        content = `<div></div>`; 
                     } else {
-                        // For custom text fields defined in layout_config
                         className += ' text';
-                        content = style.text || ''; // Assume 'text' property in style for custom text
+                        content = style.text || ''; 
                     }
                     
                     let styleStr = '';
                     for (const prop in style) {
-                        if (Object.hasOwnProperty.call(style, prop) && prop !== 'text') { // Exclude 'text' property
+                        if (Object.hasOwnProperty.call(style, prop) && prop !== 'text') { 
                             styleStr += `${prop}: ${style[prop]};`;
                         }
                     }
@@ -712,7 +724,7 @@
                     cardHtml += `<div class="${className}" style="${styleStr}">${content}</div>`;
                 }
             }
-            cardHtml += `</div>`; // Close card-content
+            cardHtml += `</div>`; 
 
             return cardHtml;
         }
@@ -733,24 +745,30 @@
             showMessage('กำลังสร้างไฟล์ PDF... อาจใช้เวลาสักครู่', 'info');
 
             try {
+                // Determine PDF orientation based on selected template
+                const pdfOrientation = selectedTemplate.orientation === 'landscape' ? 'landscape' : 'portrait';
                 const doc = new jsPDF({
-                    orientation: 'portrait', 
+                    orientation: pdfOrientation, 
                     unit: 'mm',
                     format: 'a4'
                 });
 
-                const cardWidthPx = 280; 
-                const cardHeightPx = 177; 
+                // Calculate card dimensions for PDF based on standard ratio
+                let cardWidthMm, cardHeightMm;
+                if (selectedTemplate.orientation === 'landscape') {
+                    cardWidthMm = CARD_STANDARD_WIDTH_MM; // 85.6 mm
+                    cardHeightMm = CARD_STANDARD_HEIGHT_MM; // 53.98 mm
+                } else { // portrait
+                    cardWidthMm = CARD_STANDARD_HEIGHT_MM; // 53.98 mm
+                    cardHeightMm = CARD_STANDARD_WIDTH_MM; // 85.6 mm
+                }
                 
-                const scale = 3; // Increased scale for better PDF quality
-                const cardWidthMm = cardWidthPx * 0.264583 * (scale / 1); 
-                const cardHeightMm = cardHeightPx * 0.264583 * (scale / 1);
-
+                const scale = 3; 
+                
                 const margin = 10; 
                 let currentX = margin;
                 let currentY = margin;
                 
-                // Hide other content for html2canvas
                 document.body.classList.add('print-area'); 
 
                 const selectedEmployeesForPdf = allEmployees.filter(emp => selectedEmployeeIds.has(emp.id));
@@ -758,21 +776,25 @@
                 for (let i = 0; i < selectedEmployeesForPdf.length; i++) {
                     const emp = selectedEmployeesForPdf[i];
                     
-                    // Create a temporary div to render the card for html2canvas
                     const tempCardContainer = document.createElement('div');
-                    tempCardContainer.style.width = `${cardWidthPx}px`;
-                    tempCardContainer.style.height = `${cardHeightPx}px`;
+                    // Set fixed dimensions for html2canvas rendering
+                    if (selectedTemplate.orientation === 'portrait') {
+                        tempCardContainer.style.width = `${CARD_STANDARD_HEIGHT_MM * (96/25.4)}px`; // Convert mm to px for 96dpi
+                        tempCardContainer.style.height = `${CARD_STANDARD_WIDTH_MM * (96/25.4)}px`;
+                    } else { // landscape
+                        tempCardContainer.style.width = `${CARD_STANDARD_WIDTH_MM * (96/25.4)}px`;
+                        tempCardContainer.style.height = `${CARD_STANDARD_HEIGHT_MM * (96/25.4)}px`;
+                    }
+                    
                     tempCardContainer.style.position = 'absolute';
-                    tempCardContainer.style.left = '-9999px'; // Move off-screen
+                    tempCardContainer.style.left = '-9999px'; 
                     tempCardContainer.style.top = '-9999px';
-                    tempCardContainer.style.background = 'white'; // Ensure white background for rendering
-                    tempCardContainer.style.border = 'none'; // No border needed for rendering
+                    tempCardContainer.style.background = 'white'; 
+                    tempCardContainer.style.border = 'none'; 
 
-                    // Generate card HTML for this employee using the selected template
                     tempCardContainer.innerHTML = await generateCardHtml(emp, selectedTemplate);
-                    document.body.appendChild(tempCardContainer); // Append to body to be rendered by html2canvas
+                    document.body.appendChild(tempCardContainer); 
 
-                    // Re-generate QR Code for the off-screen card
                     const qrCodeElement = tempCardContainer.querySelector('.card-element.qr > div');
                     if (qrCodeElement && emp.permanent_token && window.QRCode) {
                         const qrCodeData = `${baseUrl}/scanner?token=${emp.permanent_token}`;
@@ -786,24 +808,24 @@
                         });
                     }
 
-                    // Wait for QR code canvas to render (small delay)
                     await new Promise(resolve => setTimeout(resolve, 100)); 
 
-                    // Render temporary HTML card to canvas
-                    const canvas = await html2canvas(tempCardContainer, { scale: scale, logging: false, removeContainer: true }); // removeContainer: true cleans up
+                    const canvas = await html2canvas(tempCardContainer, { scale: scale, logging: false, removeContainer: true }); 
                     const imgData = canvas.toDataURL('image/jpeg', 0.9); 
 
-                    // Remove the temporary container
                     tempCardContainer.remove();
 
-                    // Add image to PDF
-                    if (currentX + cardWidthMm > doc.internal.pageSize.getWidth() - margin) {
+                    // Position cards on PDF based on orientation and page size
+                    const page_width = doc.internal.pageSize.getWidth();
+                    const page_height = doc.internal.pageSize.getHeight();
+                    
+                    if (currentX + cardWidthMm > page_width - margin) {
                         currentX = margin;
                         currentY += cardHeightMm + margin;
-                        if (currentY + cardHeightMm > doc.internal.pageSize.getHeight() - margin) {
-                            doc.addPage();
-                            currentY = margin;
-                        }
+                    }
+                    if (currentY + cardHeightMm > page_height - margin) {
+                        doc.addPage();
+                        currentY = margin;
                     }
 
                     doc.addImage(imgData, 'JPEG', currentX, currentY, cardWidthMm, cardHeightMm);
