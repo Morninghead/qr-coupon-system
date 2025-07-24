@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>รายงานการสแกนวันนี้ (Standalone) - ระบบคูปองพนักงาน</title>
-    <style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script> <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"> <style>
         :root {
             --primary-color: #6366F1;
             --light-gray: #F3F4F6;
@@ -22,6 +23,52 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;}
         .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
         .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+
+        /* สไตล์สำหรับ Filter Card (คล้าย reports.html) */
+        .filters-card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin-bottom: 32px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            align-items: end; /* จัดปุ่มให้อยู่บรรทัดเดียวกันกับ input */
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .filter-group label {
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+        .filter-group select, .filter-group input[type="text"] { /* เฉพาะ input type="text" สำหรับ date picker */
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        .filter-group button {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .filter-group button:hover {
+            background-color: #4F46E5;
+        }
+        .filter-group button:disabled {
+            background-color: #A5B4FC;
+            cursor: not-allowed;
+        }
 
         .report-section { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
         .report-section h2 { color: var(--dark-gray); margin-top: 0; margin-bottom: 16px; }
@@ -49,8 +96,24 @@
             <a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
         </div>
 
+        <div class="filters-card">
+            <div class="filter-group">
+                <label for="date-picker">เลือกช่วงวันที่</label>
+                <input type="text" id="date-picker" placeholder="เลือกช่วงวันที่...">
+            </div>
+            <div class="filter-group">
+                <label for="department-select">แผนก</label>
+                <select id="department-select">
+                    <option value="all">ทุกแผนก</option>
+                    </select>
+            </div>
+            <div class="filter-group">
+                <button id="show-report-btn">แสดงรายงาน</button>
+            </div>
+        </div>
+
         <div class="report-section">
-            <h2>รายงานการสแกน (วันนี้)</h2>
+            <h2>รายงานการสแกน (ตามช่วงเวลา)</h2>
             <div class="table-container">
                 <table>
                     <thead>
