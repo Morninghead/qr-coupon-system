@@ -30,7 +30,6 @@ export const handler = async (event, context) => {
         }
 
         // 2. วิเคราะห์ข้อมูลที่ส่งมาจาก Frontend
-        // คาดหวังว่า body จะมี photos: [{ employee_id: "...", photo_data: "..." }]
         const { photos } = JSON.parse(event.body);
 
         if (!photos || !Array.isArray(photos) || photos.length === 0) {
@@ -48,15 +47,32 @@ export const handler = async (event, context) => {
             if (!employee_id || !photo_data) {
                 failedCount++;
                 failedIds.push(employee_id || 'UNKNOWN_ID');
-                continue; // ข้ามรูปภาพนี้ไป
+                continue; 
             }
 
-            // กำหนดชื่อไฟล์ (เช่น "30000.jpg")
-            // ตรวจสอบว่า photo_data เป็น Base64 ของ JPEG หรือ PNG
-            const imageBuffer = Buffer.from(photo_data, 'base64');
-            const fileExtension = photo_data.startsWith('/9j/') ? 'jpg' : (photo_data.startsWith('iVBORw0KGgoAAAAN') ? 'png' : 'jpg'); // ตรวจสอบ magic number ของ Base64
+            let imageBuffer;
+            try {
+                imageBuffer = Buffer.from(photo_data, 'base64');
+            } catch (bufferError) {
+                console.error(`Error converting base64 for ${employee_id}:`, bufferError);
+                failedCount++;
+                failedIds.push(employee_id);
+                continue;
+            }
+
+            // Determine file extension and content type more robustly
+            let fileExtension = 'jpg'; // Default to jpg
+            let contentType = 'image/jpeg';
+            
+            // Check for PNG magic number (first 8 bytes: 89 50 4E 47 0D 0A 1A 0A)
+            if (imageBuffer[0] === 0x89 && imageBuffer[1] === 0x50 && imageBuffer[2] === 0x4E && imageBuffer[3] === 0x47) {
+                fileExtension = 'png';
+                contentType = 'image/png';
+            } 
+            // Else, assume JPEG based on common use case or fall back to original logic if needed
+            // if (photo_data.startsWith('/9j/')) { ... } // Less reliable without checking full buffer
+
             const fileName = `${employee_id}.${fileExtension}`;
-            const contentType = `image/${fileExtension}`;
 
             try {
                 // 3a. อัปโหลดรูปภาพไปยัง Supabase Storage
@@ -64,7 +80,7 @@ export const handler = async (event, context) => {
                     .from(EMPLOYEE_PHOTOS_BUCKET)
                     .upload(fileName, imageBuffer, {
                         contentType: contentType,
-                        upsert: true // หากมีไฟล์ชื่อนี้อยู่แล้ว ให้อัปเดตทับ
+                        upsert: true 
                     });
 
                 if (uploadError) {
@@ -79,16 +95,14 @@ export const handler = async (event, context) => {
 
                 // 3c. อัปเดตคอลัมน์ photo_url ในตาราง employees
                 const { error: updateError } = await supabaseAdmin
-                    .from('employees') // ตรวจสอบว่าใช้ 'employees' ตัวพิมพ์เล็ก
+                    .from('employees') 
                     .update({ photo_url: publicUrl })
-                    .eq('employee_id', employee_id); // อัปเดตตามรหัสพนักงาน
+                    .eq('employee_id', employee_id); 
 
                 if (updateError) {
                     console.error(`Error updating photo_url for ${employee_id}:`, updateError);
                     failedCount++;
                     failedIds.push(employee_id);
-                    // (Optional) หากอัปเดต DB ไม่ได้ อาจจะลบรูปจาก Storage ทิ้งด้วย
-                    // await supabaseAdmin.storage.from(EMPLOYEE_PHOTOS_BUCKET).remove([fileName]);
                     continue;
                 }
 
