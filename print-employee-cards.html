@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>พิมพ์บัตรพนักงาน - ระบบคูปองพนักงาน</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> 
     <style>
         :root {
             --primary-color: #6366F1;
@@ -47,8 +47,11 @@
             display: inline-block; width: 100%; padding: 12px;
             font-size: 16px; font-weight: 600; color: white;
             background-color: var(--primary-color);
-            border: none; border-radius: 8px; cursor: pointer;
-            text-decoration: none; transition: background-color 0.2s;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.2s;
         }
         .unauthorized-button:hover { background-color: #4F46E5; }
 
@@ -180,10 +183,8 @@
              height: 177px; 
         }
         .employee-card.landscape {
-             width: 280px; /* Adjusted to maintain fixed preview width for consistent scaling */
+             width: 280px; 
              height: 177px;
-             /* Transform to represent landscape orientation in fixed preview box */
-             /* Note: Actual print orientation is handled by jspdf */
         }
         .employee-card .background {
             position: absolute;
@@ -372,10 +373,6 @@
 
         let selectedEmployeeIds = new Set(); 
 
-        const { jsPDF } = window.jspdf;
-        const QR_CODE_BUCKET = 'employee-qrcodes'; 
-
-        // Define standard ID card dimensions in mm (approximate)
         const CARD_STANDARD_WIDTH_MM = 85.6;
         const CARD_STANDARD_HEIGHT_MM = 53.98;
 
@@ -385,7 +382,7 @@
                 const config = await response.json();
                 _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
-                const { data: { session } } = await _supabase.auth.getSession();
+                const { data: { session } = {} } = await _supabase.auth.getSession(); 
                 if (!session) {
                     unauthorizedMessage.classList.remove('hidden');
                     return;
@@ -439,7 +436,7 @@
                     }
                 }
 
-                const { data: { session } } = await _supabase.auth.getSession();
+                const { data: { session } = {} } = await _supabase.auth.getSession(); 
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
@@ -470,7 +467,7 @@
         async function loadCardTemplates() {
             templateSelect.innerHTML = '<option value="">กำลังโหลด Template...</option>';
             try {
-                const { data: { session } } = await _supabase.auth.getSession();
+                const { data: { session } = {} } = await _supabase.auth.getSession(); 
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-card-templates`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
@@ -517,7 +514,7 @@
             const status = statusFilter.value; 
 
             try {
-                const { data: { session } } = await _supabase.auth.getSession();
+                const { data: { session } = {} } = await _supabase.auth.getSession(); 
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-employees?page=${page}&limit=${itemsPerPage}&search=${searchTerm}&department=${departmentId}&status=active`, { 
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
@@ -650,7 +647,6 @@
             for (const emp of selectedEmployees) {
                 const cardDiv = document.createElement('div');
                 cardDiv.classList.add('employee-card');
-                // Apply orientation class to the cardDiv
                 cardDiv.classList.add(selectedTemplate.orientation || 'portrait'); 
 
                 const cardContentHtml = await generateCardHtml(emp, selectedTemplate);
@@ -692,7 +688,7 @@
 
                     if (key === "photo") { 
                         className += ' img';
-                        content = `<img src="${finalPhotoUrl}" style="width:100%;height:100%;object-fit:contain;" onerror="this.onerror=null;this.src='https://via.placeholder.com/80?text=Photo+Error'">`;
+                        content = `<img src="${finalPhotoUrl}" style="width:100%;height:100%;object-fit:contain;${style.borderRadius ? `border-radius:${style.borderRadius};` : ''}${style.border ? `border:${style.border};` : ''}" onerror="this.onerror=null;this.src='https://via.placeholder.com/80?text=Photo+Error'">`;
                     } else if (key === "logo") { 
                         className += ' img';
                         content = `<img src="${template.logo_url || 'https://via.placeholder.com/50?text=Logo'}" style="width:100%;height:100%;object-fit:contain;" onerror="this.onerror=null;this.src='https://via.placeholder.com/50?text=Logo+Error'">`;
@@ -745,106 +741,52 @@
             showMessage('กำลังสร้างไฟล์ PDF... อาจใช้เวลาสักครู่', 'info');
 
             try {
-                // Determine PDF orientation based on selected template
-                const pdfOrientation = selectedTemplate.orientation === 'landscape' ? 'landscape' : 'portrait';
-                const doc = new jsPDF({
-                    orientation: pdfOrientation, 
-                    unit: 'mm',
-                    format: 'a4'
+                // Prepare data for backend function
+                const employeesToPrint = allEmployees.filter(emp => selectedEmployeeIds.has(emp.id)).map(emp => ({
+                    id: emp.id,
+                    employee_id: emp.employee_id,
+                    name: emp.name,
+                    permanent_token: emp.permanent_token,
+                    photo_url: emp.photo_url,
+                    qr_code_url: emp.qr_code_url 
+                }));
+
+                const { data: { session } = {} } = await _supabase.auth.getSession(); 
+                const response = await fetch(`${baseUrl}/.netlify/functions/generate-print-pdf`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({
+                        employees: employeesToPrint,
+                        template: selectedTemplate
+                        // cardStandardWidthMm and cardStandardHeightMm are now fixed in backend
+                    })
                 });
 
-                // Calculate card dimensions for PDF based on standard ratio
-                let cardWidthMm, cardHeightMm;
-                if (selectedTemplate.orientation === 'landscape') {
-                    cardWidthMm = CARD_STANDARD_WIDTH_MM; // 85.6 mm
-                    cardHeightMm = CARD_STANDARD_HEIGHT_MM; // 53.98 mm
-                } else { // portrait
-                    cardWidthMm = CARD_STANDARD_HEIGHT_MM; // 53.98 mm
-                    cardHeightMm = CARD_STANDARD_WIDTH_MM; // 85.6 mm
-                }
-                
-                const scale = 3; 
-                
-                const margin = 10; 
-                let currentX = margin;
-                let currentY = margin;
-                
-                document.body.classList.add('print-area'); 
-
-                const selectedEmployeesForPdf = allEmployees.filter(emp => selectedEmployeeIds.has(emp.id));
-
-                for (let i = 0; i < selectedEmployeesForPdf.length; i++) {
-                    const emp = selectedEmployeesForPdf[i];
-                    
-                    const tempCardContainer = document.createElement('div');
-                    // Set fixed dimensions for html2canvas rendering
-                    if (selectedTemplate.orientation === 'portrait') {
-                        tempCardContainer.style.width = `${CARD_STANDARD_HEIGHT_MM * (96/25.4)}px`; // Convert mm to px for 96dpi
-                        tempCardContainer.style.height = `${CARD_STANDARD_WIDTH_MM * (96/25.4)}px`;
-                    } else { // landscape
-                        tempCardContainer.style.width = `${CARD_STANDARD_WIDTH_MM * (96/25.4)}px`;
-                        tempCardContainer.style.height = `${CARD_STANDARD_HEIGHT_MM * (96/25.4)}px`;
-                    }
-                    
-                    tempCardContainer.style.position = 'absolute';
-                    tempCardContainer.style.left = '-9999px'; 
-                    tempCardContainer.style.top = '-9999px';
-                    tempCardContainer.style.background = 'white'; 
-                    tempCardContainer.style.border = 'none'; 
-
-                    tempCardContainer.innerHTML = await generateCardHtml(emp, selectedTemplate);
-                    document.body.appendChild(tempCardContainer); 
-
-                    const qrCodeElement = tempCardContainer.querySelector('.card-element.qr > div');
-                    if (qrCodeElement && emp.permanent_token && window.QRCode) {
-                        const qrCodeData = `${baseUrl}/scanner?token=${emp.permanent_token}`;
-                        new QRCode(qrCodeElement, {
-                            text: qrCodeData,
-                            width: qrCodeElement.offsetWidth || 100,
-                            height: qrCodeElement.offsetHeight || 100,
-                            colorDark : "#000000",
-                            colorLight : "#ffffff",
-                            correctLevel : QRCode.CorrectLevel.H 
-                        });
-                    }
-
-                    await new Promise(resolve => setTimeout(resolve, 100)); 
-
-                    const canvas = await html2canvas(tempCardContainer, { scale: scale, logging: false, removeContainer: true }); 
-                    const imgData = canvas.toDataURL('image/jpeg', 0.9); 
-
-                    tempCardContainer.remove();
-
-                    // Position cards on PDF based on orientation and page size
-                    const page_width = doc.internal.pageSize.getWidth();
-                    const page_height = doc.internal.pageSize.getHeight();
-                    
-                    if (currentX + cardWidthMm > page_width - margin) {
-                        currentX = margin;
-                        currentY += cardHeightMm + margin;
-                    }
-                    if (currentY + cardHeightMm > page_height - margin) {
-                        doc.addPage();
-                        currentY = margin;
-                    }
-
-                    doc.addImage(imgData, 'JPEG', currentX, currentY, cardWidthMm, cardHeightMm);
-                    currentX += cardWidthMm + margin;
-
-                    pdfGenerationProgress.textContent = `กำลังสร้าง PDF... (${i + 1}/${selectedEmployeesForPdf.length} บัตร)`;
+                if (!response.ok) {
+                    const errorResult = await response.json();
+                    throw new Error(errorResult.message || 'Server error during PDF generation.');
                 }
 
-                document.body.classList.remove('print-area'); 
-                pdfGenerationProgress.style.display = 'none';
+                const result = await response.json();
+                const pdfDataUri = result.pdfData; 
 
-                doc.save('employee_cards.pdf');
+                const link = document.createElement('a');
+                link.href = pdfDataUri;
+                link.download = 'employee_cards.pdf';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
                 showMessage('สร้างไฟล์ PDF สำหรับพิมพ์สำเร็จ', 'success');
 
             } catch (error) {
                 console.error('Error generating PDF:', error);
                 showMessage('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF: ' + error.message, 'error');
-                pdfGenerationProgress.style.display = 'none';
             } finally {
+                pdfGenerationProgress.style.display = 'none';
                 printSelectedCardsBtn.disabled = false;
             }
         }
