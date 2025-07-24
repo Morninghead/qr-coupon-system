@@ -1,3 +1,4 @@
+
 // Import Supabase client library
 import { createClient } from '@supabase/supabase-js';
 
@@ -18,19 +19,22 @@ export const handler = async (event) => {
 
     try {
         const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(inputValue);
-        
+        const today = new Date().toISOString().split('T')[0]; // Current date for daily coupons
+
         let employee = null; 
         let couponToUseEmployeeId = null; 
+        let finalCouponType = null; // Store the coupon type that was used
+        let isPermanentTokenScan = false; // Flag to indicate if it's a permanent token scan
 
-        // --- ตรวจสอบ QR Code ชั่วคราว (temporary_coupon_requests) ก่อน ---
+        // --- 1. Check if the scanned UUID is an active temporary coupon request ---
         if (isUuid) { 
             const { data: tempRequest, error: tempReqError } = await supabaseAdmin
                 .from('temporary_coupon_requests')
-                .select('id, employee_id, status, expires_at, temp_employee_name, coupon_type') 
+                .select('id, employee_id, status, expires_at, temp_employee_name, temp_employee_identifier, coupon_type') 
                 .eq('issued_token', inputValue)
                 .single();
 
-            if (tempReqError && tempReqError.code !== 'PGRST116') {
+            if (tempReqError && tempReqError.code !== 'PGRST116') { // PGRST116 means "No rows found"
                  console.error("Error fetching temporary request:", tempReqError);
             }
 
@@ -39,10 +43,10 @@ export const handler = async (event) => {
                 const expiresAt = new Date(tempRequest.expires_at);
 
                 if (tempRequest.status === 'ISSUED' && now < expiresAt) {
-                    const updateData = { status: 'USED', used_at: new Date().toISOString() };
+                    const updateTempReqData = { status: 'USED', used_at: new Date().toISOString() };
                     const { error: updateTempReqError } = await supabaseAdmin
                         .from('temporary_coupon_requests')
-                        .update(updateData)
+                        .update(updateTempReqData)
                         .eq('id', tempRequest.id); 
 
                     if (updateTempReqError) {
@@ -56,55 +60,111 @@ export const handler = async (event) => {
                             }) 
                         };
                     }
+                    
+                    finalCouponType = tempRequest.coupon_type; // Store the coupon type from temp request
 
-                    // ถ้าเป็น QR ชั่วคราวสำหรับบุคคลใหม่/ไม่รู้จัก
+                    // If it's a temporary QR for a new/unknown individual
                     if (!tempRequest.employee_id) { 
                         return {
                             statusCode: 200,
                             body: JSON.stringify({
                                 success: true,
-                                status_code: 'APPROVED_TEMP_NEW', // สถานะใหม่: อนุมัติคูปองชั่วคราวสำหรับบุคคลใหม่
+                                status_code: 'APPROVED_TEMP_NEW', 
                                 message: `อนุมัติ (คูปองชั่วคราว)`,
                                 name: tempRequest.temp_employee_name || 'บุคคลชั่วคราว',
-                                employee_id: tempRequest.temp_employee_identifier || 'N/A', // ใช้ temp_employee_identifier
-                                coupon_type: tempRequest.coupon_type,
-                                used_at: updateData.used_at // ใช้เวลาที่อัปเดตไป
+                                employee_id: tempRequest.temp_employee_identifier || 'N/A', 
+                                coupon_type: finalCouponType,
+                                used_at: updateTempReqData.used_at 
                             }),
                         };
                     } else { 
-                        // ถ้าเป็น QR ชั่วคราวสำหรับพนักงานที่มีอยู่แล้ว (ยังต้องไปเช็ค Daily_Coupons)
-                        const { data: tempEmp, error: tempEmpError } = await supabaseAdmin
+                        // It's a temporary QR for an EXISTING employee (reusing permanent token)
+                        // This scan should now create/update a daily coupon entry
+                        const { data: empDetails, error: empDetailsError } = await supabaseAdmin
                             .from('employees')
-                            .select('id, name, employee_id, is_active') // เพิ่ม employee_id
-                            .eq('id', tempRequest.employee_id) 
+                            .select('id, name, employee_id, is_active')
+                            .eq('id', tempRequest.employee_id)
                             .single();
-
-                        if (tempEmpError || !tempEmp) {
-                            return { 
+                        
+                        if (empDetailsError || !empDetails) {
+                             console.error('Error fetching employee details for temp QR:', empDetailsError);
+                             return {
                                 statusCode: 404, 
-                                body: JSON.stringify({ 
-                                    success: false, 
-                                    status_code: 'EMP_NOT_FOUND_TEMP_QR', 
-                                    message: 'ไม่พบข้อมูลพนักงานที่ผูกกับ QR ชั่วคราวนี้' 
-                                }) 
+                                body: JSON.stringify({
+                                    success: false,
+                                    status_code: 'EMP_NOT_FOUND_FOR_TEMP_QR',
+                                    message: 'ไม่พบข้อมูลพนักงานที่ผูกกับ QR ชั่วคราวนี้',
+                                    name: tempRequest.temp_employee_name || 'พนักงาน',
+                                    employee_id: tempRequest.temp_employee_identifier || 'N/A',
+                                    coupon_type: finalCouponType
+                                }),
                             };
                         }
-                        if (!tempEmp.is_active) {
+                        if (!empDetails.is_active) {
                             return { 
                                 statusCode: 403, 
                                 body: JSON.stringify({ 
                                     success: false, 
                                     status_code: 'EMP_INACTIVE', 
                                     message: 'พนักงานที่ผูกกับ QR ชั่วคราวนี้ไม่มีสถานะใช้งาน', 
-                                    name: tempEmp.name, 
-                                    employee_id: tempEmp.employee_id 
+                                    name: empDetails.name, 
+                                    employee_id: empDetails.employee_id,
+                                    coupon_type: finalCouponType
                                 }) 
                             };
                         }
-                        
-                        employee = tempEmp;
-                        couponToUseEmployeeId = tempEmp.id;
-                        // Logic การหาคูปองรายวันจะดำเนินต่อด้านล่าง
+
+                        // Try to find an existing READY daily coupon or create a new USED one
+                        const { data: existingDailyCoupon, error: dailyCouponError } = await supabaseAdmin
+                            .from('daily_coupons')
+                            .select('id, status, used_at')
+                            .eq('employee_id', empDetails.id)
+                            .eq('coupon_date', today)
+                            .eq('coupon_type', finalCouponType) 
+                            .single();
+
+                        const dailyCouponUseTime = new Date().toISOString();
+                        let finalUsedAt = dailyCouponUseTime; // Default to current scan time
+
+                        if (existingDailyCoupon && existingDailyCoupon.status === 'READY') {
+                            // If READY coupon exists, update it to USED
+                            const { error: updateDailyError } = await supabaseAdmin
+                                .from('daily_coupons')
+                                .update({ status: 'USED', used_at: dailyCouponUseTime })
+                                .eq('id', existingDailyCoupon.id);
+                            if (updateDailyError) throw updateDailyError;
+                            
+                        } else if (!existingDailyCoupon) {
+                            // If no coupon exists, insert a new USED one
+                            const { error: insertDailyError } = await supabaseAdmin
+                                .from('daily_coupons')
+                                .insert({
+                                    employee_id: empDetails.id,
+                                    coupon_date: today,
+                                    coupon_type: finalCouponType,
+                                    status: 'USED',
+                                    used_at: dailyCouponUseTime
+                                });
+                            if (insertDailyError) throw insertDailyError;
+                        } else if (existingDailyCoupon.status === 'USED') {
+                            // If already USED, log a warning but still approve the temporary usage
+                            console.warn(`Daily coupon for ${empDetails.employee_id} (type: ${finalCouponType}) was already USED today.`);
+                            finalUsedAt = existingDailyCoupon.used_at || dailyCouponUseTime; // Use existing used_at if available
+                        }
+
+                        // Return success for the temporary coupon usage for existing employee
+                        return {
+                            statusCode: 200,
+                            body: JSON.stringify({
+                                success: true,
+                                status_code: 'APPROVED_DAILY', // Report as a standard daily coupon usage
+                                message: `อนุมัติ`,
+                                name: empDetails.name,
+                                employee_id: empDetails.employee_id,
+                                coupon_type: finalCouponType,
+                                used_at: finalUsedAt 
+                            }),
+                        };
                     }
                 } else if (tempRequest.status === 'USED') {
                      return { 
@@ -143,17 +203,23 @@ export const handler = async (event) => {
                         }) 
                     };
                 }
+            } else {
+                // If tempRequest is null, it means the UUID scanned is NOT an issued_token in temporary_coupon_requests.
+                // In this case, proceed with it being a permanent token scan.
+                isPermanentTokenScan = true;
             }
+        } else {
+            // If inputValue is not a UUID, it must be an employee_id (permanent scan)
+            isPermanentTokenScan = true;
         }
-        // --- สิ้นสุดการตรวจสอบ QR Code ชั่วคราว ---
 
-        // ถ้ายังไม่พบข้อมูลพนักงานผ่าน QR ชั่วคราว หรือ input ไม่ใช่ UUID, ให้ใช้ Logic เดิม
-        if (!employee) { 
-            let query = supabaseAdmin.from('employees').select('id, name, employee_id, is_active'); // เพิ่ม employee_id
+        // --- 2. If it's a permanent token scan (either direct or UUID not found in temp requests) ---
+        if (isPermanentTokenScan) { 
+            let query = supabaseAdmin.from('employees').select('id, name, employee_id, is_active, permanent_token'); 
             
-            if (isUuid) { 
+            if (isUuid) { // If it's a UUID, check permanent_token
                 query = query.eq('permanent_token', inputValue);
-            } else { 
+            } else { // If not a UUID, assume employee_id
                 query = query.eq('employee_id', inputValue);
             }
 
@@ -184,56 +250,54 @@ export const handler = async (event) => {
             }
             employee = fetchedEmployee;
             couponToUseEmployeeId = fetchedEmployee.id; 
-        }
 
-        // 3. ค้นหาคูปองที่พร้อมใช้งานสำหรับวันนี้ใน daily_coupons (สำหรับพนักงานหลักหรือ QR ชั่วคราวที่ผูกกับพนักงานหลัก)
-        const today = new Date().toISOString().split('T')[0];
+            // 3. Find a READY daily coupon for today
+            const { data: availableCoupon, error: couponError } = await supabaseAdmin
+                .from('daily_coupons')
+                .select('id, coupon_type, used_at') 
+                .eq('employee_id', couponToUseEmployeeId) 
+                .eq('coupon_date', today)
+                .eq('status', 'READY')
+                .limit(1)
+                .single();
 
-        const { data: availableCoupon, error: couponError } = await supabaseAdmin
-            .from('daily_coupons')
-            .select('id, coupon_type, used_at') // เพิ่ม used_at
-            .eq('employee_id', couponToUseEmployeeId) 
-            .eq('coupon_date', today)
-            .eq('status', 'READY')
-            .limit(1)
-            .single();
+            if (couponError || !availableCoupon) {
+                console.error('Coupon fetch error:', couponError);
+                return {
+                    statusCode: 404,
+                    body: JSON.stringify({
+                        success: false,
+                        status_code: 'COUPON_NOT_READY',
+                        message: 'ไม่พบสิทธิ์คูปองที่พร้อมใช้งานสำหรับวันนี้',
+                        name: employee.name,
+                        employee_id: employee.employee_id,
+                    }),
+                };
+            }
 
-        if (couponError || !availableCoupon) {
-            console.error('Coupon fetch error:', couponError);
+            // 4. Update the daily coupon status to USED
+            const updateData = { status: 'USED', used_at: new Date().toISOString() };
+            const { error: updateError } = await supabaseAdmin
+                .from('daily_coupons')
+                .update(updateData)
+                .eq('id', availableCoupon.id);
+
+            if (updateError) throw updateError;
+
+            // 5. Return "Approved" result
             return {
-                statusCode: 404,
+                statusCode: 200,
                 body: JSON.stringify({
-                    success: false,
-                    status_code: 'COUPON_NOT_READY',
-                    message: 'ไม่พบสิทธิ์คูปองที่พร้อมใช้งานสำหรับวันนี้',
+                    success: true,
+                    status_code: 'APPROVED_DAILY', 
+                    message: `อนุมัติ`,
                     name: employee.name,
                     employee_id: employee.employee_id,
+                    coupon_type: availableCoupon.coupon_type,
+                    used_at: updateData.used_at 
                 }),
             };
-        }
-
-        // 4. อัปเดตสถานะคูปองใน daily_coupons เป็น USED
-        const updateData = { status: 'USED', used_at: new Date().toISOString() };
-        const { error: updateError } = await supabaseAdmin
-            .from('daily_coupons')
-            .update(updateData)
-            .eq('id', availableCoupon.id);
-
-        if (updateError) throw updateError;
-
-        // 5. ส่งผลลัพธ์ว่า "อนุมัติ"
-        return {
-            statusCode: 200,
-            body: JSON.stringify({
-                success: true,
-                status_code: 'APPROVED_DAILY', // สถานะใหม่: อนุมัติคูปองรายวันปกติ
-                message: `อนุมัติ`,
-                name: employee.name,
-                employee_id: employee.employee_id,
-                coupon_type: availableCoupon.coupon_type,
-                used_at: updateData.used_at // ใช้เวลาที่อัปเดตไป
-            }),
-        };
+        } // End of isPermanentTokenScan block
 
     } catch (error) {
         console.error('Error in scan function:', error); 

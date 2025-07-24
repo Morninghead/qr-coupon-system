@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import qrcode from 'qrcode';
@@ -52,7 +53,9 @@ export const handler = async (event, context) => {
 
         let targetEmployeeId = null; 
         let displayEmployeeName = ''; 
-        let isNewTempEmployee = false; // <<< นี่คือการประกาศตัวแปร isNewTempEmployee ที่ถูกต้อง
+        let isNewTempEmployee = false;
+        let issuedTokenToUse = null; // Variable to hold the token that will be issued
+        let qrCodePublicUrl = null; // To store the URL of the QR code (either new or permanent)
 
         // --- 3. จัดการตามประเภทของพนักงานที่เลือก ---
         if (selected_employee_type === 'existing') {
@@ -61,7 +64,7 @@ export const handler = async (event, context) => {
             }
             const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(employee_identifier);
             
-            let employeeQuery = supabaseAdmin.from('employees').select('id, employee_id, name, is_active'); // แก้ไข: 'employees'
+            let employeeQuery = supabaseAdmin.from('employees').select('id, employee_id, name, is_active, permanent_token'); // Fetch permanent_token
             if (isUuid) {
                 employeeQuery = employeeQuery.eq('permanent_token', employee_identifier);
             } else {
@@ -78,27 +81,51 @@ export const handler = async (event, context) => {
             }
             targetEmployeeId = employee.id;
             displayEmployeeName = employee.name;
+            issuedTokenToUse = employee.permanent_token; // Use permanent_token as issued_token
+
+            // For existing employees, we are reusing their permanent QR.
+            // The QR code URL points to the permanent scanner URL with their permanent token.
+            qrCodePublicUrl = `${BASE_SCANNER_URL}?token=${issuedTokenToUse}`;
 
         } else if (selected_employee_type === 'new-temp') {
-            isNewTempEmployee = true; // กำหนดค่าให้กับตัวแปร
+            isNewTempEmployee = true;
             if (!temp_employee_name) {
                 return { statusCode: 400, body: JSON.stringify({ success: false, message: 'กรุณากรอกชื่อ-สกุลของบุคคลชั่วคราว' }) };
             }
             targetEmployeeId = null;
             displayEmployeeName = temp_employee_name;
+            issuedTokenToUse = randomUUID(); // Generate a new UUID for new temporary employees
+
+            // For new temporary employees, generate and upload a new QR code image.
+            const qrCodeData = `${BASE_SCANNER_URL}?token=${issuedTokenToUse}`;
+            const qrCodeFileName = `temp-${randomUUID()}.png`; // Ensure unique filename for temporary QRs
+            
+            const qrCodeBuffer = await qrcode.toBuffer(qrCodeData, { type: 'png', errorCorrectionLevel: 'H' });
+
+            const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+                .from(TEMP_QR_CODE_BUCKET)
+                .upload(qrCodeFileName, qrCodeBuffer, {
+                    contentType: 'image/png',
+                    upsert: true              
+                });
+
+            if (uploadError) {
+                console.error(`Error uploading temporary QR for ${displayEmployeeName}:`, uploadError);
+                return { statusCode: 500, body: JSON.stringify({ success: false, message: `QR Code ถูกสร้างแต่ไม่สามารถอัปโหลดได้: ${uploadData?.message || uploadError.message}` }) };
+            }
+            qrCodePublicUrl = `${supabaseUrl}/storage/v1/object/public/${TEMP_QR_CODE_BUCKET}/${qrCodeFileName}`;
 
         } else {
             return { statusCode: 400, body: JSON.stringify({ success: false, message: 'ประเภทพนักงานที่เลือกไม่ถูกต้อง' }) };
         }
 
         // --- 4. สร้าง Temporary Token และกำหนดวันหมดอายุ ---
-        const temporaryToken = randomUUID(); 
         const now = new Date();
         const expiresAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); 
 
         // --- 5. บันทึกข้อมูลคำขอชั่วคราวลงในตาราง temporary_coupon_requests ---
         const { data: requestData, error: insertRequestError } = await supabaseAdmin
-            .from('temporary_coupon_requests') // แก้ไข: 'temporary_coupon_requests'
+            .from('temporary_coupon_requests')
             .insert({
                 employee_id: targetEmployeeId,     
                 temp_employee_name: isNewTempEmployee ? temp_employee_name : null, 
@@ -106,7 +133,7 @@ export const handler = async (event, context) => {
                 reason: reason,
                 status: 'ISSUED',             
                 issued_by: user.id,           
-                issued_token: temporaryToken, 
+                issued_token: issuedTokenToUse, // Use the determined token
                 expires_at: expiresAt.toISOString(), 
                 coupon_type: coupon_type      
             })
@@ -118,33 +145,15 @@ export const handler = async (event, context) => {
             return { statusCode: 500, body: JSON.stringify({ success: false, message: `ไม่สามารถบันทึกคำขอคูปองชั่วคราวได้: ${insertRequestError.message}` }) };
         }
 
-        // --- 6. สร้างและอัปโหลด QR Code ชั่วคราว ---
-        const qrCodeData = `${BASE_SCANNER_URL}?token=${temporaryToken}`;
-        const qrCodeFileName = `temp-${selected_employee_type === 'new-temp' ? 'new-' + randomUUID() : employee_identifier}-${temporaryToken}.png`; 
-
-        const qrCodeBuffer = await qrcode.toBuffer(qrCodeData, { type: 'png', errorCorrectionLevel: 'H' });
-
-        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-            .from(TEMP_QR_CODE_BUCKET)
-            .upload(qrCodeFileName, qrCodeBuffer, {
-                contentType: 'image/png',
-                upsert: true              
-            });
-
-        if (uploadError) {
-            console.error(`Error uploading temporary QR for ${displayEmployeeName}:`, uploadError);
-            return { statusCode: 500, body: JSON.stringify({ success: false, message: `QR Code ถูกสร้างแต่ไม่สามารถอัปโหลดได้: ${uploadData?.message || uploadError.message}` }) };
-        }
-
-        // --- 7. ส่งผลลัพธ์สำเร็จกลับไปยัง Frontend ---
+        // --- 6. ส่งผลลัพธ์สำเร็จกลับไปยัง Frontend ---
         return {
             statusCode: 200,
             body: JSON.stringify({
                 success: true,
                 message: `ออก QR Code ชั่วคราวสำหรับ ${displayEmployeeName} สำเร็จ`,
-                temporaryToken: temporaryToken, 
+                temporaryToken: issuedTokenToUse, 
                 expiresAt: expiresAt.toISOString(), 
-                qrCodeUrl: `${supabaseUrl}/storage/v1/object/public/${TEMP_QR_CODE_BUCKET}/${qrCodeFileName}`
+                qrCodeUrl: qrCodePublicUrl // Send the appropriate QR code URL
             }),
         };
 
