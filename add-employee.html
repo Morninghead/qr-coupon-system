@@ -72,18 +72,62 @@
         .form-section label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark-gray); }
         select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         textarea { height: 150px; resize: vertical; margin-bottom: 16px; }
-        .button-group { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
-        .submit-btn, .import-btn, .download-template-btn { padding: 12px 24px; font-size: 16px; font-weight: 600; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        .button-group { display: flex; gap: 12px; align-items: center; margin-top: 16px; flex-wrap: wrap;} /* Added flex-wrap */
+        .submit-btn, .import-btn, .download-template-btn, .add-row-btn { padding: 12px 24px; font-size: 16px; font-weight: 600; color: white; border: none; border-radius: 8px; cursor: pointer; }
         .submit-btn { background-color: var(--primary-color); }
         .submit-btn:disabled { background-color: #A5B4FC; cursor: not-allowed; }
         .import-btn { background-color: var(--secondary-color); }
-        .download-template-btn { background-color: #10B981; } /* Success color for download */
+        .download-template-btn { background-color: #10B981; } 
+        .add-row-btn { background-color: #3B82F6; } /* Blue for add row */
         input[type="file"] { display: none; }
         .file-preview { font-size: 14px; color: var(--text-gray); margin-top: 12px; font-weight: 500; min-height: 20px; }
         #result-message { margin-top: 24px; padding: 16px; border-radius: 8px; display: none; white-space: pre-wrap; }
         .result-success { background-color: #D1FAE5; color: #065F46; }
         .result-error { background-color: #FEE2E2; color: #991B1B; }
         .result-info { background-color: #E0E7FF; color: #3730A3; }
+
+        /* Styles for individual employee rows */
+        .employee-input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+        }
+        .employee-input-row input {
+            flex-grow: 1; /* Allow inputs to grow */
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+            min-width: 120px; /* Minimum width for each input */
+        }
+        .employee-input-row .remove-row-btn {
+            background-color: #EF4444; /* Red for remove */
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+        .employee-input-header {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+        .employee-input-header span {
+            flex-grow: 1;
+            min-width: 120px;
+            padding-left: 10px; /* Align with input padding */
+        }
+        .employee-input-header span:last-child {
+             min-width: auto; /* For the remove button column */
+        }
     </style>
 </head>
 <body>
@@ -102,15 +146,33 @@
             </div>
             <div class="form-container">
                 <div class="form-section">
-                    <label>เพิ่มข้อมูลพนักงาน (วางข้อมูล หรือ นำเข้าไฟล์)</label>
-                    <textarea id="employees-textarea" placeholder="วางข้อมูลจาก Excel ที่นี่ (คอลัมน์ Employee_ID, Name, และ Department - แผนกไม่บังคับ)&#10;ตัวอย่าง:&#10;Employee_ID	Name	Department&#10;12345	สมชาย ดีใจ	Production&#10;12346	สมศรี ยิ้มแย้ม	HR&#10;12347	จอห์น โด"></textarea>
+                    <h2>นำเข้าจากไฟล์ Excel / วางข้อมูล</h2>
+                    <p>ดาวน์โหลด Template เพื่อนำเข้าข้อมูลพนักงาน (แนะนำ)</p>
+                    <div class="button-group">
+                        <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
+                        <input type="file" id="file-input" accept=".csv, .xlsx">
+                        <button id="download-template-btn" class="download-template-btn">⬇️ Download Template</button>
+                    </div>
                     <div class="file-preview" id="file-preview"></div>
                 </div>
+
+                <div class="form-section">
+                    <h2>เพิ่มข้อมูลพนักงานรายบุคคล</h2>
+                    <p>กรอกข้อมูลพนักงานแต่ละคน (เพิ่มได้ครั้งละ 10 คน)</p>
+                    <div class="employee-input-header">
+                        <span style="flex-basis: 30%;">รหัสพนักงาน (บังคับ)</span>
+                        <span style="flex-basis: 30%;">ชื่อ-สกุล (บังคับ)</span>
+                        <span style="flex-basis: 30%;">แผนก (ไม่บังคับ)</span>
+                        <span style="flex-basis: 5%;"></span> </div>
+                    <div id="employee-inputs-container">
+                        </div>
+                    <div class="button-group" style="justify-content: flex-start;">
+                        <button id="add-row-btn" class="add-row-btn">➕ เพิ่ม 10 แถว</button>
+                    </div>
+                </div>
+
                 <div class="button-group">
-                    <button id="submit-btn" class="submit-btn" disabled>เพิ่มพนักงาน</button>
-                    <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
-                    <input type="file" id="file-input" accept=".csv, .xlsx">
-                    <button id="download-template-btn" class="download-template-btn">⬇️ Download Template</button>
+                    <button id="submit-btn" class="submit-btn">เพิ่มพนักงาน</button>
                 </div>
                 <div id="result-message"></div>
             </div>
@@ -121,16 +183,18 @@
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
 
-        const departmentSelect = document.getElementById('department-select'); // This element is removed from HTML but was referenced. Removing from JS too.
-        const employeesTextarea = document.getElementById('employees-textarea');
         const fileInput = document.getElementById('file-input');
+        const downloadTemplateBtn = document.getElementById('download-template-btn');
         const filePreview = document.getElementById('file-preview');
         const submitBtn = document.getElementById('submit-btn');
-        const downloadTemplateBtn = document.getElementById('download-template-btn'); // New
         const resultMessageDiv = document.getElementById('result-message');
+        const employeeInputsContainer = document.getElementById('employee-inputs-container'); // New
+        const addRowBtn = document.getElementById('add-row-btn'); // New
+
         const baseUrl = window.location.origin;
 
         let employeesToSubmit = []; // Array of { employee_id, name, department_name }
+        const MAX_ROWS_PER_BATCH = 50; // Limit total rows to prevent performance issues
 
         async function initializeApp() {
             try {
@@ -141,9 +205,7 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    // No need to load departments into a select box if department is imported directly.
-                    // If you still want a department filter/display for other purposes on this page, keep it.
-                    // If not, remove departmentSelect related code.
+                    addEmptyEmployeeRows(10); // Add 10 empty rows initially
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
@@ -153,83 +215,148 @@
             }
         }
 
-        function parseEmployeeData(data) {
+        // Function to add empty employee input rows
+        function addEmptyEmployeeRows(count = 1) {
+            if (employeeInputsContainer.children.length + count > MAX_ROWS_PER_BATCH) {
+                showMessage(`ไม่สามารถเพิ่มเกิน ${MAX_ROWS_PER_BATCH} แถวในครั้งเดียวได้`, 'warning');
+                return;
+            }
+            for (let i = 0; i < count; i++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.classList.add('employee-input-row');
+                rowDiv.innerHTML = `
+                    <input type="text" placeholder="รหัสพนักงาน" class="employee-id-input">
+                    <input type="text" placeholder="ชื่อ-สกุล" class="employee-name-input">
+                    <input type="text" placeholder="แผนก (ไม่บังคับ)" class="employee-department-input">
+                    <button type="button" class="remove-row-btn">ลบ</button>
+                `;
+                employeeInputsContainer.appendChild(rowDiv);
+                rowDiv.querySelector('.remove-row-btn').addEventListener('click', () => {
+                    rowDiv.remove();
+                    updateSubmitButtonStatus(); // Update status after removing a row
+                });
+                // Add event listeners to input fields for validation/button status
+                rowDiv.querySelectorAll('input').forEach(input => {
+                    input.addEventListener('input', updateSubmitButtonStatus);
+                });
+            }
+            updateSubmitButtonStatus(); // Update status after adding rows
+        }
+
+        // Update submit button status based on form validity
+        function updateSubmitButtonStatus() {
+            const allRows = Array.from(employeeInputsContainer.children);
+            let hasValidInput = false;
+            // Check if at least one row has valid Employee ID and Name
+            for (const row of allRows) {
+                const empId = row.querySelector('.employee-id-input').value.trim();
+                const empName = row.querySelector('.employee-name-input').value.trim();
+                if (empId && empName) {
+                    hasValidInput = true;
+                    break;
+                }
+            }
+            // If any rows from file import exist, also enable button
+            if (employeesToSubmit.length > 0) {
+                submitBtn.disabled = false;
+            } else {
+                submitBtn.disabled = !hasValidInput;
+            }
+        }
+
+
+        // Function to parse employee data from imported file or textarea (still used for file import)
+        function parseEmployeeDataFromFile(data) {
             if (data.length < 2) throw new Error('ไฟล์/ข้อมูลว่างเปล่าหรือมีแค่หัวข้อ');
             const header = data[0].map(h => String(h).toLowerCase().trim());
             const idIndex = header.indexOf('employee_id');
             const nameIndex = header.indexOf('name');
-            const departmentIndex = header.indexOf('department'); // New: Find department column
+            const departmentIndex = header.indexOf('department'); 
 
             if (idIndex === -1 || nameIndex === -1) {
-                throw new Error('ไม่พบคอลัมน์ "employee_id" และ/หรือ "name" ที่จำเป็น');
+                throw new Error('ไม่พบคอลัมน์ "employee_id" และ/หรือ "name" ที่จำเป็นในไฟล์');
             }
 
             return data.slice(1).map(row => ({
                 employee_id: String(row[idIndex]).trim(),
                 name: String(row[nameIndex]).trim(),
-                department_name: departmentIndex !== -1 && row[departmentIndex] ? String(row[departmentIndex]).trim() : null // New: Get department name, allow null
-            })).filter(emp => emp.employee_id && emp.name); // Still require ID and Name
+                department_name: departmentIndex !== -1 && row[departmentIndex] ? String(row[departmentIndex]).trim() : null
+            })).filter(emp => emp.employee_id && emp.name);
         }
 
-        function handleFile(file) {
+        // Handle file import
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
             if (!file) return;
+
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (event) => { // Made async to allow await
                 try {
-                    const data = new Uint8Array(e.target.result);
+                    const data = new Uint8Array(event.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-                    employeesToSubmit = parseEmployeeData(jsonData);
-                    filePreview.textContent = `พบ ${employeesToSubmit.length} รายการในไฟล์ "${file.name}"`;
-                    employeesTextarea.value = '';
-                    submitBtn.disabled = false;
+                    employeesToSubmit = parseEmployeeDataFromFile(jsonData); // Data from file
+                    
+                    if (employeesToSubmit.length > 0) {
+                        employeeInputsContainer.innerHTML = ''; // Clear individual input rows if file imported
+                        filePreview.textContent = `พบ ${employeesToSubmit.length} รายการในไฟล์ "${file.name}" พร้อมสำหรับการเพิ่ม`;
+                        showMessage(`เตรียมข้อมูล ${employeesToSubmit.length} รายการจากไฟล์`, 'info');
+                    } else {
+                        filePreview.textContent = `ไม่พบข้อมูลที่ถูกต้องในไฟล์ "${file.name}"`;
+                        showMessage('ไม่พบข้อมูลที่ถูกต้องในไฟล์', 'error');
+                    }
+                    updateSubmitButtonStatus();
+                    fileInput.value = ''; // Clear file input
                 } catch (err) {
-                    filePreview.textContent = `ผิดพลาด: ${err.message}`;
-                    submitBtn.disabled = true;
+                    filePreview.textContent = `ผิดพลาดในการอ่านไฟล์: ${err.message}`;
+                    showMessage(`ผิดพลาดในการอ่านไฟล์: ${err.message}`, 'error');
+                    updateSubmitButtonStatus();
                 }
             };
             reader.readAsArrayBuffer(file);
-        }
-
-        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-
-        employeesTextarea.addEventListener('input', () => {
-             try {
-                const textData = employeesTextarea.value.trim();
-                if (!textData) {
-                    employeesToSubmit = [];
-                    submitBtn.disabled = true;
-                    filePreview.textContent = ''; // Clear file preview if textarea is cleared
-                    return;
-                }
-                // Handle tab-separated data from Excel paste
-                const rows = textData.split('\n').map(row => row.split('\t'));
-                employeesToSubmit = parseEmployeeData(rows);
-                filePreview.textContent = `พบ ${employeesToSubmit.length} รายการจากที่วาง`;
-                fileInput.value = ''; // Clear file input if pasting
-                submitBtn.disabled = false;
-             } catch(err) {
-                 filePreview.textContent = `ผิดพลาด: ${err.message}`;
-                 submitBtn.disabled = true;
-             }
         });
 
         // Download Template functionality
         downloadTemplateBtn.addEventListener('click', () => {
             const worksheet = XLSX.utils.aoa_to_sheet([
-                ["Employee_ID", "Name", "Department"] // Header row
+                ["Employee_ID", "Name", "Department"] 
             ]);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
             XLSX.writeFile(workbook, "employee_template.xlsx");
         });
 
+        // Add Row button
+        addRowBtn.addEventListener('click', () => addEmptyEmployeeRows(10));
+
 
         submitBtn.addEventListener('click', async () => {
-            // Removed departmentSelect.value as department is now per employee
-            if (employeesToSubmit.length === 0) {
+            let finalEmployeesToProcess = [];
+
+            // Case 1: Data from file import takes precedence
+            if (employeesToSubmit.length > 0) {
+                finalEmployeesToProcess = employeesToSubmit;
+            } else {
+                // Case 2: Data from individual input rows
+                const allRows = Array.from(employeeInputsContainer.children);
+                for (const row of allRows) {
+                    const empId = row.querySelector('.employee-id-input').value.trim();
+                    const empName = row.querySelector('.employee-name-input').value.trim();
+                    const empDepartment = row.querySelector('.employee-department-input').value.trim();
+
+                    if (empId && empName) { // Only process rows with both ID and Name
+                        finalEmployeesToProcess.push({
+                            employee_id: empId,
+                            name: empName,
+                            department_name: empDepartment || null // Use null if empty
+                        });
+                    }
+                }
+            }
+            
+            if (finalEmployeesToProcess.length === 0) {
                 showResult('ไม่มีข้อมูลพนักงานให้เพิ่ม', 'error');
                 return;
             }
@@ -246,7 +373,7 @@
                         'Authorization': `Bearer ${session.access_token}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ employees: employeesToSubmit /* department_id is no longer a single value */ })
+                    body: JSON.stringify({ employees: finalEmployeesToProcess })
                 });
 
                 const result = await response.json();
@@ -256,16 +383,17 @@
                 if (result.duplicates && result.duplicates.length > 0) {
                     finalMessage += `\nรหัสซ้ำ (ไม่ถูกเพิ่ม): ${result.duplicates.join(', ')}`;
                 }
-                if (result.invalidDepartments && result.invalidDepartments.length > 0) { // New: Show invalid departments
+                if (result.invalidDepartments && result.invalidDepartments.length > 0) {
                     finalMessage += `\nแผนกไม่ถูกต้อง (ไม่ถูกผูกกับแผนก): ${result.invalidDepartments.join(', ')}`;
                 }
                 showResult(finalMessage, 'success');
 
                 setTimeout(() => {
-                    employeesTextarea.value = '';
-                    fileInput.value = '';
-                    filePreview.textContent = '';
+                    // Clear all data sources after successful submission
                     employeesToSubmit = [];
+                    employeeInputsContainer.innerHTML = ''; // Clear individual input rows
+                    filePreview.textContent = '';
+                    addEmptyEmployeeRows(10); // Add initial empty rows back
                     resultMessageDiv.style.display = 'none'; 
                 }, 5000); 
 
@@ -274,6 +402,7 @@
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'เพิ่มพนักงาน';
+                updateSubmitButtonStatus(); // Re-evaluate button status
             }
         });
 
