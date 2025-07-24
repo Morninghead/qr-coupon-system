@@ -121,6 +121,10 @@
                     <h2>🖨️ พิมพ์บัตรพนักงาน</h2>
                     <p>สร้างและพิมพ์บัตรประจำตัวพนักงานพร้อม QR Code</p>
                 </a>
+                <a class='menu-item' href='/manage-employees.html' id='menu-manage-employees'>
+                    <h2>👥 จัดการรายชื่อพนักงาน</h2>
+                    <p>แก้ไข, ลบ, ดูสถานะพนักงานทั้งหมด</p>
+                </a>
                 <a class='menu-item' href='/scanner.html' id='menu-scanner'>
                     <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
                     <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
@@ -154,9 +158,9 @@
         }
 
         function displayMenusByRole(role) {
-            const publicMenus = ['menu-scanner', 'menu-reports', 'menu-daily-scan-report-standalone']; // <<< เพิ่ม ID เมนูใหม่
-            const adminMenus = ['menu-add-employee', 'menu-grant-coupons', 'menu-upload-employee-photo', 'menu-print-employee-cards']; // <<< เพิ่ม ID เมนูสำหรับ Admin
-            const superuserOnlyMenus = ['menu-issue-temp-coupon']; // ถ้าต้องการให้ superuser เท่านั้นที่ออกคูปองชั่วคราวได้
+            const publicMenus = ['menu-scanner', 'menu-reports', 'menu-daily-scan-report-standalone']; 
+            const adminMenus = ['menu-add-employee', 'menu-grant-coupons', 'menu-upload-employee-photo', 'menu-print-employee-cards']; 
+            const superuserOnlyMenus = ['menu-issue-temp-coupon', 'menu-manage-employees']; // <<< เพิ่ม ID เมนูใหม่ 'menu-manage-employees' ที่นี่
 
             publicMenus.forEach(id => {
                 const menuItem = document.getElementById(id);
@@ -170,7 +174,7 @@
                 });
             }
             
-            if (role === 'superuser') { // ถ้ามีเมนูสำหรับ Superuser เท่านั้น
+            if (role === 'superuser') { 
                 superuserOnlyMenus.forEach(id => {
                     const menuItem = document.getElementById(id);
                     if (menuItem) menuItem.style.display = 'block';
