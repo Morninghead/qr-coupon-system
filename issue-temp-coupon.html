@@ -109,9 +109,7 @@
             border-radius: 4px;
             display: none; /* ซ่อนไว้ในตอนแรก */
         }
-        .hidden {
-            display: none !important;
-        }
+        .hidden { display: none !important; }
         .unauthorized-container {
             display: flex;
             justify-content: center;
@@ -201,7 +199,7 @@
         <div class="container">
             <div class="header">
                 <h1>ออกคูปอง</h1>
-                <a href="/menu.html" class="back-link">กลับสู่เมนูหลัก</a>
+                <a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
             </div>
 
             <div class="form-section">
@@ -259,7 +257,9 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.0.0/qrcode.min.js"></script> <script>
+    <script src="/js/qrcode.min.js"></script>
+
+    <script>
         const mainContent = document.getElementById('main-content');
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
@@ -385,7 +385,7 @@
                 qrCodeInfo.textContent = `รหัสคูปอง: ${result.coupon_code}`;
                 qrCodeDisplay.classList.remove('hidden');
                 employeeIdInput.value = '';
-                couponAmountEmployeeInput.value = '45'; // Reset to 45
+                couponAmountEmployeeInput.value = '45';
 
             } catch (error) {
                 console.error('Issue Employee Coupon Error:', error);
@@ -439,7 +439,7 @@
                                 coupon_value: parseInt(e.target.dataset.amount) // ใช้ค่า amount จากที่ค้นหา
                             };
                             tempEmployeeNameInput.value = selectedTempEmployeeForReactivation.temp_employee_name;
-                            couponAmountTemporaryInput.value = selectedTempEmployeeForReactivation.coupon_value; // แสดง amount ที่ค้นหามาได้
+                            couponAmountTemporaryInput.value = selectedTempEmployeeForReactivation.coupon_value;
                             issueTemporaryCouponBtn.textContent = 'เปิดใช้งาน QR Code เดิม';
                             showMessage(`เลือก ${selectedTempEmployeeForReactivation.temp_employee_name} แล้ว. กด "เปิดใช้งาน QR Code เดิม" เพื่อออกคูปอง`, 'info');
                             qrCodeDisplay.classList.add('hidden');
@@ -451,3 +451,166 @@
                     tempEmployeeSearchResults.classList.remove('hidden');
                     noTempResultsMessage.classList.remove('hidden');
                     showMessage('ไม่พบประวัติที่ตรงกัน คุณสามารถกรอกชื่อและออก QR Code ใหม่ได้เลย', 'info');
+
+                }
+            } catch (error) {
+                console.error('Search Temp Employee Error:', error);
+                showMessage(`ผิดพลาดในการค้นหา: ${error.message}`, 'error');
+            } finally {
+                // searchTempEmployeeBtn.disabled = false;
+            }
+        });
+
+        issueTemporaryCouponBtn.addEventListener('click', async () => {
+            const tempEmployeeName = tempEmployeeNameInput.value.trim();
+            const amount = parseInt(couponAmountTemporaryInput.value);
+
+            if (!tempEmployeeName || isNaN(amount) || amount <= 0) {
+                showMessage('กรุณากรอกชื่อบุคคลชั่วคราวและจำนวนคูปองให้ถูกต้อง', 'error');
+                return;
+            }
+
+            issueTemporaryCouponBtn.disabled = true;
+            showMessage('กำลังดำเนินการ...', 'info');
+            qrCodeDisplay.classList.add('hidden');
+
+            try {
+                let requestBody = {
+                    temp_employee_name: tempEmployeeName,
+                    amount: amount,
+                };
+
+                if (selectedTempEmployeeForReactivation && issueTemporaryCouponBtn.textContent === 'เปิดใช้งาน QR Code เดิม') {
+                    requestBody.reactivate_token = selectedTempEmployeeForReactivation.issued_token;
+                }
+
+                const response = await fetch(`${baseUrl}/.netlify/functions/issue-temp-coupon`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentUserSession.access_token}`
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || 'เกิดข้อผิดพลาดในการออก QR Code ชั่วคราว');
+
+                showMessage(`ออก QR Code ชั่วคราวให้ ${tempEmployeeName} จำนวน ${amount} บาท สำเร็จ!`, 'success');
+                qrCodeImg.src = result.qr_code_url;
+                qrCodeInfo.textContent = `รหัสชั่วคราว: ${result.issued_token}`;
+                qrCodeDisplay.classList.remove('hidden');
+
+                tempEmployeeNameInput.value = '';
+                couponAmountTemporaryInput.value = '45';
+                searchTempEmployeeInput.value = '';
+                tempEmployeeSearchResults.classList.add('hidden');
+                tempEmployeeResultsList.innerHTML = '';
+                noTempResultsMessage.classList.add('hidden');
+                selectedTempEmployeeForReactivation = null;
+                issueTemporaryCouponBtn.textContent = 'ออก QR Code ชั่วคราว';
+
+            } catch (error) {
+                console.error('Issue Temporary Coupon Error:', error);
+                showMessage(`ผิดพลาด: ${error.message}`, 'error');
+            } finally {
+                issueTemporaryCouponBtn.disabled = false;
+            }
+        });
+
+        printQrBtn.addEventListener('click', () => {
+            const qrCodeUrl = qrCodeImg.src;
+            if (qrCodeUrl) {
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <html>
+                    <head>
+                        <title>พิมพ์ QR Code</title>
+                        <style>
+                            body { font-family: sans-serif; text-align: center; margin: 20px; }
+                            img { max-width: 100%; height: auto; border: 1px solid #ccc; padding: 10px; }
+                            p { margin-top: 10px; font-size: 1.2em; }
+                        </style>
+                    </head>
+                    <body>
+                        <img src="${qrCodeUrl}" alt="QR Code">
+                        <p>${qrCodeInfo.textContent}</p>
+                        <script>
+                            window.onload = function() {
+                                window.print();
+                                window.onafterprint = function() {
+                                    window.close();
+                                };
+                            }
+                        </script>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            } else {
+                showMessage('ไม่มี QR Code ให้พิมพ์', 'error');
+            }
+        });
+
+        downloadQrBtn.addEventListener('click', () => {
+            const qrCodeUrl = qrCodeImg.src;
+            if (qrCodeUrl) {
+                const link = document.createElement('a');
+                link.href = qrCodeUrl;
+                link.download = `qrcode_${qrCodeInfo.textContent.replace('รหัสคูปอง: ', '').replace('รหัสชั่วคราว: ', '')}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                showMessage('ไม่มี QR Code ให้ดาวน์โหลด', 'error');
+            }
+        });
+
+        initializeApp();
+    </script>
+</body>
+</html>
+
+ฉันคิดว่า โค้ดนี้ก็ยังเจอ 401 Unauthorized เหมือนเดิม เพราะโค้ด
+issueTemporaryCouponBtn.addEventListener('click', async () => {
+//...
+const response = await fetch(`${baseUrl}/.netlify/functions/issue-temp-coupon`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentUserSession.access_token}`
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+//...
+}
+
+และ
+async function initializeApp() {
+            try {
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+                const config = await response.json();
+                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+                const { data: { session } } = await _supabase.auth.getSession();
+                currentUserSession = session;
+                if (session) {
+                    mainContent.classList.remove('hidden');
+                    const { data: profile, error: profileError } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
+                    if (profileError || profile?.role !== 'superuser') {
+                        unauthorizedMessage.querySelector('h1').textContent = 'ไม่ได้รับอนุญาต';
+                        unauthorizedMessage.querySelector('p').textContent = 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้. กรุณาติดต่อผู้ดูแลระบบ.';
+                        unauthorizedMessage.classList.remove('hidden');
+                        mainContent.classList.add('hidden');
+                        return;
+                    }
+                    showRecipientType('employee');
+                } else {
+                    unauthorizedMessage.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                unauthorizedMessage.classList.remove('hidden');
+            }
+        }
+มันบังคับ Login ด้วยและมี Authourization ด้วยนะ
