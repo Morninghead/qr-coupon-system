@@ -30,98 +30,50 @@ export const handler = async (event, context) => {
         const offset = (pageNum - 1) * limitNum;
         const searchTerm = search.toLowerCase();
 
-        let regularEmployees = [];
-        let temporaryEmployees = [];
+        let query = supabaseAdmin
+            .from('combined_employees_view') // <<< ดึงจาก View แทน
+            .select('*', { count: 'exact' });
 
-        // 3. Fetch Regular Employees
-        let regularQuery = supabaseAdmin
-            .from('employees')
-            .select(`
-                id,
-                employee_id,
-                name,
-                department_id,
-                departments(name),
-                is_active,
-                permanent_token,
-                photo_url
-            `, { count: 'exact' });
-
+        // Apply filters
         if (searchTerm) {
-            regularQuery = regularQuery.or(`employee_id.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
+            query = query.or(`employee_id.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
         }
         if (department !== 'all') {
-            regularQuery = regularQuery.eq('department_id', department);
+            query = query.eq('department_id', department);
         }
-        if (status !== 'all') {
-            regularQuery = regularQuery.eq('is_active', status === 'active');
+        if (status !== 'all') { // Apply status filter to combined view
+            query = query.eq('is_active', status === 'active');
         }
 
-        const { data: regularData, error: regularError, count: regCount } = await regularQuery;
-        if (regularError) throw regularError;
-        regularEmployees = regularData.map(emp => ({
-            id: emp.id, 
+        // Ordering, Pagination
+        query = query.order('employee_id', { ascending: true }) // Order by employee_id for consistency
+                     .range(offset, offset + limitNum - 1);
+
+        const { data: combinedData, error: combinedError, count: totalCount } = await query;
+        if (combinedError) throw combinedError;
+
+        // Map data to expected format (mostly already done by View)
+        const employees = combinedData.map(emp => ({
+            id: emp.id,
             employee_id: emp.employee_id,
             name: emp.name,
             department_id: emp.department_id,
-            department_name: emp.departments ? emp.departments.name : 'ไม่ระบุ',
+            department_name: emp.department_name,
             is_active: emp.is_active,
             permanent_token: emp.permanent_token,
             photo_url: emp.photo_url,
-            employee_type: 'regular' 
+            qr_code_url: emp.qr_code_url, // Make sure qr_code_url is in the view too if needed
+            employee_type: emp.employee_type,
+            source_table: emp.source_table // Useful for debugging or specific frontend logic
         }));
-
-        // 4. Fetch Temporary Employees (only new/unknown individuals, not those linked to regular employee_id)
-        let tempQuery = supabaseAdmin
-            .from('temporary_coupon_requests')
-            .select(`
-                id,
-                temp_employee_name,
-                temp_employee_identifier,
-                employee_id, 
-                reason,
-                issued_token,
-                expires_at,
-                status
-            `, { count: 'exact' }) // <--- ลบคอมเมนต์นี้ออกไป
-            .is('employee_id', null); 
-
-        if (searchTerm) {
-            tempQuery = tempQuery.or(`temp_employee_name.ilike.%${searchTerm}%,temp_employee_identifier.ilike.%${searchTerm}%`);
-        }
-
-        const { data: tempData, error: tempError, count: tempCount } = await tempQuery;
-        if (tempError) throw tempError;
-        temporaryEmployees = tempData.map(temp => ({
-            id: temp.id, 
-            employee_id: temp.temp_employee_identifier || `TEMP-${temp.id.substring(0,4)}`, 
-            name: temp.temp_employee_name,
-            department_id: null,
-            department_name: 'ชั่วคราว',
-            is_active: true, 
-            permanent_token: null, 
-            photo_url: null, 
-            employee_type: 'temp' 
-        }));
-
-        let allFilteredEmployees = regularEmployees.concat(temporaryEmployees);
         
-        allFilteredEmployees.sort((a, b) => {
-            const idA = a.employee_id || '';
-            const idB = b.employee_id || '';
-            return idA.localeCompare(idB);
-        });
-
-        const totalFilteredCount = allFilteredEmployees.length;
-        const paginatedEmployees = allFilteredEmployees.slice(offset, offset + limitNum);
-
         return {
             statusCode: 200,
             body: JSON.stringify({
-                employees: paginatedEmployees,
-                totalCount: totalFilteredCount,
+                employees: employees,
+                totalCount: totalCount,
                 currentPage: pageNum,
-                totalPages: Math.ceil(totalFilteredCount / limitNum),
+                totalPages: Math.ceil(totalCount / limitNum),
             }),
         };
 
