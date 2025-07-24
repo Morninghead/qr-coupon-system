@@ -133,10 +133,6 @@
                     <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
                     <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
                 </a>
-                <a class='menu-item' href='/daily-scan-report-standalone.html' id='menu-daily-scan-report-standalone'>
-                    <h2>📈 รายงานสแกนรายวัน</h2>
-                    <p>ดูประวัติการสแกนคูปองประจำวันนี้</p>
-                </a>
                 <a class='menu-item' href='/reports.html' id='menu-reports'>
                     <h2>📊 หน้าจอแสดงรายงาน</h2>
                     <p>ดูสรุปและสถิติการใช้งานคูปองทั้งหมด</p>
@@ -162,9 +158,9 @@
         }
 
         function displayMenusByRole(role) {
-            const publicMenus = ['menu-scanner', 'menu-reports', 'menu-daily-scan-report-standalone']; 
-            const adminMenus = ['menu-add-employee', 'menu-grant-coupons', 'menu-upload-employee-photo', 'menu-print-employee-cards', 'menu-manage-employees']; // <<< เพิ่ม ID เมนู 'manage-employees' ใน adminMenus
-            const superuserOnlyMenus = ['menu-issue-temp-coupon', 'menu-manage-card-templates']; // <<< เพิ่ม ID เมนู 'manage-card-templates' ใน superuserOnlyMenus
+            const publicMenus = ['menu-scanner', 'menu-reports']; // <<< ลบ 'menu-daily-scan-report-standalone' ออก
+            const adminMenus = ['menu-add-employee', 'menu-grant-coupons', 'menu-upload-employee-photo', 'menu-print-employee-cards', 'menu-manage-employees']; 
+            const superuserOnlyMenus = ['menu-issue-temp-coupon', 'menu-manage-card-templates']; 
 
             publicMenus.forEach(id => {
                 const menuItem = document.getElementById(id);
