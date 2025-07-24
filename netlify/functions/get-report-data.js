@@ -1,3 +1,4 @@
+// get-report-data.js
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -28,10 +29,9 @@ export const handler = async (event, context) => {
             otData: { totalGranted: 0, totalUsed: 0 }
         };
 
-        // --- Step A: Call PostgreSQL RPC Function for daily_coupons aggregation ---
+        // --- Step A: Call PostgreSQL RPC Function for combined aggregation ---
         let rpcArgs = { start_date: startDate, end_date: endDate };
         if (departmentId && departmentId !== 'all') {
-            // Note: The SQL function expects a UUID for dept_id, ensure departmentId is a valid UUID if filtered.
             rpcArgs.dept_id = departmentId;
         }
 
@@ -52,38 +52,8 @@ export const handler = async (event, context) => {
                 report.otData.totalUsed = row.total_used;
             }
         }
-
-        // --- Step B: Fetch and aggregate Temporary Coupon Requests (for NEW temp individuals only, that are USED) ---
-        // This part needs to be kept separate if your SQL function only covers daily_coupons.
-        // It accounts for temporary coupons not linked to a regular employee_id.
-        let tempCouponQuery = supabaseAdmin
-            .from('temporary_coupon_requests')
-            .select(`coupon_type, status, employee_id`, { count: 'exact' })
-            .gte('expires_at', startDate + 'T00:00:00.000Z') // Use expires_at for date range start
-            .lte('expires_at', endDate + 'T23:59:59.999Z') // Use expires_at for date range end
-            .is('employee_id', null) // Only for new/unknown temp individuals
-            .eq('status', 'USED'); // Only count if actually used
-
-        const { data: tempCoupons, error: tempCouponError } = await tempCouponQuery;
-        if (tempCouponError) {
-            console.error('Error fetching temporary coupons for report:', tempCouponError);
-            throw tempCouponError;
-        }
-
-        // Aggregate data from temporary_coupon_requests (new temp only)
-        for (const tempCoupon of tempCoupons) {
-            if (tempCoupon.coupon_type === 'NORMAL') {
-                // For temporary coupons, if status is 'USED', it implies both granted and used for report purposes
-                report.normalData.totalGranted++; 
-                report.normalData.totalUsed++;
-            } else if (tempCoupon.coupon_type === 'OT') {
-                report.otData.totalGranted++;
-                report.otData.totalUsed++;
-            }
-        }
         
         // Ensure totalGranted is at least equal to totalUsed for chart calculation
-        // This handles cases where totalUsed from RPC + tempCoupons might exceed initial totalGranted from RPC alone.
         report.normalData.totalGranted = Math.max(report.normalData.totalGranted, report.normalData.totalUsed);
         report.otData.totalGranted = Math.max(report.otData.totalGranted, report.otData.totalUsed);
 
