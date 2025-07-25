@@ -98,6 +98,15 @@
             color: var(--text-gray);
             font-weight: normal;
         }
+        #scanResult .scan-source-tag { /* NEW: Style for the temp coupon tag */
+            font-size: 0.75em;
+            background-color: #A7F3D0; /* Light green-blue */
+            color: #065F46;
+            padding: 4px 8px;
+            border-radius: 5px;
+            margin-top: 5px;
+            font-weight: normal;
+        }
 
         /* สีตามสถานะ */
         #scanResult.status-approved { background-color: #D1FAE5; border-color: var(--success-color); } /* อนุมัติ */
@@ -159,6 +168,7 @@
                                 <th>รหัสพนักงาน</th>
                                 <th>ชื่อ-สกุล</th>
                                 <th>ประเภทคูปอง</th>
+                                <th>แหล่งที่มา</th>
                             </tr>
                         </thead>
                         <tbody id="report-table-body">
@@ -192,7 +202,7 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    await fetchReport(1);
+                    await fetchReport(1); // <<< นำกลับมา: เรียก fetchReport ที่นี่
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
@@ -211,22 +221,23 @@
                 renderPagination(report.currentPage, report.totalPages);
             } catch (error) {
                 console.error('Failed to fetch report:', error);
-                reportTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:red;">ไม่สามารถโหลดรายงานได้</td></tr>`;
+                reportTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:red;">ไม่สามารถโหลดรายงานได้</td></tr>`;
             }
         }
 
         function renderReport(data) {
             if (!data || data.length === 0) {
-                reportTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">ยังไม่มีการสแกนสำหรับวันนี้</td></tr>`;
+                reportTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">ยังไม่มีการสแกนสำหรับวันนี้</td></tr>`;
                 return;
             }
 
             reportTableBody.innerHTML = data.map(item => `
                 <tr>
                     <td>${new Date(item.used_at).toLocaleTimeString('th-TH')}</td>
-                    <td>${item.employees.employee_id}</td>
-                    <td>${item.employees.name}</td>
+                    <td>${item.employee_id}</td> 
+                    <td>${item.name}</td> 
                     <td>${item.coupon_type}</td>
+                    <td>${formatScanSource(item.scan_source)}</td> 
                 </tr>
             `).join('');
         }
@@ -244,19 +255,32 @@
             paginationControls.innerHTML = buttonsHtml;
         }
 
-        // --- ฟังก์ชันใหม่: แสดงผลลัพธ์การสแกนใน scanResultDiv อย่างสวยงาม ---
+        function formatScanSource(source) {
+            switch (source) {
+                case 'permanent_card':
+                    return 'บัตรประจำ';
+                case 'temp_coupon_existing_employee':
+                    return 'QR ชั่วคราว (พนักงานประจำ)';
+                case 'temp_coupon_new_temp_employee':
+                    return 'QR ชั่วคราว (บุคคลทั่วไป)';
+                default:
+                    return source || '-';
+            }
+        }
+
         function displayScanResult(data) {
             let icon = '';
             let mainMessage = '';
-            let detailLine1 = ''; // ชื่อพนักงาน, รหัสพนักงาน
-            let detailLine2 = ''; // วันที่, เวลา, ประเภทคูปอง
-            let className = ''; // สำหรับสี
+            let detailLine1 = ''; 
+            let detailLine2 = ''; 
+            let scanSourceTagHtml = ''; 
+            let className = ''; 
 
             if (data.success) {
                 icon = '✅';
                 className = 'status-approved';
-                mainMessage = data.message; // เช่น "อนุมัติ" หรือ "อนุมัติ (คูปองชั่วคราว)"
-                detailLine1 = `${data.name} (${data.employee_id || 'N/A'})`; // รหัสพนักงานอาจเป็น N/A ถ้าเป็นบุคคลชั่วคราว
+                mainMessage = data.message; 
+                detailLine1 = `${data.name} (${data.employee_id || 'N/A'})`; 
                 
                 const scanDateTime = new Date(data.used_at).toLocaleString('th-TH', { 
                     year: 'numeric', month: 'numeric', day: 'numeric', 
@@ -264,20 +288,24 @@
                 });
                 detailLine2 = `เวลา: ${scanDateTime} | ประเภท: ${data.coupon_type}`;
 
+                if (data.scan_source === 'temp_coupon_existing_employee' || data.scan_source === 'temp_coupon_new_temp_employee') {
+                    scanSourceTagHtml = `<span class="scan-source-tag">${formatScanSource(data.scan_source)}</span>`;
+                }
+
             } else {
                 icon = '❌';
-                detailLine1 = `${data.name || 'N/A'} (${data.employee_id || 'N/A'})`; // อาจจะไม่มีชื่อ/รหัส
+                detailLine1 = `${data.name || 'N/A'} (${data.employee_id || 'N/A'})`; 
 
                 switch (data.status_code) {
                     case 'ALREADY_USED_TEMP':
-                        className = 'status-used'; // ส้ม
+                        className = 'status-used'; 
                         mainMessage = 'ใช้สิทธิ์ไปแล้ว';
-                        detailLine2 = data.message; // "QR ชั่วคราวนี้ถูกใช้ไปแล้ว"
+                        detailLine2 = data.message; 
                         break;
                     case 'EXPIRED_TEMP':
-                        className = 'status-used'; // ส้ม
+                        className = 'status-used'; 
                         mainMessage = 'สิทธิ์หมดอายุ';
-                        detailLine2 = data.message; // "QR ชั่วคราวนี้หมดอายุแล้ว"
+                        detailLine2 = data.message; 
                         break;
                     case 'EMP_NOT_FOUND':
                     case 'COUPON_NOT_READY':
@@ -287,9 +315,9 @@
                     case 'INVALID_INPUT':
                     case 'UPDATE_FAILED':
                     default:
-                        className = 'status-error'; // แดง
+                        className = 'status-error'; 
                         mainMessage = 'ไม่สามารถอนุมัติได้';
-                        detailLine2 = data.message || 'กรุณาติดต่อหัวหน้าแผนก'; // ข้อความจาก Backend หรือ Default
+                        detailLine2 = data.message || 'กรุณาติดต่อหัวหน้าแผนก'; 
                         break;
                 }
             }
@@ -300,9 +328,9 @@
                 <p class="main-message">${mainMessage}</p>
                 <p class="detail-text">${detailLine1}</p>
                 <p class="detail-text">${detailLine2}</p>
+                ${scanSourceTagHtml}
             `;
         }
-        // --- สิ้นสุดฟังก์ชันใหม่ ---
 
 
         scanInput.addEventListener('change', async (event) => {
@@ -320,7 +348,6 @@
             }
 
             isProcessing = true;
-            // แสดงสถานะ "กำลังประมวลผล" ก่อน
             scanResultDiv.className = 'status-result status-initial';
             scanResultDiv.innerHTML = `
                 <span class="status-icon">⏳</span>
@@ -331,10 +358,10 @@
                 const response = await fetch(`/.netlify/functions/scan?token=${token}`);
                 const data = await response.json();
 
-                displayScanResult(data); // เรียกใช้ฟังก์ชันแสดงผลใหม่
+                displayScanResult(data); 
 
-                if (data.success) {
-                    await fetchReport(1); // Refresh report to the first page only on success
+                if (data.success) { 
+                    await fetchReport(1); // <<< นำกลับมา: เรียก fetchReport เมื่อสแกนสำเร็จ
                 }
             } catch (err) {
                 scanResultDiv.className = 'status-result status-error';
@@ -347,7 +374,6 @@
 
             setTimeout(() => {
                 scanInput.value = '';
-                // รีเซ็ตกลับไปสถานะเริ่มต้นหลังจาก 3 วินาที (ไม่ล้างข้อมูลทันที)
                 scanResultDiv.className = 'status-result status-initial';
                 scanResultDiv.innerHTML = `
                     <span class="status-icon">🔍</span>
@@ -355,11 +381,10 @@
                 `;
                 isProcessing = false;
                 scanInput.focus();
-            }, 3000); // แสดงผลลัพธ์ค้างไว้ 3 วินาที
+            }, 3000); 
 
         });
 
-        // Auto-focus input
         document.addEventListener('DOMContentLoaded', () => {
              initializeApp().then(() => {
                 const scanInputEl = document.getElementById('scanInput');
