@@ -83,7 +83,7 @@
 
         .table-container {
             background: white;
-            padding: 24px; /* Adjust padding here for better layout with radio buttons */
+            padding: 24px; 
             border-radius: 16px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
             overflow-x: auto;
@@ -246,19 +246,12 @@
         }
         .template-card-preview-inner.portrait {
              width: 280px; 
-             height: 177px; /* For portrait (standard ID card aspect ratio, e.g., 85.6mm x 53.98mm) */
+             height: 177px; 
         }
         .template-card-preview-inner.landscape {
-             width: 280px; /* Swap width/height for landscape */
-             height: 177px; /* Standard portrait height becomes width for landscape */
-             /* The actual card size should be 85.6mm x 53.98mm. If you want landscape, it's 53.98mm (H) x 85.6mm (W) */
-             /* So, to keep aspect ratio, you would define one and calculate the other based on the standard.
-                Let's make cardWidth = 85.6mm (approx 325px at 96dpi), cardHeight = 53.98mm (approx 205px at 96dpi)
-                For preview, let's keep the smaller preview dimensions, but swap based on orientation.
-             */
-             width: 280px; /* keeping a fixed width for preview box, actual internal elements will rotate */
-             height: 177px; /* keeping a fixed height for preview box */
-             transform-origin: center center; /* Ensure rotation around center */
+             width: 280px; 
+             height: 177px; 
+             /* Note: Actual print orientation is handled by jspdf */
         }
 
         /* Styles for elements within preview */
@@ -354,14 +347,16 @@
                         <tr>
                             <th>ชื่อ Template</th>
                             <th>ชื่อบริษัท</th>
-                            <th>Orientation</th> <th>Logo URL</th>
+                            <th>Orientation</th> 
+                            <th>Logo URL</th>
                             <th>Background หน้า</th>
                             <th>Background หลัง</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="template-table-body">
-                        <tr><td colspan="7" style="text-align:center;">กำลังโหลด Template บัตร...</td></tr> </tbody>
+                        <tr><td colspan="7" style="text-align:center;">กำลังโหลด Template บัตร...</td></tr> 
+                    </tbody>
                 </table>
             </div>
             <div id="message" class="hidden"></div>
@@ -456,7 +451,6 @@
         const messageDiv = document.getElementById('message');
         const addTemplateBtn = document.getElementById('add-template-btn');
 
-        // Modal elements
         const templateModal = document.getElementById('templateModal');
         const closeModalButton = templateModal.querySelector('.close-button');
         const modalCancelButton = templateModal.querySelector('.modal-cancel-btn');
@@ -464,7 +458,7 @@
         const templateForm = document.getElementById('templateForm');
         const templateIdInput = document.getElementById('template-id');
         const templateNameInput = document.getElementById('template-name');
-        const orientationRadios = document.querySelectorAll('input[name="orientation-selection"]'); // New
+        const orientationRadios = document.querySelectorAll('input[name="orientation-selection"]');
         const companyNameInput = document.getElementById('company-name');
         const logoUrlInput = document.getElementById('logo-url');
         const backgroundFrontUrlInput = document.getElementById('background-front-url');
@@ -474,19 +468,20 @@
 
         const baseUrl = window.location.origin;
 
-        // Sample data for previewing layout
+        // Sample data for previewing layout - Use relative path for placeholder image
         const previewEmployee = {
             name: "สมศรี สุขใจ",
             employee_id: "12345",
-            permanent_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", // Dummy token
-            photo_url: "https://via.placeholder.com/80?text=Photo" // Dummy photo
+            permanent_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", 
+            photo_url: "/images/placeholder_photo.png" 
         };
+        const defaultLogoUrl = "/images/placeholder_logo.png"; 
+        const defaultBgErrorUrl = "/images/placeholder_bg_error.png"; 
 
-        // Standard card dimensions (e.g., credit card aspect ratio)
-        const CARD_WIDTH_PX_PORTRAIT = 280; // Example
-        const CARD_HEIGHT_PX_PORTRAIT = 177; // Example (for 85.6mm x 53.98mm ratio, 280px width -> 176.6px height)
-        const CARD_WIDTH_PX_LANDSCAPE = 280; // Fixed preview width for landscape
-        const CARD_HEIGHT_PX_LANDSCAPE = 177; // Fixed preview height for landscape
+        const CARD_WIDTH_PX_PORTRAIT = 280; 
+        const CARD_HEIGHT_PX_PORTRAIT = 177; 
+        const CARD_WIDTH_PX_LANDSCAPE = 280; 
+        const CARD_HEIGHT_PX_LANDSCAPE = 177; 
 
 
         async function initializeApp() {
@@ -509,7 +504,7 @@
                 currentUserRole = profileData.role;
                 mainContent.classList.remove('hidden');
 
-                await fetchTemplates();
+                await fetchTemplates(); // Fetches templates and calls renderTemplateTable
 
                 addTemplateBtn.addEventListener('click', () => openTemplateModal());
                 closeModalButton.addEventListener('click', () => templateModal.style.display = 'none');
@@ -521,9 +516,8 @@
                 });
 
                 templateForm.addEventListener('submit', handleTemplateFormSubmit);
-                // Listen for changes to update preview
+                orientationRadios.forEach(radio => radio.addEventListener('change', updatePreview)); 
                 templateNameInput.addEventListener('input', updatePreview);
-                orientationRadios.forEach(radio => radio.addEventListener('change', updatePreview)); // New
                 companyNameInput.addEventListener('input', updatePreview);
                 logoUrlInput.addEventListener('input', updatePreview);
                 backgroundFrontUrlInput.addEventListener('input', updatePreview);
@@ -555,10 +549,19 @@
                 renderTemplateTable(templates);
                 showMessage('โหลด Template บัตรสำเร็จ', 'success');
 
+                // NEW: If there are no templates, prevent opening modal
+                if (templates.length === 0) {
+                    addTemplateBtn.textContent = '➕ สร้าง Template ใหม่ (ไม่มี Template)';
+                    // Do not call updatePreview() here, as there's no template to preview initially
+                } else {
+                    addTemplateBtn.textContent = '➕ สร้าง Template ใหม่';
+                }
+
             } catch (error) {
                 console.error('Error fetching templates:', error);
                 templateTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--error-color);">ไม่สามารถโหลด Template บัตรได้: ${error.message}</td></tr>`;
                 showMessage('ไม่สามารถโหลด Template บัตรได้: ' + error.message, 'error');
+                addTemplateBtn.textContent = '➕ สร้าง Template ใหม่ (ผิดพลาด)';
             }
         }
 
@@ -574,7 +577,8 @@
                 row.innerHTML = `
                     <td>${template.template_name}</td>
                     <td>${template.company_name || '-'}</td>
-                    <td>${template.orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}</td> <td><a href="${template.logo_url}" target="_blank">${template.logo_url ? 'ดู Logo' : '-'}</a></td>
+                    <td>${template.orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}</td> 
+                    <td><a href="${template.logo_url}" target="_blank">${template.logo_url ? 'ดู Logo' : '-'}</a></td>
                     <td><a href="${template.background_front_url}" target="_blank">${template.background_front_url ? 'ดูรูป' : '-'}</a></td>
                     <td><a href="${template.background_back_url}" target="_blank">${template.background_back_url ? 'ดูรูป' : '-'}</a></td>
                     <td>
@@ -608,7 +612,6 @@
             templateModalTitle.textContent = 'สร้าง Template บัตรใหม่';
             cardPreviewFront.innerHTML = ''; 
 
-            // Set default layout_config for easy start
             const defaultLayout = {
                 "photo": {"top": "15%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)", "borderRadius": "50%", "objectFit": "cover", "border": "2px solid var(--primary-color)"}, 
                 "company_name": {"top": "35%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.1em", "fontWeight": "600"},
@@ -617,7 +620,7 @@
                 "qr_code": {"top": "75%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)"}
             };
             layoutConfigInput.value = JSON.stringify(defaultLayout, null, 2); 
-            document.querySelector('input[name="orientation-selection"][value="portrait"]').checked = true; // Default to portrait
+            document.querySelector('input[name="orientation-selection"][value="portrait"]').checked = true; 
 
             if (templateId) {
                 showMessage('กำลังดึงข้อมูล Template...', 'info');
@@ -643,41 +646,44 @@
                     backgroundFrontUrlInput.value = template.background_front_url || '';
                     backgroundBackUrlInput.value = template.background_back_url || '';
                     layoutConfigInput.value = JSON.stringify(template.layout_config || {}, null, 2);
-                    document.querySelector(`input[name="orientation-selection"][value="${template.orientation || 'portrait'}"]`).checked = true; // Set loaded orientation
+                    document.querySelector(`input[name="orientation-selection"][value="${template.orientation || 'portrait'}"]`).checked = true; 
                     
-                    updatePreview(); 
+                    updatePreview(); // Update preview with loaded data
                     showMessage('', 'hidden');
                 } catch (error) {
                     console.error('Error opening template modal:', error);
                     showMessage('ไม่สามารถดึงข้อมูล Template เพื่อแก้ไขได้: ' + error.message, 'error');
                     return;
                 }
+            } else {
+                // NEW: Clear error messages/warnings for placeholder if creating new template
+                // and display a generic "Ready for preview" message or nothing
+                showMessage('', 'hidden'); // Clear any previous error message
             }
 
             templateModal.style.display = 'flex';
-            updatePreview(); 
+            updatePreview(); // Initial preview rendering, now handles lack of template data gracefully
         }
 
         function updatePreview() {
-            cardPreviewFront.innerHTML = '';
-            const selectedOrientation = document.querySelector('input[name="orientation-selection"]:checked').value; // Get selected orientation
+            cardPreviewFront.innerHTML = ''; // Clear existing preview
             
-            // Adjust card preview dimensions based on orientation
+            const selectedOrientation = document.querySelector('input[name="orientation-selection"]:checked').value;
+            
             if (selectedOrientation === 'portrait') {
                 cardPreviewFront.classList.remove('landscape');
                 cardPreviewFront.classList.add('portrait');
-            } else { // landscape
+            } else { 
                 cardPreviewFront.classList.remove('portrait');
                 cardPreviewFront.classList.add('landscape');
             }
-
 
             const template = {
                 company_name: companyNameInput.value || "ชื่อบริษัทของคุณ",
                 logo_url: logoUrlInput.value,
                 background_front_url: backgroundFrontUrlInput.value,
                 layout_config: {},
-                orientation: selectedOrientation // Pass orientation to template object for rendering
+                orientation: selectedOrientation
             };
             try {
                 template.layout_config = JSON.parse(layoutConfigInput.value);
@@ -687,12 +693,18 @@
                 return;
             }
 
-            // Set background image
+            // NEW: Only attempt to render content if template_name (or other basic info) is present
+            if (!templateNameInput.value.trim() && !templateIdInput.value) { // If creating new and no name yet
+                 cardPreviewFront.innerHTML = `<p style="text-align: center; color: var(--text-gray);">กรอกข้อมูล Template เพื่อดูตัวอย่าง</p>`;
+                 return;
+            }
+
+
             if (template.background_front_url) {
                 const bgImg = document.createElement('img');
                 bgImg.src = template.background_front_url;
                 bgImg.classList.add('background');
-                bgImg.onerror = () => bgImg.src = 'https://via.placeholder.com/280x177?text=BG+Error';
+                bgImg.onerror = () => bgImg.src = defaultBgErrorUrl; 
                 cardPreviewFront.appendChild(bgImg);
             }
 
@@ -700,59 +712,36 @@
             contentDiv.classList.add('template-card-preview-content');
             cardPreviewFront.appendChild(contentDiv);
 
-            // Render elements based on layout_config
             for (const key in template.layout_config) {
                 if (Object.hasOwnProperty.call(template.layout_config, key)) {
                     const style = template.layout_config[key];
-                    const elementDiv = document.createElement('div');
-                    elementDiv.classList.add('preview-element');
-                    
-                    // Apply styles from JSON
-                    for (const prop in style) {
-                        if (Object.hasOwnProperty.call(style, prop)) {
-                            elementDiv.style[prop] = style[prop];
-                        }
-                    }
+                    let content = '';
+                    let className = 'card-element';
 
-                    // Populate content
-                    if (key === "photo") { // Changed from "logo" to "photo" for employee photo
-                        elementDiv.classList.add('img');
-                        const photoImg = document.createElement('img');
-                        photoImg.src = previewEmployee.photo_url || 'https://via.placeholder.com/80?text=Photo';
-                        photoImg.style.width = '100%';
-                        photoImg.style.height = '100%';
-                        // Apply specific photo styles from layout_config like borderRadius, objectFit, border
-                        if (style.borderRadius) photoImg.style.borderRadius = style.borderRadius;
-                        if (style.objectFit) photoImg.style.objectFit = style.objectFit;
-                        if (style.border) photoImg.style.border = style.border;
-
-                        photoImg.onerror = () => photoImg.src = 'https://via.placeholder.com/80?text=Photo+Error';
-                        elementDiv.appendChild(photoImg);
-                    } else if (key === "logo") { // For company logo (separate from employee photo)
-                        elementDiv.classList.add('img');
-                        const logoImg = document.createElement('img');
-                        logoImg.src = template.logo_url || 'https://via.placeholder.com/50?text=Logo';
-                        logoImg.style.width = '100%';
-                        logoImg.style.height = '100%';
-                        logoImg.style.objectFit = 'contain';
-                        logoImg.onerror = () => logoImg.src = 'https://via.placeholder.com/50?text=Logo+Error';
-                        elementDiv.appendChild(logoImg);
+                    if (key === "photo") { 
+                        className += ' img';
+                        content = `<img src="${previewEmployee.photo_url}" style="width:100%;height:100%;object-fit:contain;${style.borderRadius ? `border-radius:${style.borderRadius};` : ''}${style.border ? `border:${style.border};` : ''}" onerror="this.onerror=null;this.src='${previewEmployee.photo_url}'">`; 
+                    } else if (key === "logo") { 
+                        className += ' img';
+                        content = `<img src="${template.logo_url || defaultLogoUrl}" style="width:100%;height:100%;object-fit:contain;" onerror="this.onerror=null;this.src='${defaultLogoUrl}'">`; 
                     }
                     else if (key === "company_name") {
-                        elementDiv.classList.add('text');
-                        elementDiv.textContent = template.company_name;
+                        className += ' text';
+                        content = template.company_name;
                     } else if (key === "employee_name") {
-                        elementDiv.classList.add('text');
-                        elementDiv.textContent = previewEmployee.name;
+                        className += ' text';
+                        content = previewEmployee.name;
                     } else if (key === "employee_id") {
-                        elementDiv.classList.add('text');
-                        elementDiv.textContent = `ID: ${previewEmployee.employee_id}`;
+                        className += ' text';
+                        content = `ID: ${previewEmployee.employee_id}`;
                     } else if (key === "qr_code") {
-                        elementDiv.classList.add('qr');
+                        className += ' qr';
                         const qrDiv = document.createElement('div');
                         qrDiv.id = `preview-qr-${key}`; 
                         elementDiv.appendChild(qrDiv);
                         if (window.QRCode) {
+                            // Clear previous QR to prevent multiple QR canvases in the same div
+                            qrDiv.innerHTML = ''; 
                             new QRCode(qrDiv, {
                                 text: `${baseUrl}/scanner?token=${previewEmployee.permanent_token}`,
                                 width: parseInt(style.width) || 80,
@@ -766,18 +755,27 @@
                         }
                     } else {
                         className += ' text';
-                        elementDiv.textContent = style.text || ''; 
+                        content = style.text || ''; 
                     }
-                    contentDiv.appendChild(elementDiv);
+                    
+                    let styleStr = '';
+                    for (const prop in style) {
+                        if (Object.hasOwnProperty.call(style, prop) && prop !== 'text') { 
+                            styleStr += `${prop}: ${style[prop]};`;
+                        }
+                    }
+
+                    cardHtml += `<div class="${className}" style="${styleStr}">${content}</div>`;
                 }
             }
+            cardPreviewFront.innerHTML += cardHtml; // Use += to append all elements
         }
 
         async function handleTemplateFormSubmit(event) {
             event.preventDefault();
             const templateId = templateIdInput.value || null;
             const templateName = templateNameInput.value.trim();
-            const selectedOrientation = document.querySelector('input[name="orientation-selection"]:checked').value; // Get selected orientation
+            const selectedOrientation = document.querySelector('input[name="orientation-selection"]:checked').value;
             const companyName = companyNameInput.value.trim();
             const logoUrl = logoUrlInput.value.trim();
             const backgroundFrontUrl = backgroundFrontUrlInput.value.trim();
@@ -815,7 +813,7 @@
                         background_front_url: backgroundFrontUrl, 
                         background_back_url: backgroundBackUrl, 
                         layout_config: layoutConfig,
-                        orientation: selectedOrientation // Send orientation to backend
+                        orientation: selectedOrientation 
                     })
                 });
 
