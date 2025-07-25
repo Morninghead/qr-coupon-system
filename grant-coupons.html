@@ -250,6 +250,7 @@
     </div>
 
     <script>
+        // --- ส่วนของการประกาศตัวแปรต่างๆ (อยู่ด้านบนสุดของ script) ---
         const mainContent = document.getElementById('main-content');
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
@@ -279,6 +280,26 @@
         let currentSortColumn = null;
         let currentSortDirection = 'asc'; // 'asc' or 'desc'
 
+
+        // --- ฟังก์ชัน Helper: showResult (ย้ายมาไว้ด้านบน) ---
+        function showResult(message, type) {
+            resultMessageDiv.style.display = 'block';
+            resultMessageDiv.textContent = message;
+            resultMessageDiv.className = type === 'success' ? 'result-success' : (type === 'error' ? 'result-error' : 'result-info');
+        }
+
+        // --- ฟังก์ชัน Helper: updateConfirmButtonStatus (ย้ายมาไว้ด้านบน) ---
+        function updateConfirmButtonStatus() {
+            let selectedForGrant = false;
+            document.querySelectorAll('.confirm-table-checkbox').forEach(checkbox => {
+                if (checkbox.checked && (checkbox.dataset.action === 'grant_new' || checkbox.dataset.action === 'grant_duplicate')) {
+                    selectedForGrant = true;
+                }
+            });
+            confirmGrantBtn.disabled = !selectedForGrant;
+        }
+
+        // --- ฟังก์ชันหลักอื่นๆ ตามลำดับ (initializeApp, handleFile, etc.) ---
         async function initializeApp() {
             try {
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
@@ -413,23 +434,20 @@
             // Recalculate selectAllDuplicatesCheckbox state based on *currentProcessedEmployees* if it was sorted
             const duplicateCheckboxes = currentProcessedEmployees.filter(emp => emp.status === 'duplicate');
             selectAllDuplicatesCheckbox.checked = duplicateCheckboxes.every(emp => {
-                // Check if the corresponding checkbox (if it existed before re-rendering) was checked
                 const existingCheckbox = document.querySelector(`.confirm-table-checkbox[data-employee-id="${emp.employee_id}"][data-action="grant_duplicate"]`);
-                return existingCheckbox ? existingCheckbox.checked : true; // Default to checked if no previous state
+                return existingCheckbox ? existingCheckbox.checked : true; 
             });
 
             // Sort employees before rendering
-            let sortedEmployees = [...currentProcessedEmployees]; // Create a copy to sort
+            let sortedEmployees = [...currentProcessedEmployees]; 
             if (currentSortColumn) {
                 sortedEmployees.sort((a, b) => {
                     let aVal, bVal;
                     if (currentSortColumn === 'status') {
-                        // Custom sort order for status: ready_to_grant, duplicate, not_found
                         const statusOrder = { 'ready_to_grant': 1, 'duplicate': 2, 'not_found': 3 };
                         aVal = statusOrder[a.status] || 99;
                         bVal = statusOrder[b.status] || 99;
                     } else {
-                        // General string comparison for employee_id and name
                         aVal = String(a[currentSortColumn] || '').toLowerCase();
                         bVal = String(b[currentSortColumn] || '').toLowerCase();
                     }
@@ -447,7 +465,6 @@
                 let checkboxHtml = '';
                 let couponDetailText = ''; 
 
-                // Determine initial checkbox state for re-rendering (crucial for maintaining selection after sort)
                 let isChecked = false;
                 if (emp.status === 'ready_to_grant') {
                     statusClass = 'status-ready';
@@ -457,9 +474,8 @@
                 } else if (emp.status === 'duplicate') {
                     statusClass = 'status-duplicate';
                     statusText = 'มีสิทธิ์แล้ว';
-                    // Retrieve checkbox state from DOM before re-rendering or default to true
                     const existingCheckbox = document.querySelector(`.confirm-table-checkbox[data-employee-id="${emp.employee_id}"][data-action="grant_duplicate"]`);
-                    isChecked = existingCheckbox ? existingCheckbox.checked : true; // Default to checked if no previous state
+                    isChecked = existingCheckbox ? existingCheckbox.checked : true; 
                     checkboxHtml = `<input type="checkbox" class="confirm-table-checkbox" data-employee-id="${emp.employee_id}" data-action="grant_duplicate" ${isChecked ? 'checked' : ''}>`;
                     
                     if (emp.coupon_status_detail === 'USED' && emp.coupon_used_at) {
@@ -506,7 +522,7 @@
                 }
             });
 
-            updateConfirmButtonStatus(); // Initial status check for confirm button
+            updateConfirmButtonStatus(); 
         }
 
         // Add event listeners for sorting headers
@@ -519,9 +535,8 @@
                     currentSortColumn = sortBy;
                     currentSortDirection = 'asc';
                 }
-                // Re-render table with sorting applied
-                renderConfirmationTable(confirmCouponTypeSpan.textContent, { // Pass original result object, render will use currentProcessedEmployees
-                    employees: currentProcessedEmployees,
+                renderConfirmationTable(confirmCouponTypeSpan.textContent, { 
+                    employees: currentProcessedEmployees, 
                     readyToGrant: currentProcessedEmployees.filter(e => e.status === 'ready_to_grant').map(e => e.employee_id),
                     alreadyExists: currentProcessedEmployees.filter(e => e.status === 'duplicate').map(e => e.employee_id),
                     notFound: currentProcessedEmployees.filter(e => e.status === 'not_found').map(e => e.employee_id)
@@ -561,8 +576,8 @@
                 const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons?action=final_grant`, { 
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${session.access_token}`,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
                     },
                     body: JSON.stringify({ 
                         couponType: selectedCouponType,
@@ -600,12 +615,6 @@
             employeeIdsFromFile = [];
             filePreview.textContent = '';
         });
-
-        function showResult(message, type) {
-            resultMessageDiv.style.display = 'block';
-            resultMessageDiv.textContent = message;
-            resultMessageDiv.className = type === 'success' ? 'result-success' : (type === 'error' ? 'result-error' : 'result-info');
-        }
 
         initializeApp();
     </script>
