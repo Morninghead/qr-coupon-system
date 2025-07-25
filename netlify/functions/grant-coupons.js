@@ -6,8 +6,6 @@ const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
 function getBangkokDate() {
     const now = new Date();
-    // Adjusted to ensure consistent timezone for date calculations if not handled by Supabase default
-    // For Netlify, process.env.TZ might be 'Etc/UTC', so explicit conversion is safer.
     const bangkokTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
     return bangkokTime.toISOString().split('T')[0];
 }
@@ -18,7 +16,7 @@ export const handler = async (event, context) => {
     }
 
     try {
-        // 1. ตรวจสอบ Token และยืนยันตัวตนผู้ใช้
+        // 1. Authentication and Authorization Check
         const token = event.headers.authorization?.split('Bearer ')[1];
         if (!token) {
             return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
@@ -30,7 +28,7 @@ export const handler = async (event, context) => {
         
         // 2. ตรวจสอบสิทธิ์ - อนุญาตเฉพาะ 'superuser' หรือ 'department_admin'
         const { data: profile, error: profileError } = await supabaseAdmin
-            .from('profiles') // ถูกต้องแล้ว
+            .from('profiles')
             .select('role')
             .eq('id', user.id)
             .single();
@@ -39,63 +37,206 @@ export const handler = async (event, context) => {
             return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied' }) };
         }
 
-        // 3. ดำเนินการให้สิทธิ์คูปอง
-        const { employeeIds, couponType } = JSON.parse(event.body);
-        if (!employeeIds || !couponType || employeeIds.length === 0) {
-            return { statusCode: 400, body: JSON.stringify({ message: 'Missing employee IDs or coupon type' }) };
+        const { action } = event.queryStringParameters; // NEW: Get action from query string
+
+        // --- PHASE 1: Pre-check eligibility ---
+        if (action === 'pre_check') {
+            const { employeeIds, couponType } = JSON.parse(event.body);
+            if (!employeeIds || !couponType || employeeIds.length === 0) {
+                return { statusCode: 400, body: JSON.stringify({ message: 'Missing employee IDs or coupon type for pre-check.' }) };
+            }
+
+            // Fetch all employee details for display (id, name, employee_id)
+            const { data: employeesData, error: employeesDataError } = await supabaseAdmin
+                .from('employees')
+                .select('id, employee_id, name')
+                .in('employee_id', employeeIds);
+            
+            if (employeesDataError) throw employeesDataError;
+            
+            const foundEmployeeMap = new Map(employeesData.map(e => [e.employee_id, { id: e.id, name: e.name }]));
+            
+            const today = getBangkokDate();
+
+            // Check existing coupons for today and this type
+            const { data: existingCoupons, error: checkError } = await supabaseAdmin
+                .from('daily_coupons')
+                .select('employee_id')
+                .in('employee_id', employeesData.map(e => e.id)) // Use UUIDs for query
+                .eq('coupon_date', today)
+                .eq('coupon_type', couponType);
+
+            if (checkError) throw checkError;
+
+            const existingUuids = new Set(existingCoupons.map(c => c.employee_id));
+
+            let readyToGrantIds = []; // IDs that are not found in daily_coupons for today
+            let alreadyExistsIds = []; // IDs that are found (duplicates)
+            let notFoundIds = []; // IDs that are not found in 'employees' table at all
+
+            // Prepare results for frontend
+            const employeesForFrontend = [];
+            for (const empId of employeeIds) {
+                const empDetails = foundEmployeeMap.get(empId);
+                if (empDetails) {
+                    employeesForFrontend.push({
+                        employee_id: empId,
+                        name: empDetails.name,
+                        // Add status for frontend to render
+                        status: existingUuids.has(empDetails.id) ? 'duplicate' : 'ready_to_grant'
+                    });
+                    if (existingUuids.has(empDetails.id)) {
+                        alreadyExistsIds.push(empId);
+                    } else {
+                        readyToGrantIds.push(empId);
+                    }
+                } else {
+                    notFoundIds.push(empId);
+                    employeesForFrontend.push({
+                        employee_id: empId,
+                        name: 'ไม่พบชื่อ',
+                        status: 'not_found'
+                    });
+                }
+            }
+
+            return {
+                statusCode: 200,
+                body: JSON.stringify({
+                    success: true,
+                    message: 'Pre-check completed.',
+                    employees: employeesForFrontend, // Full list with status
+                    readyToGrant: readyToGrantIds,
+                    alreadyExists: alreadyExistsIds,
+                    notFound: notFoundIds
+                }),
+            };
         }
 
-        const { data: employees, error: employeesError } = await supabaseAdmin
-            .from('employees') // <<< แก้ไขตรงนี้: 'Employees' -> 'employees'
-            .select('id, employee_id')
-            .in('employee_id', employeeIds);
+        // --- PHASE 2: Final Grant ---
+        if (action === 'final_grant') {
+            const { couponType, employeeIdsToGrant, employeeIdsToGrantDuplicates } = JSON.parse(event.body);
 
-        if (employeesError) throw employeesError;
+            if (!couponType || (!employeeIdsToGrant && !employeeIdsToGrantDuplicates)) {
+                return { statusCode: 400, body: JSON.stringify({ message: 'Missing coupon type or employee IDs for final grant.' }) };
+            }
 
-        const foundEmployeeMap = new Map(employees.map(e => [e.employee_id, e.id]));
-        const notFoundIds = employeeIds.filter(id => !foundEmployeeMap.has(id));
+            let insertedCount = 0;
+            let updatedCount = 0; // For force-granted duplicates
 
-        if (employees.length === 0) {
-            return { statusCode: 404, body: JSON.stringify({ message: 'No valid employees found.', notFound: notFoundIds }) };
+            const allEmployeeIdsToProcess = [...(employeeIdsToGrant || []), ...(employeeIdsToGrantDuplicates || [])];
+            if (allEmployeeIdsToProcess.length === 0) {
+                 return { statusCode: 400, body: JSON.stringify({ message: 'No employees selected for final grant.' }) };
+            }
+
+            // Fetch UUIDs for selected employee_ids
+            const { data: employeesSelected, error: employeesSelectedError } = await supabaseAdmin
+                .from('employees')
+                .select('id, employee_id')
+                .in('employee_id', allEmployeeIdsToProcess);
+
+            if (employeesSelectedError) throw employeesSelectedError;
+
+            const selectedEmployeeIdMap = new Map(employeesSelected.map(e => [e.employee_id, e.id]));
+
+            const today = getBangkokDate();
+
+            // Handle new grants (idsToGrant)
+            if (employeeIdsToGrant && employeeIdsToGrant.length > 0) {
+                const uuidsToInsert = employeeIdsToGrant
+                    .filter(empId => selectedEmployeeIdMap.has(empId))
+                    .map(empId => selectedEmployeeIdMap.get(empId));
+
+                const couponsToInsert = uuidsToInsert.map(uuid => ({
+                    employee_id: uuid,
+                    coupon_date: today,
+                    coupon_type: couponType,
+                    status: 'READY', // New grants are READY
+                    issued_by: user.id // NEW: Track who issued
+                }));
+
+                if (couponsToInsert.length > 0) {
+                    const { error: insertError } = await supabaseAdmin.from('daily_coupons').insert(couponsToInsert);
+                    if (insertError) {
+                        console.error('Error inserting new coupons:', insertError);
+                        // Depending on desired behavior, might partial success or throw
+                        throw new Error(`Failed to insert new coupons: ${insertError.message}`);
+                    }
+                    insertedCount += couponsToInsert.length;
+                }
+            }
+
+            // Handle force grants (idsToGrantDuplicates) - Update existing to "READY" if needed, or re-insert
+            if (employeeIdsToGrantDuplicates && employeeIdsToGrantDuplicates.length > 0) {
+                const uuidsToForceGrant = employeeIdsToGrantDuplicates
+                    .filter(empId => selectedEmployeeIdMap.has(empId))
+                    .map(empId => selectedEmployeeIdMap.get(empId));
+
+                for (const uuid of uuidsToForceGrant) {
+                    // Try to find an existing coupon for today/type
+                    const { data: existingCoupon, error: findError } = await supabaseAdmin
+                        .from('daily_coupons')
+                        .select('id, status') // Select status to check if it needs update
+                        .eq('employee_id', uuid)
+                        .eq('coupon_date', today)
+                        .eq('coupon_type', couponType)
+                        .single();
+
+                    if (findError && findError.code !== 'PGRST116') { // PGRST116 is "no rows found"
+                        console.error('Error finding existing coupon for force grant:', findError);
+                        throw findError;
+                    }
+
+                    if (existingCoupon) {
+                        // If coupon exists AND status is NOT READY, update it to READY
+                        // If it's already READY, we don't need to update it, but still count as "processed"
+                        if (existingCoupon.status !== 'READY') { 
+                            const { error: updateError } = await supabaseAdmin
+                                .from('daily_coupons')
+                                .update({ status: 'READY', used_at: null, updated_at: new Date().toISOString(), issued_by: user.id }) // Reset used_at, update timestamp
+                                .eq('id', existingCoupon.id);
+                            if (updateError) {
+                                console.error('Error updating existing coupon for force grant:', updateError);
+                                throw new Error(`Failed to update existing coupon for force grant: ${updateError.message}`);
+                            }
+                            updatedCount++;
+                        } else {
+                            // Already READY, no DB update, but it was "processed" by the force grant
+                            updatedCount++; 
+                        }
+                    } else {
+                        // If no existing coupon for today/type (e.g. it was deleted), insert a new one
+                        const { error: insertError } = await supabaseAdmin
+                            .from('daily_coupons')
+                            .insert({
+                                employee_id: uuid,
+                                coupon_date: today,
+                                coupon_type: couponType,
+                                status: 'READY',
+                                issued_by: user.id
+                            });
+                        if (insertError) {
+                            console.error('Error inserting new coupon for force grant (no existing):', insertError);
+                            throw new Error(`Failed to insert new coupon for force grant: ${insertError.message}`);
+                        }
+                        insertedCount++; // Count as inserted for message
+                    }
+                }
+            }
+
+            return {
+                statusCode: 200,
+                body: JSON.stringify({
+                    success: true,
+                    message: `ให้สิทธิ์คูปองสำเร็จ ${insertedCount} รายการ และอัปเดต ${updatedCount} รายการ`,
+                    insertedCount: insertedCount,
+                    updatedCount: updatedCount
+                }),
+            };
         }
-        
-        const today = getBangkokDate();
-        const employeeUuids = employees.map(e => e.id);
 
-        const { data: existingCoupons, error: checkError } = await supabaseAdmin
-            .from('daily_coupons') // <<< แก้ไขตรงนี้: 'Daily_Coupons' -> 'daily_coupons'
-            .select('employee_id')
-            .in('employee_id', employeeUuids)
-            .eq('coupon_date', today)
-            .eq('coupon_type', couponType);
-
-        if (checkError) throw checkError;
-
-        const existingUuids = new Set(existingCoupons.map(c => c.employee_id));
-        const employeeIdToUuidMap = new Map(employees.map(e => [e.id, e.employee_id]));
-        const alreadyExistsIds = Array.from(existingUuids).map(uuid => employeeIdToUuidMap.get(uuid));
-        const employeesToInsert = employees.filter(emp => !existingUuids.has(emp.id));
-
-        if (employeesToInsert.length > 0) {
-            const couponsToInsert = employeesToInsert.map(emp => ({
-                employee_id: emp.id,
-                coupon_date: today,
-                coupon_type: couponType,
-                status: 'READY'
-            }));
-
-            const { error: insertError } = await supabaseAdmin.from('daily_coupons').insert(couponsToInsert); // <<< แก้ไขตรงนี้: 'Daily_Coupons' -> 'daily_coupons'
-            if (insertError) throw insertError;
-        }
-
-        return {
-            statusCode: 200,
-            body: JSON.stringify({
-                message: `Successfully granted coupons for ${employeesToInsert.length} employees.`,
-                notFound: notFoundIds,
-                alreadyExists: alreadyExistsIds
-            }),
-        };
+        // --- Default response if action is not recognized ---
+        return { statusCode: 400, body: JSON.stringify({ message: 'Invalid action specified.' }) };
 
     } catch (error) {
         console.error('Grant Coupon Error:', error);
