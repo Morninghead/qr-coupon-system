@@ -370,8 +370,8 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (!session) throw new Error('Not authenticated. Please login again.');
 
-                const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons?action=pre_check`, {
-                    method: 'POST',
+                const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons?action=pre_check`, { 
+                    method: 'POST', 
                     headers: {
                         'Authorization': `Bearer ${session.access_token}`,
                         'Content-Type': 'application/json'
@@ -389,6 +389,7 @@
                 currentSortColumn = null;
                 currentSortDirection = 'asc';
 
+                // Pass the original preCheckResult data along with the sorted employees for rendering
                 renderConfirmationTable(selectedCouponType, result);
                 inputSection.classList.add('hidden');
                 confirmationSection.classList.remove('hidden');
@@ -409,10 +410,13 @@
             notfoundCountSpan.textContent = preCheckResult.notFound.length;
             
             confirmTableBody.innerHTML = '';
-            // Ensure selectAllDuplicatesCheckbox state is correct based on current selection
-            const allDuplicateCheckboxes = Array.from(document.querySelectorAll('.confirm-table-checkbox[data-action="grant_duplicate"]'));
-            selectAllDuplicatesCheckbox.checked = allDuplicateCheckboxes.every(cb => cb.checked);
-
+            // Recalculate selectAllDuplicatesCheckbox state based on *currentProcessedEmployees* if it was sorted
+            const duplicateCheckboxes = currentProcessedEmployees.filter(emp => emp.status === 'duplicate');
+            selectAllDuplicatesCheckbox.checked = duplicateCheckboxes.every(emp => {
+                // Check if the corresponding checkbox (if it existed before re-rendering) was checked
+                const existingCheckbox = document.querySelector(`.confirm-table-checkbox[data-employee-id="${emp.employee_id}"][data-action="grant_duplicate"]`);
+                return existingCheckbox ? existingCheckbox.checked : true; // Default to checked if no previous state
+            });
 
             // Sort employees before rendering
             let sortedEmployees = [...currentProcessedEmployees]; // Create a copy to sort
@@ -420,7 +424,7 @@
                 sortedEmployees.sort((a, b) => {
                     let aVal, bVal;
                     if (currentSortColumn === 'status') {
-                        // Custom sort order for status
+                        // Custom sort order for status: ready_to_grant, duplicate, not_found
                         const statusOrder = { 'ready_to_grant': 1, 'duplicate': 2, 'not_found': 3 };
                         aVal = statusOrder[a.status] || 99;
                         bVal = statusOrder[b.status] || 99;
@@ -441,19 +445,19 @@
                 let statusClass = '';
                 let statusText = '';
                 let checkboxHtml = '';
-                let couponDetailText = '';
+                let couponDetailText = ''; 
 
-                // Determine initial checkbox state for re-rendering
+                // Determine initial checkbox state for re-rendering (crucial for maintaining selection after sort)
                 let isChecked = false;
                 if (emp.status === 'ready_to_grant') {
                     statusClass = 'status-ready';
                     statusText = 'พร้อมให้สิทธิ์ใหม่';
-                    isChecked = true; // Always checked and disabled
+                    isChecked = true; 
                     checkboxHtml = `<input type="checkbox" class="confirm-table-checkbox" data-employee-id="${emp.employee_id}" data-action="grant_new" checked disabled>`;
                 } else if (emp.status === 'duplicate') {
                     statusClass = 'status-duplicate';
                     statusText = 'มีสิทธิ์แล้ว';
-                    // Re-use current state from previously rendered checkbox or default to checked
+                    // Retrieve checkbox state from DOM before re-rendering or default to true
                     const existingCheckbox = document.querySelector(`.confirm-table-checkbox[data-employee-id="${emp.employee_id}"][data-action="grant_duplicate"]`);
                     isChecked = existingCheckbox ? existingCheckbox.checked : true; // Default to checked if no previous state
                     checkboxHtml = `<input type="checkbox" class="confirm-table-checkbox" data-employee-id="${emp.employee_id}" data-action="grant_duplicate" ${isChecked ? 'checked' : ''}>`;
@@ -470,7 +474,7 @@
                 } else if (emp.status === 'not_found') {
                     statusClass = 'status-notfound';
                     statusText = 'ไม่พบรหัสพนักงาน';
-                    checkboxHtml = `<input type="checkbox" class="confirm-table-checkbox" data-employee-id="${emp.employee_id}" data-action="skip" disabled>`;
+                    checkboxHtml = `<input type="checkbox" class="confirm-table-checkbox" data-employee-id="${emp.employee_id}" data-action="skip" disabled>`; 
                 }
 
                 row.innerHTML = `
@@ -492,7 +496,7 @@
                 });
             });
 
-            // Update sort icons
+            // Update sort icons (re-apply icons based on current sort state)
             document.querySelectorAll('.confirmation-table th.sortable').forEach(header => {
                 const sortBy = header.dataset.sortBy;
                 const sortIcon = header.querySelector('.sort-icon');
@@ -502,7 +506,7 @@
                 }
             });
 
-            updateConfirmButtonStatus(); 
+            updateConfirmButtonStatus(); // Initial status check for confirm button
         }
 
         // Add event listeners for sorting headers
@@ -516,8 +520,8 @@
                     currentSortDirection = 'asc';
                 }
                 // Re-render table with sorting applied
-                renderConfirmationTable(confirmCouponTypeSpan.textContent, {
-                    employees: currentProcessedEmployees, // Pass the original data, sorting happens in renderConfirmationTable
+                renderConfirmationTable(confirmCouponTypeSpan.textContent, { // Pass original result object, render will use currentProcessedEmployees
+                    employees: currentProcessedEmployees,
                     readyToGrant: currentProcessedEmployees.filter(e => e.status === 'ready_to_grant').map(e => e.employee_id),
                     alreadyExists: currentProcessedEmployees.filter(e => e.status === 'duplicate').map(e => e.employee_id),
                     notFound: currentProcessedEmployees.filter(e => e.status === 'not_found').map(e => e.employee_id)
@@ -554,7 +558,7 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (!session) throw new Error('Not authenticated. Please login again.');
 
-                const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons?action=final_grant`, {
+                const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons?action=final_grant`, { 
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${session.access_token}`,
