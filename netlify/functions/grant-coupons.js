@@ -37,7 +37,7 @@ export const handler = async (event, context) => {
             return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied' }) };
         }
 
-        const { action } = event.queryStringParameters; // NEW: Get action from query string
+        const { action } = event.queryStringParameters; // Get action from query string
 
         // --- PHASE 1: Pre-check eligibility ---
         if (action === 'pre_check') {
@@ -61,31 +61,35 @@ export const handler = async (event, context) => {
             // Check existing coupons for today and this type
             const { data: existingCoupons, error: checkError } = await supabaseAdmin
                 .from('daily_coupons')
-                .select('employee_id')
+                .select('employee_id, status, used_at') // <<< NEW: Select status and used_at
                 .in('employee_id', employeesData.map(e => e.id)) // Use UUIDs for query
                 .eq('coupon_date', today)
                 .eq('coupon_type', couponType);
 
             if (checkError) throw checkError;
 
-            const existingUuids = new Set(existingCoupons.map(c => c.employee_id));
+            // Map employee UUID to their current coupon status and used_at
+            const existingCouponStatusMap = new Map(existingCoupons.map(c => [c.employee_id, { status: c.status, used_at: c.used_at }])); // <<< NEW: Map coupon status and used_at
 
-            let readyToGrantIds = []; // IDs that are not found in daily_coupons for today
-            let alreadyExistsIds = []; // IDs that are found (duplicates)
-            let notFoundIds = []; // IDs that are not found in 'employees' table at all
+            let readyToGrantIds = []; 
+            let alreadyExistsIds = []; 
+            let notFoundIds = []; 
 
             // Prepare results for frontend
             const employeesForFrontend = [];
             for (const empId of employeeIds) {
                 const empDetails = foundEmployeeMap.get(empId);
                 if (empDetails) {
+                    const couponStatus = existingCouponStatusMap.get(empDetails.id); // Get coupon status
+                    
                     employeesForFrontend.push({
                         employee_id: empId,
                         name: empDetails.name,
-                        // Add status for frontend to render
-                        status: existingUuids.has(empDetails.id) ? 'duplicate' : 'ready_to_grant'
+                        status: couponStatus ? 'duplicate' : 'ready_to_grant', // Set 'duplicate' if coupon exists
+                        coupon_status_detail: couponStatus ? couponStatus.status : null, // Add coupon status detail
+                        coupon_used_at: couponStatus ? couponStatus.used_at : null // Add coupon used_at
                     });
-                    if (existingUuids.has(empDetails.id)) {
+                    if (couponStatus) { 
                         alreadyExistsIds.push(empId);
                     } else {
                         readyToGrantIds.push(empId);
@@ -95,7 +99,9 @@ export const handler = async (event, context) => {
                     employeesForFrontend.push({
                         employee_id: empId,
                         name: 'ไม่พบชื่อ',
-                        status: 'not_found'
+                        status: 'not_found',
+                        coupon_status_detail: null, 
+                        coupon_used_at: null
                     });
                 }
             }
@@ -105,7 +111,7 @@ export const handler = async (event, context) => {
                 body: JSON.stringify({
                     success: true,
                     message: 'Pre-check completed.',
-                    employees: employeesForFrontend, // Full list with status
+                    employees: employeesForFrontend, 
                     readyToGrant: readyToGrantIds,
                     alreadyExists: alreadyExistsIds,
                     notFound: notFoundIds
@@ -122,7 +128,7 @@ export const handler = async (event, context) => {
             }
 
             let insertedCount = 0;
-            let updatedCount = 0; // For force-granted duplicates
+            let updatedCount = 0; 
 
             const allEmployeeIdsToProcess = [...(employeeIdsToGrant || []), ...(employeeIdsToGrantDuplicates || [])];
             if (allEmployeeIdsToProcess.length === 0) {
@@ -151,15 +157,14 @@ export const handler = async (event, context) => {
                     employee_id: uuid,
                     coupon_date: today,
                     coupon_type: couponType,
-                    status: 'READY', // New grants are READY
-                    issued_by: user.id // NEW: Track who issued
+                    status: 'READY', 
+                    issued_by: user.id 
                 }));
 
                 if (couponsToInsert.length > 0) {
                     const { error: insertError } = await supabaseAdmin.from('daily_coupons').insert(couponsToInsert);
                     if (insertError) {
                         console.error('Error inserting new coupons:', insertError);
-                        // Depending on desired behavior, might partial success or throw
                         throw new Error(`Failed to insert new coupons: ${insertError.message}`);
                     }
                     insertedCount += couponsToInsert.length;
@@ -173,27 +178,24 @@ export const handler = async (event, context) => {
                     .map(empId => selectedEmployeeIdMap.get(empId));
 
                 for (const uuid of uuidsToForceGrant) {
-                    // Try to find an existing coupon for today/type
                     const { data: existingCoupon, error: findError } = await supabaseAdmin
                         .from('daily_coupons')
-                        .select('id, status') // Select status to check if it needs update
+                        .select('id, status') 
                         .eq('employee_id', uuid)
                         .eq('coupon_date', today)
                         .eq('coupon_type', couponType)
                         .single();
 
-                    if (findError && findError.code !== 'PGRST116') { // PGRST116 is "no rows found"
+                    if (findError && findError.code !== 'PGRST116') {
                         console.error('Error finding existing coupon for force grant:', findError);
                         throw findError;
                     }
 
                     if (existingCoupon) {
-                        // If coupon exists AND status is NOT READY, update it to READY
-                        // If it's already READY, we don't need to update it, but still count as "processed"
                         if (existingCoupon.status !== 'READY') { 
                             const { error: updateError } = await supabaseAdmin
                                 .from('daily_coupons')
-                                .update({ status: 'READY', used_at: null, updated_at: new Date().toISOString(), issued_by: user.id }) // Reset used_at, update timestamp
+                                .update({ status: 'READY', used_at: null, updated_at: new Date().toISOString(), issued_by: user.id }) 
                                 .eq('id', existingCoupon.id);
                             if (updateError) {
                                 console.error('Error updating existing coupon for force grant:', updateError);
@@ -201,11 +203,9 @@ export const handler = async (event, context) => {
                             }
                             updatedCount++;
                         } else {
-                            // Already READY, no DB update, but it was "processed" by the force grant
                             updatedCount++; 
                         }
                     } else {
-                        // If no existing coupon for today/type (e.g. it was deleted), insert a new one
                         const { error: insertError } = await supabaseAdmin
                             .from('daily_coupons')
                             .insert({
@@ -219,7 +219,7 @@ export const handler = async (event, context) => {
                             console.error('Error inserting new coupon for force grant (no existing):', insertError);
                             throw new Error(`Failed to insert new coupon for force grant: ${insertError.message}`);
                         }
-                        insertedCount++; // Count as inserted for message
+                        insertedCount++; 
                     }
                 }
             }
@@ -235,7 +235,6 @@ export const handler = async (event, context) => {
             };
         }
 
-        // --- Default response if action is not recognized ---
         return { statusCode: 400, body: JSON.stringify({ message: 'Invalid action specified.' }) };
 
     } catch (error) {
