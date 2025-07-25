@@ -1,4 +1,3 @@
-
 // Import Supabase client library
 import { createClient } from '@supabase/supabase-js';
 
@@ -23,8 +22,9 @@ export const handler = async (event) => {
 
         let employee = null; 
         let couponToUseEmployeeId = null; 
-        let finalCouponType = null; // Store the coupon type that was used
-        let isPermanentTokenScan = false; // Flag to indicate if it's a permanent token scan
+        let finalCouponType = null; 
+        let scanSource = 'permanent_card'; // <<< NEW: Default scan_source
+        let isPermanentTokenScan = false; 
 
         // --- 1. Check if the scanned UUID is an active temporary coupon request ---
         if (isUuid) { 
@@ -34,7 +34,7 @@ export const handler = async (event) => {
                 .eq('issued_token', inputValue)
                 .single();
 
-            if (tempReqError && tempReqError.code !== 'PGRST116') { // PGRST116 means "No rows found"
+            if (tempReqError && tempReqError.code !== 'PGRST116') { 
                  console.error("Error fetching temporary request:", tempReqError);
             }
 
@@ -61,10 +61,11 @@ export const handler = async (event) => {
                         };
                     }
                     
-                    finalCouponType = tempRequest.coupon_type; // Store the coupon type from temp request
+                    finalCouponType = tempRequest.coupon_type; 
 
                     // If it's a temporary QR for a new/unknown individual
                     if (!tempRequest.employee_id) { 
+                        scanSource = 'temp_coupon_new_temp_employee'; // <<< NEW: Set scan_source
                         return {
                             statusCode: 200,
                             body: JSON.stringify({
@@ -74,12 +75,13 @@ export const handler = async (event) => {
                                 name: tempRequest.temp_employee_name || 'บุคคลชั่วคราว',
                                 employee_id: tempRequest.temp_employee_identifier || 'N/A', 
                                 coupon_type: finalCouponType,
-                                used_at: updateTempReqData.used_at 
+                                used_at: updateTempReqData.used_at,
+                                scan_source: scanSource // <<< NEW: Return scan_source
                             }),
                         };
                     } else { 
                         // It's a temporary QR for an EXISTING employee (reusing permanent token)
-                        // This scan should now create/update a daily coupon entry
+                        scanSource = 'temp_coupon_existing_employee'; // <<< NEW: Set scan_source
                         const { data: empDetails, error: empDetailsError } = await supabaseAdmin
                             .from('employees')
                             .select('id, name, employee_id, is_active')
@@ -114,7 +116,6 @@ export const handler = async (event) => {
                             };
                         }
 
-                        // Try to find an existing READY daily coupon or create a new USED one
                         const { data: existingDailyCoupon, error: dailyCouponError } = await supabaseAdmin
                             .from('daily_coupons')
                             .select('id, status, used_at')
@@ -124,18 +125,16 @@ export const handler = async (event) => {
                             .single();
 
                         const dailyCouponUseTime = new Date().toISOString();
-                        let finalUsedAt = dailyCouponUseTime; // Default to current scan time
+                        let finalUsedAt = dailyCouponUseTime; 
 
                         if (existingDailyCoupon && existingDailyCoupon.status === 'READY') {
-                            // If READY coupon exists, update it to USED
                             const { error: updateDailyError } = await supabaseAdmin
                                 .from('daily_coupons')
-                                .update({ status: 'USED', used_at: dailyCouponUseTime })
+                                .update({ status: 'USED', used_at: dailyCouponUseTime, scan_source: scanSource }) // <<< NEW: Update scan_source
                                 .eq('id', existingDailyCoupon.id);
                             if (updateDailyError) throw updateDailyError;
                             
                         } else if (!existingDailyCoupon) {
-                            // If no coupon exists, insert a new USED one
                             const { error: insertDailyError } = await supabaseAdmin
                                 .from('daily_coupons')
                                 .insert({
@@ -143,26 +142,26 @@ export const handler = async (event) => {
                                     coupon_date: today,
                                     coupon_type: finalCouponType,
                                     status: 'USED',
-                                    used_at: dailyCouponUseTime
+                                    used_at: dailyCouponUseTime,
+                                    scan_source: scanSource // <<< NEW: Insert scan_source
                                 });
                             if (insertDailyError) throw insertDailyError;
                         } else if (existingDailyCoupon.status === 'USED') {
-                            // If already USED, log a warning but still approve the temporary usage
                             console.warn(`Daily coupon for ${empDetails.employee_id} (type: ${finalCouponType}) was already USED today.`);
-                            finalUsedAt = existingDailyCoupon.used_at || dailyCouponUseTime; // Use existing used_at if available
+                            finalUsedAt = existingDailyCoupon.used_at || dailyCouponUseTime; 
                         }
 
-                        // Return success for the temporary coupon usage for existing employee
                         return {
                             statusCode: 200,
                             body: JSON.stringify({
                                 success: true,
-                                status_code: 'APPROVED_DAILY', // Report as a standard daily coupon usage
+                                status_code: 'APPROVED_DAILY', 
                                 message: `อนุมัติ`,
                                 name: empDetails.name,
                                 employee_id: empDetails.employee_id,
                                 coupon_type: finalCouponType,
-                                used_at: finalUsedAt 
+                                used_at: finalUsedAt,
+                                scan_source: scanSource // <<< NEW: Return scan_source
                             }),
                         };
                     }
@@ -215,6 +214,7 @@ export const handler = async (event) => {
 
         // --- 2. If it's a permanent token scan (either direct or UUID not found in temp requests) ---
         if (isPermanentTokenScan) { 
+            scanSource = 'permanent_card'; // <<< NEW: Set scan_source
             let query = supabaseAdmin.from('employees').select('id, name, employee_id, is_active, permanent_token'); 
             
             if (isUuid) { // If it's a UUID, check permanent_token
@@ -276,7 +276,7 @@ export const handler = async (event) => {
             }
 
             // 4. Update the daily coupon status to USED
-            const updateData = { status: 'USED', used_at: new Date().toISOString() };
+            const updateData = { status: 'USED', used_at: new Date().toISOString(), scan_source: scanSource }; // <<< NEW: Update scan_source
             const { error: updateError } = await supabaseAdmin
                 .from('daily_coupons')
                 .update(updateData)
@@ -294,10 +294,11 @@ export const handler = async (event) => {
                     name: employee.name,
                     employee_id: employee.employee_id,
                     coupon_type: availableCoupon.coupon_type,
-                    used_at: updateData.used_at 
+                    used_at: updateData.used_at,
+                    scan_source: scanSource // <<< NEW: Return scan_source
                 }),
             };
-        } // End of isPermanentTokenScan block
+        } 
 
     } catch (error) {
         console.error('Error in scan function:', error); 
