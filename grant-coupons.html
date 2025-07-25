@@ -14,6 +14,8 @@
             --dark-gray: #1F2937;
             --text-gray: #4B5563;
             --border-color: #E5E7EB;
+            --success-color: #10B981;
+            --info-color: #3B82F6; /* Added for general info */
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -98,6 +100,69 @@
             margin-right: 8px;
             margin-bottom: 0;
         }
+
+        /* Styles for confirmation table */
+        .confirmation-table-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: var(--light-gray);
+            border-radius: 16px;
+        }
+        .confirmation-table-container h3 {
+            margin-top: 0;
+            color: var(--dark-gray);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .confirmation-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .confirmation-table th, .confirmation-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px dashed var(--border-color);
+            white-space: nowrap;
+        }
+        .confirmation-table th {
+            background-color: #F9FAFB;
+            color: var(--text-gray);
+        }
+        .confirmation-table tr:last-child td {
+            border-bottom: none;
+        }
+        .confirm-grant-btn {
+            background-color: var(--success-color);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            border: none;
+        }
+        .confirm-grant-btn:hover { background-color: #059669; }
+        .confirm-grant-btn:disabled { background-color: #A7F3D0; cursor: not-allowed; }
+        .cancel-confirm-btn {
+            background-color: #EF4444;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            border: none;
+            margin-left: 10px;
+        }
+        .cancel-confirm-btn:hover { background-color: #DC2626; }
+
+        .status-ready { color: var(--info-color); }
+        .status-duplicate { color: var(--secondary-color); } /* Used secondary-color for warning/duplicate */
+        .status-notfound { color: #EF4444; } /* Red for not found */
+
+        .confirm-table-checkbox {
+            width: 20px; height: 20px; vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -118,7 +183,7 @@
             </div>
     
             <div class="grant-container">
-                <div class="form-section">
+                <div class="form-section" id="input-section">
                     <h2>กำหนดประเภทคูปอง</h2>
                     <div class="radio-group">
                         <label>
@@ -136,9 +201,35 @@
                     <textarea id="employee-ids-textarea" placeholder="18096\n24062\n25077"></textarea>
                     <div class="file-preview" id="file-preview"></div>
                     <div class="button-group">
-                        <button id="grant-coupon-btn" class="submit-btn">ให้สิทธิ์คูปองที่เลือก</button>
+                        <button id="preview-grant-btn" class="submit-btn">ตรวจสอบสิทธิ์ & ให้สิทธิ์</button>
                         <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File</button>
                         <input type="file" id="file-input" accept=".csv, .xlsx">
+                    </div>
+                </div>
+
+                <div id="confirmation-section" class="confirmation-table-container hidden">
+                    <h3>ตรวจสอบ & ยืนยันการให้สิทธิ์</h3>
+                    <p>ประเภทคูปอง: <strong id="confirm-coupon-type"></strong></p>
+                    <p>จำนวนพนักงานที่พร้อมให้สิทธิ์ใหม่: <strong id="ready-count">0</strong> คน</p>
+                    <p>จำนวนพนักงานที่มีสิทธิ์แล้ว (ซ้ำ): <strong id="duplicate-count">0</strong> คน</p>
+                    <p>จำนวนพนักงานที่ไม่พบรหัส: <strong id="notfound-count">0</strong> คน</p>
+
+                    <table class="confirmation-table">
+                        <thead>
+                            <tr>
+                                <th>รหัสพนักงาน</th>
+                                <th>ชื่อ-สกุล</th>
+                                <th>สถานะ</th>
+                                <th><input type="checkbox" id="select-all-duplicates"> อนุมัติซ้ำ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="confirm-table-body">
+                            </tbody>
+                    </table>
+
+                    <div class="button-group">
+                        <button id="confirm-grant-btn" class="confirm-grant-btn">ยืนยันการให้สิทธิ์</button>
+                        <button id="cancel-confirm-btn" class="cancel-confirm-btn">ยกเลิก</button>
                     </div>
                 </div>
     
@@ -153,15 +244,28 @@
         let _supabase;
 
         const fileInput = document.getElementById('file-input');
-        const grantCouponBtn = document.getElementById('grant-coupon-btn');
+        const previewGrantBtn = document.getElementById('preview-grant-btn'); // Renamed
         const filePreview = document.getElementById('file-preview');
         const employeeIdsTextarea = document.getElementById('employee-ids-textarea');
         const resultMessageDiv = document.getElementById('result-message');
-        const couponTypeRadios = document.querySelectorAll('input[name="coupon-type-selection"]'); // New
+        const couponTypeRadios = document.querySelectorAll('input[name="coupon-type-selection"]');
         
+        // Confirmation Section Elements
+        const inputSection = document.getElementById('input-section');
+        const confirmationSection = document.getElementById('confirmation-section');
+        const confirmCouponTypeSpan = document.getElementById('confirm-coupon-type');
+        const readyCountSpan = document.getElementById('ready-count');
+        const duplicateCountSpan = document.getElementById('duplicate-count');
+        const notfoundCountSpan = document.getElementById('notfound-count');
+        const confirmTableBody = document.getElementById('confirm-table-body');
+        const selectAllDuplicatesCheckbox = document.getElementById('select-all-duplicates');
+        const confirmGrantBtn = document.getElementById('confirm-grant-btn');
+        const cancelConfirmBtn = document.getElementById('cancel-confirm-btn');
+
         const baseUrl = window.location.origin;
 
-        let employeeIdsFromFile = []; // Stores IDs from imported file
+        let employeeIdsFromFile = []; 
+        let currentProcessedEmployees = []; // Stores the full employee data from pre-check
 
         async function initializeApp() {
             try {
@@ -181,7 +285,7 @@
             }
         }
 
-        function handleFile(file, previewElement, idStore) {
+        function handleFile(file, previewElement) {
             if (!file) return;
 
             const reader = new FileReader();
@@ -202,23 +306,39 @@
 
                     const employeeIds = json.slice(1).map(row => String(row[idColumnIndex]).trim()).filter(Boolean);
                     
-                    employeeIdsFromFile = employeeIds; // Store in common variable
-                    employeeIdsTextarea.value = ''; // Clear textarea if importing
+                    employeeIdsFromFile = employeeIds; 
+                    employeeIdsTextarea.value = ''; 
                     
                     previewElement.textContent = `พบ ${employeeIds.length} รหัสพนักงานในไฟล์ "${file.name}"`;
+                    previewGrantBtn.disabled = false; // Enable button
                 } catch (err) {
                     previewElement.textContent = `ผิดพลาด: ${err.message}`;
+                    previewGrantBtn.disabled = true; // Disable button on error
                 }
             };
             reader.readAsArrayBuffer(file);
         }
 
-        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0], filePreview)); // Pass filePreview
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0], filePreview));
 
-        // Event listener for the unified grant button
-        grantCouponBtn.addEventListener('click', () => {
-            const selectedCouponType = document.querySelector('input[name="coupon-type-selection"]:checked').value; // Get selected coupon type
+        employeeIdsTextarea.addEventListener('input', () => {
+            const idsFromText = employeeIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
+            if (idsFromText.length > 0) {
+                previewGrantBtn.disabled = false; // Enable button if textarea has input
+                employeeIdsFromFile = []; // Clear file data if manually typing
+                fileInput.value = ''; // Clear file input
+                filePreview.textContent = '';
+            } else {
+                if (employeeIdsFromFile.length === 0) { // If both empty
+                    previewGrantBtn.disabled = true;
+                }
+            }
+        });
 
+
+        // Event listener for the initial "ตรวจสอบสิทธิ์ & ให้สิทธิ์" button
+        previewGrantBtn.addEventListener('click', async () => {
+            const selectedCouponType = document.querySelector('input[name="coupon-type-selection"]:checked').value;
             const idsFromText = employeeIdsTextarea.value.trim().split(/\s+/).filter(Boolean);
             const idsToProcess = idsFromText.length > 0 ? idsFromText : employeeIdsFromFile;
 
@@ -231,50 +351,187 @@
                 return;
             }
 
-            grantCoupons(selectedCouponType, idsToProcess);
+            previewGrantBtn.disabled = true;
+            previewGrantBtn.textContent = 'กำลังตรวจสอบ...';
+            showResult('กำลังตรวจสอบสิทธิ์พนักงาน...', 'info');
+            
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (!session) throw new Error('Not authenticated. Please login again.');
+
+                // Call the backend to PRE-CHECK coupon eligibility
+                const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons?action=pre_check`, { // NEW: Add action parameter
+                    method: 'POST', // Still POST for body
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ employeeIds: idsToProcess, couponType: selectedCouponType })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) throw new Error(result.message || 'เกิดข้อผิดพลาดจาก Server ในการตรวจสอบสิทธิ์');
+
+                currentProcessedEmployees = result.employees; // Store full data
+
+                renderConfirmationTable(selectedCouponType, result);
+                inputSection.classList.add('hidden');
+                confirmationSection.classList.remove('hidden');
+                showResult('', 'hidden'); // Clear previous result message
+
+            } catch (error) {
+                showResult(`ผิดพลาดในการตรวจสอบสิทธิ์: ${error.message}`, 'error');
+            } finally {
+                previewGrantBtn.disabled = false;
+                previewGrantBtn.textContent = 'ตรวจสอบสิทธิ์ & ให้สิทธิ์';
+            }
         });
 
-        async function grantCoupons(couponType, employeeIds) {
-            grantCouponBtn.disabled = true;
-            showResult('กำลังดำเนินการ...', 'info');
+        function renderConfirmationTable(couponType, preCheckResult) {
+            confirmCouponTypeSpan.textContent = couponType;
+            readyCountSpan.textContent = preCheckResult.readyToGrant.length;
+            duplicateCountSpan.textContent = preCheckResult.alreadyExists.length;
+            notfoundCountSpan.textContent = preCheckResult.notFound.length;
+            
+            confirmTableBody.innerHTML = '';
+            selectAllDuplicatesCheckbox.checked = true; // Default to select all duplicates
+
+            // Display all employees in the pre-check result
+            preCheckResult.employees.forEach(emp => {
+                const row = document.createElement('tr');
+                let statusClass = '';
+                let statusText = '';
+                let checkboxHtml = '';
+
+                if (preCheckResult.readyToGrant.includes(emp.employee_id)) {
+                    statusClass = 'status-ready';
+                    statusText = 'พร้อมให้สิทธิ์ใหม่';
+                    checkboxHtml = `<input type="checkbox" class="confirm-table-checkbox" data-employee-id="${emp.employee_id}" data-action="grant_new" checked disabled>`; // Auto-checked, cannot uncheck for new
+                } else if (preCheckResult.alreadyExists.includes(emp.employee_id)) {
+                    statusClass = 'status-duplicate';
+                    statusText = 'มีสิทธิ์แล้ว';
+                    checkboxHtml = `<input type="checkbox" class="confirm-table-checkbox" data-employee-id="${emp.employee_id}" data-action="grant_duplicate" checked>`; // Default checked, can uncheck
+                } else if (preCheckResult.notFound.includes(emp.employee_id)) {
+                    statusClass = 'status-notfound';
+                    statusText = 'ไม่พบรหัสพนักงาน';
+                    checkboxHtml = `<input type="checkbox" class="confirm-table-checkbox" data-employee-id="${emp.employee_id}" data-action="skip" disabled>`; // Cannot select
+                }
+
+                row.innerHTML = `
+                    <td>${emp.employee_id}</td>
+                    <td>${emp.name || '-'}</td>
+                    <td class="${statusClass}">${statusText}</td>
+                    <td>${checkboxHtml}</td>
+                `;
+                confirmTableBody.appendChild(row);
+            });
+
+            // Event listeners for checkboxes in confirmation table
+            document.querySelectorAll('.confirm-table-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', () => {
+                    // If any duplicate checkbox is unchecked, uncheck "select all"
+                    if (!checkbox.checked && checkbox.dataset.action === 'grant_duplicate') {
+                        selectAllDuplicatesCheckbox.checked = false;
+                    }
+                    updateConfirmButtonStatus();
+                });
+            });
+
+            selectAllDuplicatesCheckbox.addEventListener('change', (event) => {
+                const isChecked = event.target.checked;
+                document.querySelectorAll('.confirm-table-checkbox[data-action="grant_duplicate"]').forEach(checkbox => {
+                    checkbox.checked = isChecked;
+                });
+                updateConfirmButtonStatus();
+            });
+            updateConfirmButtonStatus(); // Initial status check for confirm button
+        }
+
+        function updateConfirmButtonStatus() {
+            let selectedForGrant = false;
+            document.querySelectorAll('.confirm-table-checkbox').forEach(checkbox => {
+                if (checkbox.checked && (checkbox.dataset.action === 'grant_new' || checkbox.dataset.action === 'grant_duplicate')) {
+                    selectedForGrant = true;
+                }
+            });
+            confirmGrantBtn.disabled = !selectedForGrant;
+        }
+
+        // Event listener for "ยืนยันการให้สิทธิ์" button (Phase 2)
+        confirmGrantBtn.addEventListener('click', async () => {
+            const selectedCouponType = document.querySelector('input[name="coupon-type-selection"]:checked').value;
+            const idsToGrant = [];
+            const idsToGrantDuplicates = []; // IDs to force grant duplicates
+
+            document.querySelectorAll('.confirm-table-checkbox').forEach(checkbox => {
+                if (checkbox.checked) {
+                    if (checkbox.dataset.action === 'grant_new') {
+                        idsToGrant.push(checkbox.dataset.employeeId);
+                    } else if (checkbox.dataset.action === 'grant_duplicate') {
+                        idsToGrantDuplicates.push(checkbox.dataset.employeeId);
+                    }
+                }
+            });
+            
+            if (idsToGrant.length === 0 && idsToGrantDuplicates.length === 0) {
+                showResult('กรุณาเลือกพนักงานที่ต้องการให้สิทธิ์', 'error');
+                return;
+            }
+
+            confirmGrantBtn.disabled = true;
+            confirmGrantBtn.textContent = 'กำลังบันทึก...';
+            showResult('กำลังให้สิทธิ์คูปอง...', 'info');
 
             try {
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (!session) throw new Error('Not authenticated. Please login again.');
 
-                const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons`, {
+                // Call backend for final grant
+                const response = await fetch(`${baseUrl}/.netlify/functions/grant-coupons?action=final_grant`, { // NEW: Add action parameter
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${session.access_token}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ employeeIds, couponType })
+                    body: JSON.stringify({ 
+                        couponType: selectedCouponType,
+                        employeeIdsToGrant: idsToGrant, // IDs for new grants
+                        employeeIdsToGrantDuplicates: idsToGrantDuplicates // IDs for force duplicates
+                    })
                 });
 
                 const result = await response.json();
 
-                if (!response.ok) throw new Error(result.message || 'เกิดข้อผิดพลาดจาก Server');
+                if (!response.ok) throw new Error(result.message || 'เกิดข้อผิดพลาดจาก Server ในการให้สิทธิ์');
                 
-                let finalMessage = result.message;
-                if (result.notFound && result.notFound.length > 0) {
-                    finalMessage += `\nไม่พบรหัส: ${result.notFound.join(', ')}`;
-                }
-                if (result.alreadyExists && result.alreadyExists.length > 0) {
-                    finalMessage += `\nมีสิทธิ์แล้ว (ซ้ำ): ${result.alreadyExists.join(', ')}`;
-                }
-                showResult(finalMessage, 'success');
-
-            } catch (error) {
-                showResult(`ผิดพลาด: ${error.message}`, 'error');
-            } finally {
-                grantCouponBtn.disabled = false;
-                // Clear inputs after successful grant (optional, based on user flow)
+                showResult(result.message, 'success');
+                // Reset UI to initial input state
+                inputSection.classList.remove('hidden');
+                confirmationSection.classList.add('hidden');
                 employeeIdsTextarea.value = '';
                 fileInput.value = '';
                 employeeIdsFromFile = [];
                 filePreview.textContent = '';
+
+            } catch (error) {
+                showResult(`ผิดพลาดในการให้สิทธิ์: ${error.message}`, 'error');
+            } finally {
+                confirmGrantBtn.disabled = false;
+                confirmGrantBtn.textContent = 'ยืนยันการให้สิทธิ์';
             }
-        }
+        });
+
+        // Event listener for "ยกเลิก" button in confirmation section
+        cancelConfirmBtn.addEventListener('click', () => {
+            inputSection.classList.remove('hidden');
+            confirmationSection.classList.add('hidden');
+            showResult('', 'hidden'); // Clear result message
+            employeeIdsTextarea.value = ''; // Clear inputs
+            fileInput.value = '';
+            employeeIdsFromFile = [];
+            filePreview.textContent = '';
+        });
 
         function showResult(message, type) {
             resultMessageDiv.style.display = 'block';
