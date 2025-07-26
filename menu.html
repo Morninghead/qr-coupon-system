@@ -129,6 +129,11 @@
                     <h2>🎨 จัดการ Template บัตร</h2>
                     <p>สร้างและแก้ไขรูปแบบบัตรพนักงาน</p>
                 </a>
+                
+                <a class='menu-item' href='/card-editor.html' id='menu-card-editor'>
+                    <h2>✨ ออกแบบ Layout บัตร</h2>
+                    <p>เครื่องมือสำหรับจัดวางองค์ประกอบบนบัตร</p>
+                </a>
                 <a class='menu-item' href='/scanner.html' id='menu-scanner'>
                     <h2>📱 หน้าจอร้านค้า (สแกน)</h2>
                     <p>สำหรับสแกนคูปองและดูรายงานการสแกนล่าสุด</p>
@@ -158,9 +163,12 @@
         }
 
         function displayMenusByRole(role) {
-            const publicMenus = ['menu-scanner', 'menu-reports']; // <<< ลบ 'menu-daily-scan-report-standalone' ออก
+            const publicMenus = ['menu-scanner', 'menu-reports'];
             const adminMenus = ['menu-add-employee', 'menu-grant-coupons', 'menu-upload-employee-photo', 'menu-print-employee-cards', 'menu-manage-employees']; 
-            const superuserOnlyMenus = ['menu-issue-temp-coupon', 'menu-manage-card-templates']; 
+            
+            // START: เพิ่ม ID ของเมนูใหม่เข้ามาในส่วนของ superuser
+            const superuserOnlyMenus = ['menu-issue-temp-coupon', 'menu-manage-card-templates', 'menu-card-editor']; 
+            // END: เพิ่ม ID ของเมนูใหม่
 
             publicMenus.forEach(id => {
                 const menuItem = document.getElementById(id);
