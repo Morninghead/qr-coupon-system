@@ -350,48 +350,65 @@ function handleElementImageUpload(e) {
     reader.readAsDataURL(e.target.files[0]);
 }
 
-// START: Corrected Shape Change Logic
 function handlePhotoShapeChange(e) {
     const oldShape = activeStageInfo.transformer.nodes()[0];
     if (!oldShape) return;
-    const isCircle = e.target.value === 'circle';
 
-    // Create a base configuration by copying only safe, common attributes
-    const baseConfig = {
-        x: oldShape.x(),
-        y: oldShape.y(),
-        scaleX: oldShape.scaleX(),
-        scaleY: oldShape.scaleY(),
-        rotation: oldShape.rotation(),
-        draggable: oldShape.draggable(),
-        name: oldShape.name(),
-        stroke: oldShape.stroke(),
-        strokeWidth: oldShape.strokeWidth(),
-        // Explicitly copy all fill pattern properties
+    const isCircle = e.target.value === 'circle';
+    const currentIsCircle = oldShape.getClassName() === 'Circle';
+
+    if ((isCircle && currentIsCircle) || (!isCircle && !currentIsCircle)) {
+        return; // No change needed
+    }
+
+    // Save the state of the shape we are leaving
+    const state = {
         fillPatternImage: oldShape.fillPatternImage(),
-        fillPatternRepeat: oldShape.fillPatternRepeat(),
         fillPatternScaleX: oldShape.fillPatternScaleX(),
         fillPatternScaleY: oldShape.fillPatternScaleY(),
         fillPatternOffsetX: oldShape.fillPatternOffsetX(),
         fillPatternOffsetY: oldShape.fillPatternOffsetY(),
     };
-
-    let newShape;
-
-    if (isCircle) {
-        // Switching from RECTANGLE to CIRCLE
-        const size = oldShape.width() * oldShape.scaleX();
-        baseConfig.radius = size / 2;
-        newShape = new Konva.Circle(baseConfig);
+    if (currentIsCircle) {
+        state.radius = oldShape.radius();
+        oldShape.setAttr('_circleState', state);
     } else {
-        // Switching from CIRCLE to RECTANGLE
-        const size = oldShape.radius() * oldShape.scaleX() * 2;
-        baseConfig.width = size;
-        baseConfig.height = size;
-        newShape = new Konva.Rect(baseConfig);
+        state.width = oldShape.width();
+        state.height = oldShape.height();
+        oldShape.setAttr('_rectState', state);
     }
 
-    if (!baseConfig.fillPatternImage) {
+    const baseConfig = {
+        x: oldShape.x(), y: oldShape.y(), scaleX: oldShape.scaleX(), scaleY: oldShape.scaleY(),
+        rotation: oldShape.rotation(), draggable: oldShape.draggable(), name: oldShape.name(),
+        stroke: oldShape.stroke(), strokeWidth: oldShape.strokeWidth(),
+        _circleState: oldShape.getAttr('_circleState'),
+        _rectState: oldShape.getAttr('_rectState'),
+    };
+    
+    let newShape;
+
+    if (isCircle) { // TO CIRCLE
+        const prevState = oldShape.getAttr('_circleState');
+        if (prevState) {
+            Object.assign(baseConfig, prevState);
+        } else {
+            baseConfig.radius = (oldShape.width() * oldShape.scaleX()) / 2;
+        }
+        newShape = new Konva.Circle(baseConfig);
+    } else { // TO RECTANGLE
+        const prevState = oldShape.getAttr('_rectState');
+        if (prevState) {
+            Object.assign(baseConfig, prevState);
+        } else {
+            const size = oldShape.radius() * oldShape.scaleX() * 2;
+            baseConfig.width = size;
+            baseConfig.height = size;
+        }
+        newShape = new Konva.Rect(baseConfig);
+    }
+    
+    if (!newShape.fillPatternImage()) {
         newShape.fill('#e0e0e0');
     }
 
@@ -403,8 +420,9 @@ function handlePhotoShapeChange(e) {
     
     activeStageInfo.transformer.nodes([newShape]);
     saveStateFor(activeStageInfo);
+    updatePropertiesPanel();
 }
-// END: Corrected Shape Change Logic
+
 
 function handleFontChange() {
     const node = activeStageInfo.transformer.nodes()[0]; if (!node) return;
