@@ -39,14 +39,7 @@ function setupNewStage(name, width, height) {
 
     const transformer = new Konva.Transformer({
         borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
-        boundBoxFunc: (oldBox, newBox) => {
-            const node = transformer.nodes()[0];
-            if (node && (node.hasName('photo') || node.hasName('logo'))) {
-                if (Math.abs(newBox.width) < 20 || Math.abs(newBox.height) < 20) return oldBox;
-                newBox.height = Math.abs(newBox.width / (oldBox.width / oldBox.height));
-            }
-            return newBox;
-        }
+        keepRatio: false,
     });
     const bgTransformer = new Konva.Transformer({ borderStroke: '#00a1ff', anchorStroke: '#00a1ff', anchorFill: 'white', keepRatio: false });
     
@@ -361,7 +354,6 @@ function handlePhotoShapeChange(e) {
         return;
     }
 
-    // Save the state of the shape we are leaving
     const state = {
         fillPatternImage: oldShape.fillPatternImage(),
         fillPatternScaleX: oldShape.fillPatternScaleX(),
