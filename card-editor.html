@@ -11,7 +11,13 @@
             padding: 20px;
             background-color: #f0f2f5;
             display: flex;
-            gap: 20px;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .editor-wrapper {
+            display: flex;
+            gap: 30px;
+            width: 100%;
         }
         .controls {
             padding: 20px;
@@ -24,10 +30,11 @@
         .control-group {
             margin-bottom: 20px;
         }
-        .control-group label {
+        .control-group label, .control-group h3 {
             font-weight: 600;
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
+            color: #333;
         }
         .control-group button, .control-group input {
             width: 100%;
@@ -46,177 +53,283 @@
         .control-group button:hover {
             background-color: #4f46e5;
         }
+        .control-group button:disabled {
+            background-color: #c7d2fe;
+            cursor: not-allowed;
+        }
         #export-json { background-color: #10B981; }
         #export-json:hover { background-color: #059669; }
+        .history-buttons { display: flex; gap: 10px; }
         textarea {
             width: 100%;
             height: 150px;
             font-family: monospace;
             font-size: 12px;
         }
-        #stage-container {
+        .canvases {
+            display: flex;
+            gap: 30px;
+        }
+        .canvas-container {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .canvas-container h2 {
+           margin-top: 0;
+           font-size: 1.2em;
+           color: #444;
+           text-align: center;
+        }
+        #stage-container-front, #stage-container-back {
             border: 1px dashed #ccc;
-            background-color: white;
+            background-color: #fafafa;
+        }
+        .radio-group label {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 15px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <div class="control-group">
-            <label for="bg-front-upload">Upload Front Background</label>
-            <input type="file" id="bg-front-upload" accept="image/*">
+    <div class="editor-wrapper">
+        <div class="controls">
+             <div class="control-group">
+                <h3>History</h3>
+                <div class="history-buttons">
+                    <button id="undo-btn">Undo</button>
+                    <button id="redo-btn">Redo</button>
+                </div>
+                <small><i>Tip: Press 'Delete' key to remove selected item.</i></small>
+            </div>
+            <hr>
+            <div class="control-group">
+                <h3>Card Orientation</h3>
+                <div class="radio-group">
+                    <label><input type="radio" name="orientation" value="landscape" checked> Landscape</label>
+                    <label><input type="radio" name="orientation" value="portrait"> Portrait</label>
+                </div>
+            </div>
+            <hr>
+            <div class="control-group">
+                <label for="bg-front-upload">Upload Front Background</label>
+                <input type="file" id="bg-front-upload" accept="image/*">
+            </div>
+            <div class="control-group">
+                <label for="bg-back-upload">Upload Back Background</label>
+                <input type="file" id="bg-back-upload" accept="image/*">
+            </div>
+            <hr>
+            <div class="control-group">
+                <label>Add Elements (to Front)</label>
+                <button id="add-photo">Add Employee Photo</button>
+                <button id="add-name">Add Employee Name</button>
+                <button id="add-id">Add Employee ID</button>
+                <button id="add-logo">Add Company Logo</button>
+                <button id="add-qr">Add QR Code</button>
+            </div>
+            <hr>
+            <div class="control-group">
+                <label>Export Layout</label>
+                <button id="export-json">Export Layout as JSON</button>
+                <textarea id="json-output" readonly placeholder="JSON output will appear here..."></textarea>
+            </div>
         </div>
-        <div class="control-group">
-            <label for="bg-back-upload">Upload Back Background</label>
-            <input type="file" id="bg-back-upload" accept="image/*">
-            <small><i>*การแสดงผลจะอยู่บนพื้นที่เดียวกัน แค่สลับพื้นหลัง*</i></small>
-        </div>
-        <hr>
-        <div class="control-group">
-            <label>Add Elements</label>
-            <button id="add-photo">Add Employee Photo</button>
-            <button id="add-name">Add Employee Name</button>
-            <button id="add-id">Add Employee ID</button>
-            <button id="add-logo">Add Company Logo</button>
-            <button id="add-qr">Add QR Code</button>
-        </div>
-        <hr>
-        <div class="control-group">
-            <label>Export Layout</label>
-            <button id="export-json">Export Layout as JSON</button>
-            <textarea id="json-output" readonly placeholder="JSON output will appear here..."></textarea>
+
+        <div class="canvases">
+            <div class="canvas-container">
+                <h2>Front</h2>
+                <div id="stage-container-front"></div>
+            </div>
+            <div class="canvas-container">
+                <h2>Back</h2>
+                <div id="stage-container-back"></div>
+            </div>
         </div>
     </div>
 
-    <div id="stage-container"></div>
 
     <script>
         // --- 1. ค่าคงที่และตัวแปรเริ่มต้น ---
-        const CARD_WIDTH = 856; // ขนาดบัตรมาตรฐาน 85.6mm x 10
-        const CARD_HEIGHT = 540; // ขนาดบัตรมาตรฐาน 54mm x 10
+        const STANDARD_RATIO = 85.6 / 54.0;
+        const LANDSCAPE_WIDTH = 800;
+        const LANDSCAPE_HEIGHT = LANDSCAPE_WIDTH / STANDARD_RATIO;
+        const PORTRAIT_WIDTH = 500;
+        const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
+        const HISTORY_LIMIT = 11; // 1 initial state + 10 undo steps
 
-        let selectedShape = null;
+        // --- 2. ตั้งค่า Konva Stages และ Layers ---
+        function createStage(containerId, width, height) {
+            const stage = new Konva.Stage({ container, width, height });
+            stage.add(new Konva.Layer()); // Background Layer [0]
+            stage.add(new Konva.Layer()); // Elements Layer [1]
+            return stage;
+        }
 
-        // --- 2. ตั้งค่า Konva Stage และ Layers ---
-        const stage = new Konva.Stage({
-            container: 'stage-container',
-            width: CARD_WIDTH,
-            height: CARD_HEIGHT,
-        });
+        let stageFront = createStage('stage-container-front', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
+        const stageBack = createStage('stage-container-back', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
+        
+        let bgLayerFront = stageFront.getLayers()[0];
+        let elementsLayer = stageFront.getLayers()[1];
+        const bgLayerBack = stageBack.getLayers()[0];
+        let transformer;
 
-        // Layer สำหรับพื้นหลัง
-        const backgroundLayer = new Konva.Layer();
-        stage.add(backgroundLayer);
-
-        // Layer สำหรับองค์ประกอบต่างๆ
-        const elementsLayer = new Konva.Layer();
-        stage.add(elementsLayer);
-
-        // Transformer สำหรับปรับขนาดและหมุน
-        const transformer = new Konva.Transformer({
-            nodes: [],
-            keepRatio: true,
-            borderStroke: '#6366F1',
-            anchorStroke: '#6366F1',
-            anchorFill: 'white',
-        });
-        elementsLayer.add(transformer);
+        function initializeTransformer() {
+            transformer = new Konva.Transformer({
+                nodes: [], keepRatio: true, borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
+            });
+            elementsLayer.add(transformer);
+            transformer.on('transformend', saveState);
+        }
+        initializeTransformer();
 
 
-        // --- 3. ฟังก์ชันจัดการพื้นหลัง ---
-        function setBackground(imageSrc, layer) {
-            layer.destroyChildren(); // ลบพื้นหลังเก่าออก
+        // --- 3. ระบบจัดการ History (Undo/Redo) ---
+        let history = [];
+        let historyStep = -1;
+        const undoBtn = document.getElementById('undo-btn');
+        const redoBtn = document.getElementById('redo-btn');
+
+        function updateHistoryButtons() {
+            undoBtn.disabled = historyStep === 0;
+            redoBtn.disabled = historyStep === history.length - 1;
+        }
+
+        function saveState() {
+            // clear redo stack
+            if (historyStep < history.length - 1) {
+                history = history.slice(0, historyStep + 1);
+            }
+            
+            // save new state
+            history.push(elementsLayer.toJSON());
+            
+            // limit history
+            if (history.length > HISTORY_LIMIT) {
+                history.shift();
+            }
+
+            historyStep = history.length - 1;
+            updateHistoryButtons();
+        }
+        
+        function loadState(stateJSON) {
+            // Detach transformer before destroying layer
+            transformer.nodes([]);
+            elementsLayer.destroy();
+
+            // Create new layer from JSON
+            elementsLayer = Konva.Node.create(stateJSON, stageFront.container());
+            stageFront.add(elementsLayer);
+            
+            // Re-initialize and re-attach transformer
+            initializeTransformer();
+            
+            // Re-attach dragend listeners to all elements for history saving
+            elementsLayer.find('Rect, Text').forEach(node => {
+                node.on('dragend', saveState);
+            });
+        }
+
+        function undo() {
+            if (historyStep > 0) {
+                historyStep--;
+                loadState(history[historyStep]);
+                updateHistoryButtons();
+            }
+        }
+
+        function redo() {
+            if (historyStep < history.length - 1) {
+                historyStep++;
+                loadState(history[historyStep]);
+                updateHistoryButtons();
+            }
+        }
+        
+        undoBtn.addEventListener('click', undo);
+        redoBtn.addEventListener('click', redo);
+        saveState(); // Save initial empty state
+
+
+        // --- 4. ฟังก์ชันจัดการพื้นหลัง ---
+        function setBackground(imageSrc, layer, width, height) {
+            layer.destroyChildren(); 
             const img = new Image();
             img.onload = () => {
-                const konvaImage = new Konva.Image({
-                    image: img,
-                    width: CARD_WIDTH,
-                    height: CARD_HEIGHT,
-                    name: 'background'
-                });
-                layer.add(konvaImage);
+                layer.add(new Konva.Image({ image: img, width, height, name: 'background' }));
             };
             img.src = imageSrc;
         }
 
-        document.getElementById('bg-front-upload').addEventListener('change', (e) => {
+        document.getElementById('bg-front-upload').addEventListener('change', e => {
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = (event) => setBackground(event.target.result, backgroundLayer);
+                reader.onload = (event) => setBackground(event.target.result, bgLayerFront, stageFront.width(), stageFront.height());
                 reader.readAsDataURL(file);
             }
         });
 
-        document.getElementById('bg-back-upload').addEventListener('change', (e) => {
-            const file = e.target.files[0];
+        document.getElementById('bg-back-upload').addEventListener('change', e => {
+             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = (event) => setBackground(event.target.result, backgroundLayer);
+                reader.onload = (event) => setBackground(event.target.result, bgLayerBack, stageBack.width(), stageBack.height());
                 reader.readAsDataURL(file);
             }
         });
 
-        // --- 4. ฟังก์ชันเพิ่มองค์ประกอบลงบนบัตร ---
+
+        // --- 5. ฟังก์ชันจัดการ Orientation ---
+        document.querySelectorAll('input[name="orientation"]').forEach(radio => {
+            radio.addEventListener('change', e => {
+                const isLandscape = e.target.value === 'landscape';
+                const newWidth = isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH;
+                const newHeight = isLandscape ? LANDSCAPE_HEIGHT : PORTRAIT_HEIGHT;
+                
+                stageFront.size({ width: newWidth, height: newHeight });
+                stageBack.size({ width: newWidth, height: newHeight });
+
+                const bgFront = bgLayerFront.findOne('.background');
+                if(bgFront) { bgFront.size({ width: newWidth, height: newHeight }); }
+                const bgBack = bgLayerBack.findOne('.background');
+                if(bgBack) { bgBack.size({ width: newWidth, height: newHeight }); }
+            });
+        });
+
+
+        // --- 6. ฟังก์ชันเพิ่มองค์ประกอบและจัดการ Events ---
         function addElement(type) {
             let element;
-            const commonProps = {
-                x: 50,
-                y: 50,
-                draggable: true,
-                name: type // ใช้ name เพื่อระบุประเภทตอน Export
-            };
+            const commonProps = { x: 50, y: 50, draggable: true, name: type };
 
             switch(type) {
                 case 'photo':
-                    element = new Konva.Rect({
-                        ...commonProps,
-                        width: 150, height: 150,
-                        fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2,
-                        cornerRadius: 75,
-                        name: 'photo'
-                    });
+                    element = new Konva.Rect({ ...commonProps, width: 150, height: 150, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, cornerRadius: 75, name: 'photo' });
                     break;
                 case 'name':
-                    element = new Konva.Text({
-                        ...commonProps,
-                        text: 'สมชาย ใจดี',
-                        fontSize: 32,
-                        fontFamily: 'sans-serif',
-                        fill: 'black',
-                        name: 'employee_name'
-                    });
+                    element = new Konva.Text({ ...commonProps, text: 'สมชาย ใจดี', fontSize: 32, fontFamily: 'sans-serif', fill: 'black', name: 'employee_name' });
                     break;
-                 case 'id':
-                    element = new Konva.Text({
-                        ...commonProps,
-                        text: 'ID: 12345',
-                        fontSize: 24,
-                        fontFamily: 'sans-serif',
-                        fill: '#424242',
-                        name: 'employee_id'
-                    });
+                case 'id':
+                    element = new Konva.Text({ ...commonProps, text: 'ID: 12345', fontSize: 24, fontFamily: 'sans-serif', fill: '#424242', name: 'employee_id' });
                     break;
                 case 'logo':
-                    element = new Konva.Rect({ // Placeholder for logo
-                        ...commonProps,
-                        width: 100, height: 50,
-                        fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1,
-                        name: 'logo'
-                    });
+                    element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' });
                     break;
                 case 'qr':
-                     element = new Konva.Rect({ // Placeholder for QR code
-                        ...commonProps,
-                        width: 120, height: 120,
-                        fill: '#e0e0e0', stroke: 'black', strokeWidth: 2,
-                        name: 'qr_code'
-                    });
+                     element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', stroke: 'black', strokeWidth: 2, name: 'qr_code' });
                     break;
             }
             if (element) {
+                element.on('dragend', saveState);
                 elementsLayer.add(element);
+                transformer.nodes([element]); // Auto-select new element
+                saveState();
             }
         }
 
@@ -226,57 +339,63 @@
         document.getElementById('add-logo').addEventListener('click', () => addElement('logo'));
         document.getElementById('add-qr').addEventListener('click', () => addElement('qr'));
 
-        // --- 5. จัดการ Transformer และการเลือกองค์ประกอบ ---
-        stage.on('click tap', (e) => {
-            // ถ้าคลิกบนพื้นที่ว่าง หรือ background
-            if (e.target === stage || e.target.hasName('background')) {
+        stageFront.on('click tap', e => {
+            if (e.target === stageFront || e.target.hasName('background')) {
                 transformer.nodes([]);
-                selectedShape = null;
                 return;
             }
-
-            // ถ้าคลิกบนองค์ประกอบที่สามารถแก้ไขได้
             if (e.target.getParent() === elementsLayer && e.target !== transformer) {
                  transformer.nodes([e.target]);
-                 selectedShape = e.target;
+            }
+        });
+
+        // --- 7. ฟังก์ชันลบ และ Keyboard Shortcuts ---
+        window.addEventListener('keydown', e => {
+            const selectedNodes = transformer.nodes();
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedNodes.length > 0) {
+                    e.preventDefault();
+                    selectedNodes.forEach(node => node.destroy());
+                    transformer.nodes([]);
+                    saveState();
+                }
+            }
+            // Keyboard shortcuts for Undo/Redo
+            if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                undo();
+            }
+            if (e.ctrlKey && e.key === 'y') {
+                e.preventDefault();
+                redo();
             }
         });
         
-        // --- 6. ฟังก์ชันส่งออก Layout เป็น JSON ---
+        // --- 8. ฟังก์ชันส่งออก Layout เป็น JSON ---
         document.getElementById('export-json').addEventListener('click', () => {
             const layoutConfig = {};
-            elementsLayer.children.forEach(node => {
-                // ไม่ต้อง Export transformer
-                if (node === transformer) return;
+            const cardWidth = stageFront.width();
+            const cardHeight = stageFront.height();
 
+            elementsLayer.children.forEach(node => {
+                if (node === transformer) return;
                 const name = node.name();
                 if (!name) return;
                 
-                // คำนวณเป็น % เพื่อให้ยืดหยุ่นกับขนาดบัตรจริง
                 const config = {
-                    x: `${(node.x() / CARD_WIDTH * 100).toFixed(2)}%`,
-                    y: `${(node.y() / CARD_HEIGHT * 100).toFixed(2)}%`,
-                    width: `${(node.width() * node.scaleX() / CARD_WIDTH * 100).toFixed(2)}%`,
-                    height: `${(node.height() * node.scaleY() / CARD_HEIGHT * 100).toFixed(2)}%`,
-                    rotation: node.rotation().toFixed(2),
+                    left: `${(node.x() / cardWidth * 100).toFixed(2)}%`,
+                    top: `${(node.y() / cardHeight * 100).toFixed(2)}%`,
+                    width: `${(node.width() * node.scaleX() / cardWidth * 100).toFixed(2)}%`,
+                    height: `${(node.height() * node.scaleY() / cardHeight * 100).toFixed(2)}%`
                 };
 
-                // เพิ่ม Properties เฉพาะของแต่ละประเภท
-                if (name === 'employee_name' || name === 'employee_id') {
-                    config.fontSize = '1.2em'; // ใช้ขนาดตัวอักษรแบบสัมพัทธ์
-                    config.fontWeight = name === 'employee_name' ? '700' : '400';
-                    config.textAlign = 'center';
-                }
-                
-                if (name === 'photo') {
-                    config.borderRadius = '50%';
-                    config.objectFit = 'cover';
+                if (node.rotation()) {
+                    config.transform = `rotate(${node.rotation().toFixed(2)}deg)`;
                 }
 
-                layoutConfig[name] = config;
+                layoutConfig[name.replace(/_[0-9]+$/, '')] = config;
             });
 
-            // แสดงผล JSON ใน textarea
             const jsonString = JSON.stringify(layoutConfig, null, 2);
             document.getElementById('json-output').value = jsonString;
             alert('Layout JSON has been generated!');
