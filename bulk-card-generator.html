@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Bulk Card Generator</title>
+    
+    <!-- ⭐ เพิ่มบรรทัดนี้ ก่อน script อื่นๆ -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    
     <style>
-        /* CSS เดิมที่ได้ให้ไปแล้ว... */
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; }
         .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .section { margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; }
@@ -16,12 +18,8 @@
         button:disabled { background-color: #c7d2fe; cursor: not-allowed; }
         .employee-list { max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; }
         .employee-item { display: flex; align-items: center; padding: 5px; }
-        .preview-area { display: none; }
-        .preview-card { border: 1px solid #ccc; margin: 10px; padding: 10px; display: inline-block; }
         .progress-bar { width: 100%; height: 20px; background-color: #f0f0f0; border-radius: 10px; overflow: hidden; }
         .progress-fill { height: 100%; background-color: #10B981; width: 0%; transition: width 0.3s; }
-        
-        /* Breadcrumb styles */
         .breadcrumb { margin-bottom: 20px; }
         .breadcrumb a { color: #6366F1; text-decoration: none; font-weight: 600; }
         .breadcrumb a:hover { text-decoration: underline; }
@@ -29,7 +27,6 @@
 </head>
 <body>
     <div class="container">
-        <!-- แก้ไข breadcrumb navigation -->
         <div class="breadcrumb">
             <a href="menu.html">&laquo; Back to Menu</a>
         </div>
@@ -106,6 +103,15 @@
         </div>
     </div>
 
+    <!-- โหลด JavaScript หลังจาก DOM โหลดเสร็จ -->
+    <script>
+        // เพิ่ม error handling สำหรับ Supabase
+        if (typeof Supabase === 'undefined') {
+            console.error('Supabase CDN not loaded properly');
+            alert('ไม่สามารถโหลด Supabase ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+        }
+    </script>
+    
     <script src="bulk-card-generator.js"></script>
 </body>
 </html>
