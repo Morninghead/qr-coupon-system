@@ -349,11 +349,9 @@ function handleElementImageUpload(e) {
     };
     reader.readAsDataURL(e.target.files[0]);
 }
-
 function handlePhotoShapeChange(e) {
     const oldShape = activeStageInfo.transformer.nodes()[0];
     if (!oldShape) return;
-
     const isCircle = e.target.value === 'circle';
     const currentIsCircle = oldShape.getClassName() === 'Circle';
 
@@ -422,8 +420,6 @@ function handlePhotoShapeChange(e) {
     saveStateFor(activeStageInfo);
     updatePropertiesPanel();
 }
-
-
 function handleFontChange() {
     const node = activeStageInfo.transformer.nodes()[0]; if (!node) return;
     node.fontSize(parseInt(propertiesPanel.querySelector('.font-size-input').value));
