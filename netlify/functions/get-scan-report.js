@@ -27,14 +27,14 @@ export const handler = async (event) => {
             throw reportError;
         }
         
-        // Data is already formatted by the view, so no need for complex mapping
         const paginatedData = combinedReportData.map(item => ({
             used_at: item.used_at,
             coupon_type: item.coupon_type,
             employee_id: item.employee_id,
             name: item.name,
-            employee_type: item.employee_type, // Include employee_type if needed for frontend display
-            source: item.source_table // Useful for debugging or differentiation
+            employee_type: item.employee_type,
+            source: item.source_table,
+            scan_source: item.scan_source // <<< NEW: Include scan_source
         }));
 
         return {
