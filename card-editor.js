@@ -349,9 +349,11 @@ function handleElementImageUpload(e) {
     };
     reader.readAsDataURL(e.target.files[0]);
 }
+
 function handlePhotoShapeChange(e) {
     const oldShape = activeStageInfo.transformer.nodes()[0];
     if (!oldShape) return;
+
     const isCircle = e.target.value === 'circle';
     const currentIsCircle = oldShape.getClassName() === 'Circle';
 
@@ -369,17 +371,18 @@ function handlePhotoShapeChange(e) {
     };
     if (currentIsCircle) {
         state.radius = oldShape.radius();
-        oldShape.setAttr('_circleState', state);
+        oldShape.setAttr('_circleState', state); // Save current circle state
     } else {
         state.width = oldShape.width();
         state.height = oldShape.height();
-        oldShape.setAttr('_rectState', state);
+        oldShape.setAttr('_rectState', state); // Save current rect state
     }
 
     const baseConfig = {
         x: oldShape.x(), y: oldShape.y(), scaleX: oldShape.scaleX(), scaleY: oldShape.scaleY(),
         rotation: oldShape.rotation(), draggable: oldShape.draggable(), name: oldShape.name(),
         stroke: oldShape.stroke(), strokeWidth: oldShape.strokeWidth(),
+        // carry over the saved states
         _circleState: oldShape.getAttr('_circleState'),
         _rectState: oldShape.getAttr('_rectState'),
     };
@@ -389,19 +392,27 @@ function handlePhotoShapeChange(e) {
     if (isCircle) { // TO CIRCLE
         const prevState = oldShape.getAttr('_circleState');
         if (prevState) {
+            // if we have a saved circle state, use it
             Object.assign(baseConfig, prevState);
         } else {
+            // otherwise, create a circle from the rect's dimensions
             baseConfig.radius = (oldShape.width() * oldShape.scaleX()) / 2;
+            // also copy over the image from the rect
+            baseConfig.fillPatternImage = oldShape.fillPatternImage();
         }
         newShape = new Konva.Circle(baseConfig);
     } else { // TO RECTANGLE
         const prevState = oldShape.getAttr('_rectState');
         if (prevState) {
+            // if we have a saved rect state, use it
             Object.assign(baseConfig, prevState);
         } else {
+            // otherwise, create a rect from the circle's dimensions
             const size = oldShape.radius() * oldShape.scaleX() * 2;
             baseConfig.width = size;
             baseConfig.height = size;
+             // also copy over the image from the circle
+            baseConfig.fillPatternImage = oldShape.fillPatternImage();
         }
         newShape = new Konva.Rect(baseConfig);
     }
@@ -420,6 +431,8 @@ function handlePhotoShapeChange(e) {
     saveStateFor(activeStageInfo);
     updatePropertiesPanel();
 }
+
+
 function handleFontChange() {
     const node = activeStageInfo.transformer.nodes()[0]; if (!node) return;
     node.fontSize(parseInt(propertiesPanel.querySelector('.font-size-input').value));
