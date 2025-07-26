@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <title>Bulk Card Generator</title>
     
-    <!-- ⭐ เพิ่มบรรทัดนี้ ก่อน script อื่นๆ -->
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <!-- ⭐ ใช้ CDN แบบ Static ตรงๆ -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; }
@@ -23,6 +23,11 @@
         .breadcrumb { margin-bottom: 20px; }
         .breadcrumb a { color: #6366F1; text-decoration: none; font-weight: 600; }
         .breadcrumb a:hover { text-decoration: underline; }
+        .error-message { text-align: center; padding: 50px; color: red; }
+        .error-message h2 { color: #dc2626; }
+        .error-message ul { text-align: left; display: inline-block; }
+        .error-message button { background: #6366F1; color: white; border: none; border-radius: 4px; padding: 10px 20px; cursor: pointer; margin: 5px; }
+        .error-message button:hover { background: #4f46e5; }
     </style>
 </head>
 <body>
@@ -103,105 +108,95 @@
         </div>
     </div>
 
-    <!-- โหลด JavaScript หลังจาก DOM โหลดเสร็จ -->
-<script>
-    // Function to load script dynamically
-    function loadScript(src) {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
-    }
-
-    // Safe loading sequence - แก้ไข CDN URL
-    async function initializePage() {
-        const loadingMessage = document.getElementById('loading-message');
-        const mainContent = document.getElementById('main-content');
-
-        try {
-            // ลอง CDN หลายตัวเพื่อความแน่นอน
-            loadingMessage.textContent = 'กำลังโหลด Supabase...';
-            
-            const supabaseCDNs = [
-                'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
-                'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js',
-                'https://cdn.skypack.dev/@supabase/supabase-js@2'
-            ];
-            
-            let supabaseLoaded = false;
-            
-            for (const cdn of supabaseCDNs) {
-                try {
-                    await loadScript(cdn);
-                    if (typeof Supabase !== 'undefined') {
-                        console.log('Supabase loaded from:', cdn);
-                        supabaseLoaded = true;
-                        break;
-                    }
-                } catch (error) {
-                    console.warn('Failed to load from:', cdn);
-                    continue;
-                }
-            }
-            
-            if (!supabaseLoaded) {
-                throw new Error('Failed to load Supabase from all CDN sources');
-            }
-            
-            // โหลด JavaScript หลัก
-            loadingMessage.textContent = 'กำลังเริ่มต้นระบบ...';
-            await loadScript('bulk-card-generator.js');
-            
-            // ซ่อน loading และแสดง content
-            loadingMessage.style.display = 'none';
-            mainContent.style.display = 'block';
-            
-        } catch (error) {
-            console.error('Failed to initialize page:', error);
-            loadingMessage.innerHTML = `
-                <div style="color: red; text-align: center;">
-                    <h3>⚠️ ไม่สามารถโหลดระบบได้</h3>
-                    <p>${error.message}</p>
-                    <p><small>ปัญหาอาจมาจาก: การเชื่อมต่อ, CDN ล่ม, หรือ Firewall</small></p>
-                    <button onclick="location.reload()" style="padding: 10px 20px; background: #6366F1; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        🔄 โหลดใหม่
-                    </button>
-                    <button onclick="testCDN()" style="padding: 10px 20px; background: #059669; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">
-                        🧪 ทดสอบ CDN
-                    </button>
+    <!-- Script Section: ตรวจสอบและโหลด JavaScript -->
+    <script>
+        // ตรวจสอบ Supabase แบบง่าย
+        if (typeof Supabase === 'undefined') {
+            // แสดง Error Message หาก Supabase ไม่โหลด
+            document.body.innerHTML = `
+                <div class="error-message">
+                    <h2>⚠️ ไม่สามารถโหลด Supabase ได้</h2>
+                    <p>ระบบไม่สามารถเชื่อมต่อกับ Supabase CDN ได้</p>
+                    <p><strong>กรุณาตรวจสอบ:</strong></p>
+                    <ul>
+                        <li>การเชื่อมต่ออินเทอร์เน็ต</li>
+                        <li>Ad Blocker หรือ Browser Extensions ที่อาจบล็อก CDN</li>
+                        <li>Firewall หรือ Network Policy ของบริษัท</li>
+                        <li>VPN ที่อาจบล็อก CDN</li>
+                    </ul>
+                    <div>
+                        <button onclick="location.reload()">🔄 โหลดใหม่</button>
+                        <button onclick="testConnections()">🧪 ทดสอบการเชื่อมต่อ</button>
+                        <button onclick="showAlternatives()">💡 ทางเลือกอื่น</button>
+                    </div>
+                    <div id="test-results" style="margin-top: 20px;"></div>
                 </div>
             `;
-        }
-    }
 
-    // ฟังก์ชันทดสอบ CDN
-    function testCDN() {
-        const testURLs = [
-            'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js',
-            'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js',
-            'https://google.com' // ทดสอบการเชื่อมต่อพื้นฐาน
-        ];
-        
-        Promise.allSettled(testURLs.map(url => fetch(url, { method: 'HEAD' })))
-            .then(results => {
-                console.log('CDN Test Results:');
-                results.forEach((result, index) => {
-                    console.log(`${testURLs[index]}: ${result.status === 'fulfilled' ? '✅ OK' : '❌ Failed'}`);
+            // ฟังก์ชันทดสอบการเชื่อมต่อ
+            window.testConnections = function() {
+                const testResults = document.getElementById('test-results');
+                testResults.innerHTML = '<p>กำลังทดสอบ...</p>';
+                
+                const testURLs = [
+                    { name: 'Google', url: 'https://google.com' },
+                    { name: 'jsDelivr CDN', url: 'https://cdn.jsdelivr.net' },
+                    { name: 'Supabase CDN', url: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js' }
+                ];
+                
+                Promise.allSettled(testURLs.map(test => 
+                    fetch(test.url, { method: 'HEAD', mode: 'no-cors' })
+                        .then(() => ({ name: test.name, status: 'success' }))
+                        .catch(() => ({ name: test.name, status: 'failed' }))
+                )).then(results => {
+                    let html = '<h4>ผลการทดสอบ:</h4><ul style="text-align: left;">';
+                    results.forEach((result, index) => {
+                        const status = result.status === 'fulfilled' ? '✅' : '❌';
+                        html += `<li>${status} ${testURLs[index].name}</li>`;
+                    });
+                    html += '</ul>';
+                    testResults.innerHTML = html;
                 });
-            });
-    }
+            };
 
-    // เริ่มต้นเมื่อ DOM พร้อม
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializePage);
-    } else {
-        initializePage();
-    }
-</script>
- 
-    <script src="bulk-card-generator.js"></script>
+            // ฟังก์ชันแสดงทางเลือกอื่น
+            window.showAlternatives = function() {
+                const testResults = document.getElementById('test-results');
+                testResults.innerHTML = `
+                    <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 4px solid #0ea5e9;">
+                        <h4>💡 ทางเลือกในการแก้ไข:</h4>
+                        <ol style="text-align: left;">
+                            <li><strong>ปิด Ad Blocker</strong> สำหรับเว็บไซต์นี้ชั่วคราว</li>
+                            <li><strong>ลองใช้ Browser อื่น</strong> (Chrome, Firefox, Edge)</li>
+                            <li><strong>ลองใช้เครือข่ายอื่น</strong> (Mobile Hotspot)</li>
+                            <li><strong>ติดต่อ IT Support</strong> เพื่อปลดล็อก CDN</li>
+                            <li><strong>ใช้ Local Version</strong> (ติดต่อผู้พัฒนา)</li>
+                        </ol>
+                    </div>
+                `;
+            };
+
+        } else {
+            // Supabase โหลดสำเร็จ - โหลด JavaScript หลัก
+            console.log('✅ Supabase loaded successfully from CDN');
+            
+            const script = document.createElement('script');
+            script.src = 'bulk-card-generator.js';
+            script.onload = function() {
+                console.log('✅ Bulk Card Generator JavaScript loaded successfully');
+            };
+            script.onerror = function() {
+                document.body.innerHTML = `
+                    <div class="error-message">
+                        <h2>⚠️ ไม่สามารถโหลด bulk-card-generator.js ได้</h2>
+                        <p>ไฟล์ JavaScript หลักไม่สามารถโหลดได้</p>
+                        <p>กรุณาตรวจสอบว่าไฟล์ <code>bulk-card-generator.js</code> อยู่ในโฟลเดอร์เดียวกัน</p>
+                        <button onclick="location.reload()">🔄 โหลดใหม่</button>
+                    </div>
+                `;
+            };
+            document.head.appendChild(script);
+        }
+    </script>
 </body>
 </html>
