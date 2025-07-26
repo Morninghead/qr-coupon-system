@@ -158,7 +158,8 @@ function setBackground(imageSrc, stageInfo, opacity) {
     const isFront = stageInfo.name === 'front';
     const isLocked = isFront ? document.getElementById('lock-background').checked : true;
     
-    layer.find('.background').forEach(n => n.destroy());
+    // CORRECTED: Iterate over the collection to destroy nodes
+    layer.find('.background').forEach(node => node.destroy());
     
     const img = new Image();
     img.onload = () => {
@@ -182,7 +183,8 @@ function handleOrientationChange() {
 }
 function addHoleMark(stageInfo) {
     const { stage } = stageInfo, guideLayer = stage.getLayers()[2];
-    guideLayer.find('.hole-mark').destroy();
+    // CORRECTED: Iterate to destroy
+    guideLayer.find('.hole-mark').forEach(mark => mark.destroy());
     if (!document.getElementById('show-hole-mark').checked) return;
     const isLandscape = stage.width() > stage.height();
     guideLayer.add(new Konva.Ellipse({
@@ -221,13 +223,39 @@ function handleDoubleClick(node) {
 function editImageFill(node) {
     if (!node.fillPatternImage()) { alert('Please upload an image for this element first.'); return; }
     const wasDraggable = node.draggable();
-    node.draggable(false); node.fillPatternDraggable(true);
+    const layer = node.getLayer();
+    const stage = node.getStage();
+    node.draggable(false);
     activeStageInfo.transformer.nodes([]);
+    
+    // CORRECTED: Implement manual dragging for fill
+    let lastPos = null;
+    function onDrag(e) {
+        if (!lastPos) {
+            lastPos = stage.getPointerPosition();
+            return;
+        }
+        const pos = stage.getPointerPosition();
+        const dx = pos.x - lastPos.x;
+        const dy = pos.y - lastPos.y;
+        node.fillPatternOffsetX(node.fillPatternOffsetX() - dx);
+        node.fillPatternOffsetY(node.fillPatternOffsetY() - dy);
+        lastPos = pos;
+        layer.batchDraw();
+    }
+    stage.on('mousemove.fill', onDrag);
+
     const doneBtn = document.createElement('button');
     doneBtn.innerText = "Done Adjusting Image";
     Object.assign(doneBtn.style, { position: 'absolute', zIndex: 1000, top: '25px', left: '350px', background: '#10B981' });
     document.body.appendChild(doneBtn);
-    function endEdit() { node.draggable(wasDraggable); node.fillPatternDraggable(false); doneBtn.remove(); }
+    
+    function endEdit() {
+        stage.off('mousemove.fill');
+        node.draggable(wasDraggable);
+        document.body.removeChild(doneBtn);
+        lastPos = null;
+    }
     doneBtn.addEventListener('click', endEdit);
 }
 function updatePropertiesPanel() {
@@ -345,13 +373,13 @@ function setupAllEventListeners() {
             if (e.target === stageInfo.stage) {
                 stageInfo.transformer.nodes([]);
                 stageInfo.bgTransformer.nodes([]);
-            } else if (targetLayer === stageInfo.stage.getLayers()[0]) {
+            } else if (targetLayer === stageInfo.stage.getLayers()[0]) { // Background Layer
                 stageInfo.transformer.nodes([]);
                 const isLocked = document.getElementById('lock-background').checked;
                 if (!isLocked || stageInfo.name !== 'front') {
                     stageInfo.bgTransformer.nodes([e.target]);
                 }
-            } else if (targetLayer === stageInfo.stage.getLayers()[1]) {
+            } else if (targetLayer === stageInfo.stage.getLayers()[1]) { // Elements Layer
                 stageInfo.bgTransformer.nodes([]);
                 if (e.target.getParent().className !== 'Transformer') {
                     stageInfo.transformer.nodes([e.target]);
@@ -397,7 +425,6 @@ function exportJSON() {
         const layoutConfig = {};
         const { width: stageWidth, height: stageHeight } = stageInfo.stage.size();
         const bgImage = stageInfo.stage.getLayers()[0].findOne('.background');
-
         if(bgImage) {
             const box = bgImage.getClientRect({skipTransform: true});
             layoutConfig['background'] = {
@@ -406,7 +433,6 @@ function exportJSON() {
                 rotation: bgImage.rotation()
             }
         }
-
         stageInfo.stage.getLayers()[1].find('Rect, Text, Circle, Ellipse').forEach(node => {
             if (!node.name()) return;
             const box = node.getClientRect({ relativeTo: stageInfo.stage });
