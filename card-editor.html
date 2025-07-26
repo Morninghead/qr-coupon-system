@@ -7,98 +7,36 @@
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f2f5;
-            display: flex;
-            gap: 30px;
-            flex-wrap: wrap;
+            margin: 0; padding: 20px; background-color: #f0f2f5; display: flex; gap: 30px; flex-wrap: wrap;
         }
-        .editor-wrapper {
-            display: flex;
-            gap: 30px;
-            width: 100%;
-        }
-        .controls {
-            padding: 20px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            width: 300px;
-            height: fit-content;
-        }
-        .control-group {
-            margin-bottom: 20px;
-        }
-        .control-group label, .control-group h3 {
-            font-weight: 600;
-            display: block;
-            margin-bottom: 12px;
-            color: #333;
-        }
-        .control-group button, .control-group input {
-            width: 100%;
-            padding: 8px;
-            box-sizing: border-box;
-            margin-bottom: 10px;
-        }
-        .control-group button {
-            background-color: #6366F1;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .control-group button:hover {
-            background-color: #4f46e5;
-        }
-        .control-group button:disabled {
-            background-color: #c7d2fe;
-            cursor: not-allowed;
-        }
+        .editor-wrapper { display: flex; gap: 30px; width: 100%; }
+        .controls { padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); width: 300px; height: fit-content; }
+        .control-group { margin-bottom: 20px; }
+        .control-group label, .control-group h3 { font-weight: 600; display: block; margin-bottom: 12px; color: #333; }
+        .control-group button, .control-group input { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; }
+        .control-group button { background-color: #6366F1; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
+        .control-group button:hover { background-color: #4f46e5; }
+        .control-group button:disabled { background-color: #c7d2fe; cursor: not-allowed; }
         #export-json { background-color: #10B981; }
         #export-json:hover { background-color: #059669; }
         .history-buttons { display: flex; gap: 10px; }
-        textarea {
-            width: 100%;
-            height: 150px;
-            font-family: monospace;
-            font-size: 12px;
-        }
-        .canvases {
-            display: flex;
-            gap: 30px;
-        }
-        .canvas-container {
-            padding: 15px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .canvas-container h2 {
-           margin-top: 0;
-           font-size: 1.2em;
-           color: #444;
-           text-align: center;
-        }
-        #stage-container-front, #stage-container-back {
-            border: 1px dashed #ccc;
-            background-color: #fafafa;
-        }
-        .radio-group label {
-            display: inline-flex;
-            align-items: center;
-            margin-right: 15px;
-            cursor: pointer;
-        }
+        textarea { width: 100%; height: 150px; font-family: monospace; font-size: 12px; }
+        .canvases { display: flex; gap: 30px; }
+        .canvas-container { padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .canvas-container h2 { margin-top: 0; font-size: 1.2em; color: #444; text-align: center; }
+        #stage-container-front, #stage-container-back { border: 1px dashed #ccc; background-color: #fafafa; }
+        .radio-group label { display: inline-flex; align-items: center; margin-right: 15px; cursor: pointer; }
+        #properties-panel { border-top: 1px solid #eee; padding-top: 15px; }
+        .opacity-control { display: flex; align-items: center; gap: 10px; }
+        .opacity-control input[type=range] { flex-grow: 1; }
+        .opacity-control input[type=number] { width: 60px; }
     </style>
 </head>
 <body>
 
     <div class="editor-wrapper">
         <div class="controls">
-             <div class="control-group">
+            <div class="control-group">
                 <h3>History</h3>
                 <div class="history-buttons">
                     <button id="undo-btn">Undo</button>
@@ -118,6 +56,10 @@
             <div class="control-group">
                 <label for="bg-front-upload">Upload Front Background</label>
                 <input type="file" id="bg-front-upload" accept="image/*">
+                <div class="opacity-control">
+                    <input type="range" id="bg-opacity-slider" min="0" max="1" step="0.01" value="1">
+                    <input type="number" id="bg-opacity-input" min="0" max="100" value="100"> %
+                </div>
             </div>
             <div class="control-group">
                 <label for="bg-back-upload">Upload Back Background</label>
@@ -131,6 +73,20 @@
                 <button id="add-id">Add Employee ID</button>
                 <button id="add-logo">Add Company Logo</button>
                 <button id="add-qr">Add QR Code</button>
+            </div>
+            <div id="properties-panel" class="control-group" style="display: none;">
+                <h3 id="properties-title">Element Properties</h3>
+                <div id="photo-shape-options" style="display: none;">
+                    <label>Photo Shape</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="photoShape" value="circle" checked> Circle</label>
+                        <label><input type="radio" name="photoShape" value="rect"> Rectangle</label>
+                    </div>
+                </div>
+                <div id="image-upload-option" style="display: none;">
+                    <label id="image-upload-label" for="element-image-upload">Upload Image</label>
+                    <input type="file" id="element-image-upload" accept="image/*">
+                </div>
             </div>
             <hr>
             <div class="control-group">
@@ -152,22 +108,22 @@
         </div>
     </div>
 
-
     <script>
-        // --- 1. ค่าคงที่และตัวแปรเริ่มต้น ---
+        // --- 1. Constants and Initial Variables ---
         const STANDARD_RATIO = 85.6 / 54.0;
         const LANDSCAPE_WIDTH = 800;
         const LANDSCAPE_HEIGHT = LANDSCAPE_WIDTH / STANDARD_RATIO;
         const PORTRAIT_WIDTH = 500;
         const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
-        const HISTORY_LIMIT = 11; // 1 initial state + 10 undo steps
+        const HISTORY_LIMIT = 11;
+        const SNAP_DISTANCE = 10;
 
-        // --- 2. ตั้งค่า Konva Stages และ Layers ---
+        // --- 2. Konva Stage and Layer Setup ---
         function createStage(containerId, width, height) {
-            // THIS LINE IS CORRECTED
             const stage = new Konva.Stage({ container: containerId, width, height });
-            stage.add(new Konva.Layer()); // Background Layer [0]
-            stage.add(new Konva.Layer()); // Elements Layer [1]
+            stage.add(new Konva.Layer());
+            stage.add(new Konva.Layer());
+            stage.add(new Konva.Layer());
             return stage;
         }
 
@@ -176,44 +132,32 @@
         
         let bgLayerFront = stageFront.getLayers()[0];
         let elementsLayer = stageFront.getLayers()[1];
+        let guidesLayer = stageFront.getLayers()[2];
         const bgLayerBack = stageBack.getLayers()[0];
         let transformer;
 
         function initializeTransformer() {
-            transformer = new Konva.Transformer({
-                nodes: [], keepRatio: true, borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
-            });
+            transformer = new Konva.Transformer({ nodes: [], keepRatio: true, borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white' });
             elementsLayer.add(transformer);
             transformer.on('transformend', saveState);
         }
         initializeTransformer();
 
-
-        // --- 3. ระบบจัดการ History (Undo/Redo) ---
+        // --- 3. History (Undo/Redo) Management ---
         let history = [];
         let historyStep = -1;
         const undoBtn = document.getElementById('undo-btn');
         const redoBtn = document.getElementById('redo-btn');
 
         function updateHistoryButtons() {
-            undoBtn.disabled = historyStep === 0;
-            redoBtn.disabled = historyStep === history.length - 1;
+            undoBtn.disabled = historyStep <= 0;
+            redoBtn.disabled = historyStep >= history.length - 1;
         }
 
         function saveState() {
-            // clear redo stack
-            if (historyStep < history.length - 1) {
-                history = history.slice(0, historyStep + 1);
-            }
-            
-            // save new state
+            if (historyStep < history.length - 1) history = history.slice(0, historyStep + 1);
             history.push(elementsLayer.toJSON());
-            
-            // limit history
-            if (history.length > HISTORY_LIMIT) {
-                history.shift();
-            }
-
+            if (history.length > HISTORY_LIMIT) history.shift();
             historyStep = history.length - 1;
             updateHistoryButtons();
         }
@@ -221,179 +165,267 @@
         function loadState(stateJSON) {
             transformer.nodes([]);
             elementsLayer.destroy();
-
             elementsLayer = Konva.Node.create(stateJSON);
             stageFront.add(elementsLayer);
-            
             initializeTransformer();
-            
-            elementsLayer.find('Rect, Text').forEach(node => {
+            elementsLayer.find('Rect, Text, Circle').forEach(node => { // Add Circle to selector
                 node.on('dragend', saveState);
+                node.on('dragmove', handleDragMove);
             });
         }
 
-        function undo() {
-            if (historyStep > 0) {
-                historyStep--;
-                loadState(history[historyStep]);
-                updateHistoryButtons();
-            }
-        }
-
-        function redo() {
-            if (historyStep < history.length - 1) {
-                historyStep++;
-                loadState(history[historyStep]);
-                updateHistoryButtons();
-            }
-        }
+        function undo() { if (historyStep > 0) { historyStep--; loadState(history[historyStep]); updateHistoryButtons(); } }
+        function redo() { if (historyStep < history.length - 1) { historyStep++; loadState(history[historyStep]); updateHistoryButtons(); } }
         
         undoBtn.addEventListener('click', undo);
         redoBtn.addEventListener('click', redo);
-        saveState(); // Save initial empty state
+        saveState();
+
+        // --- 4. Snapping and Guide Lines ---
+        function getSnapLines() {
+            const width = stageFront.width(), height = stageFront.height();
+            return {
+                vertical: [{ guide: width / 2, snap: 'center' }],
+                horizontal: [{ guide: height / 2, snap: 'center' }]
+            };
+        }
+        function getObjectSnappingEdges(node) {
+            const box = node.getClientRect({ relativeTo: stageFront });
+            return {
+                vertical: [{ edge: box.x, snap: 'start' }, { edge: box.x + box.width / 2, snap: 'center' }, { edge: box.x + box.width, snap: 'end' }],
+                horizontal: [{ edge: box.y, snap: 'start' }, { edge: box.y + box.height / 2, snap: 'center' }, { edge: box.y + box.height, snap: 'end' }]
+            };
+        }
+        function handleDragMove(e) {
+            const target = e.target;
+            guidesLayer.destroyChildren();
+            const lines = getSnapLines();
+            const edges = getObjectSnappingEdges(target);
+            
+            lines.vertical.forEach(line => edges.vertical.forEach(edge => {
+                if (Math.abs(edge.edge - line.guide) < SNAP_DISTANCE) {
+                    target.x(target.x() - (edge.edge - line.guide));
+                    drawGuide(line.guide, 'vertical');
+                }
+            }));
+            lines.horizontal.forEach(line => edges.horizontal.forEach(edge => {
+                if (Math.abs(edge.edge - line.guide) < SNAP_DISTANCE) {
+                    target.y(target.y() - (edge.edge - line.guide));
+                    drawGuide(line.guide, 'horizontal');
+                }
+            }));
+        }
+        function drawGuide(value, orientation) {
+            const points = orientation === 'vertical' ? [value, 0, value, stageFront.height()] : [0, value, stageFront.width(), value];
+            guidesLayer.add(new Konva.Line({ points, stroke: 'red', strokeWidth: 1, dash: [4, 6] }));
+        }
+        elementsLayer.on('dragstart', () => guidesLayer.show());
+        elementsLayer.on('dragend', () => { guidesLayer.hide(); saveState(); });
 
 
-        // --- 4. ฟังก์ชันจัดการพื้นหลัง ---
+        // --- 5. Background, Opacity & Orientation ---
         function setBackground(imageSrc, layer, width, height) {
-            layer.destroyChildren(); 
+            layer.destroyChildren();
             const img = new Image();
             img.onload = () => {
-                layer.add(new Konva.Image({ image: img, width, height, name: 'background' }));
+                const konvaImage = new Konva.Image({ image: img, width, height, name: 'background', opacity: layer === bgLayerFront ? parseFloat(document.getElementById('bg-opacity-slider').value) : 1 });
+                layer.add(konvaImage);
             };
             img.src = imageSrc;
         }
+        
+        const frontReader = new FileReader();
+        frontReader.onload = e => setBackground(e.target.result, bgLayerFront, stageFront.width(), stageFront.height());
+        document.getElementById('bg-front-upload').addEventListener('change', e => e.target.files[0] && frontReader.readAsDataURL(e.target.files[0]));
 
-        document.getElementById('bg-front-upload').addEventListener('change', e => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => setBackground(event.target.result, bgLayerFront, stageFront.width(), stageFront.height());
-                reader.readAsDataURL(file);
+        const backReader = new FileReader();
+        backReader.onload = e => setBackground(e.target.result, bgLayerBack, stageBack.width(), stageBack.height());
+        document.getElementById('bg-back-upload').addEventListener('change', e => e.target.files[0] && backReader.readAsDataURL(e.target.files[0]));
+
+        const bgOpacitySlider = document.getElementById('bg-opacity-slider');
+        const bgOpacityInput = document.getElementById('bg-opacity-input');
+        
+        function updateBgOpacity(value) {
+            const bg = bgLayerFront.findOne('.background');
+            if(bg) bg.opacity(value);
+            bgOpacitySlider.value = value;
+            bgOpacityInput.value = Math.round(value * 100);
+        }
+
+        bgOpacitySlider.addEventListener('input', e => updateBgOpacity(parseFloat(e.target.value)));
+        bgOpacityInput.addEventListener('change', e => updateBgOpacity(parseInt(e.target.value) / 100));
+
+        document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', e => {
+            const isLandscape = e.target.value === 'landscape';
+            const newSize = { width: isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH, height: isLandscape ? LANDSCAPE_HEIGHT : PORTRAIT_HEIGHT };
+            stageFront.size(newSize); stageBack.size(newSize);
+            bgLayerFront.findOne('.background')?.size(newSize);
+            bgLayerBack.findOne('.background')?.size(newSize);
+        }));
+
+        // --- 6. Element Creation, Properties Panel & Event Handling ---
+        const propertiesPanel = document.getElementById('properties-panel');
+        const photoShapeOptions = document.getElementById('photo-shape-options');
+        const imageUploadOption = document.getElementById('image-upload-option');
+
+        function updatePropertiesPanel() {
+            const selectedNodes = transformer.nodes();
+            if (selectedNodes.length !== 1) {
+                propertiesPanel.style.display = 'none';
+                return;
             }
+            const node = selectedNodes[0];
+            propertiesPanel.style.display = 'block';
+
+            // Show options based on node name
+            photoShapeOptions.style.display = node.hasName('photo') ? 'block' : 'none';
+            imageUploadOption.style.display = (node.hasName('photo') || node.hasName('logo')) ? 'block' : 'none';
+
+            if(node.hasName('photo')) document.getElementById('image-upload-label').innerText = 'Upload Photo';
+            if(node.hasName('logo')) document.getElementById('image-upload-label').innerText = 'Upload Logo';
+        }
+
+        document.getElementById('element-image-upload').addEventListener('change', e => {
+            const node = transformer.nodes()[0];
+            if (!node || !e.target.files[0]) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    node.fill(null); // Remove placeholder color
+                    node.fillPatternImage(img);
+                    node.fillPatternRepeat('no-repeat');
+                    node.fillPatternScale({ x: node.width() / img.width, y: node.height() / img.height });
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(e.target.files[0]);
+            e.target.value = ''; // Reset file input
         });
 
-        document.getElementById('bg-back-upload').addEventListener('change', e => {
-             const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => setBackground(event.target.result, bgLayerBack, stageBack.width(), stageBack.height());
-                reader.readAsDataURL(file);
-            }
-        });
+        document.querySelectorAll('input[name="photoShape"]').forEach(radio => radio.addEventListener('change', e => {
+            const oldShape = transformer.nodes()[0];
+            if (!oldShape || !oldShape.hasName('photo')) return;
 
-
-        // --- 5. ฟังก์ชันจัดการ Orientation ---
-        document.querySelectorAll('input[name="orientation"]').forEach(radio => {
-            radio.addEventListener('change', e => {
-                const isLandscape = e.target.value === 'landscape';
-                const newWidth = isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH;
-                const newHeight = isLandscape ? LANDSCAPE_HEIGHT : PORTRAIT_HEIGHT;
-                
-                stageFront.size({ width: newWidth, height: newHeight });
-                stageBack.size({ width: newWidth, height: newHeight });
-
-                const bgFront = bgLayerFront.findOne('.background');
-                if(bgFront) { bgFront.size({ width: newWidth, height: newHeight }); }
-                const bgBack = bgLayerBack.findOne('.background');
-                if(bgBack) { bgBack.size({ width: newWidth, height: newHeight }); }
+            const isCircle = e.target.value === 'circle';
+            const newShape = isCircle ? new Konva.Circle({}) : new Konva.Rect({});
+            
+            newShape.setAttrs({
+                x: oldShape.x(), y: oldShape.y(),
+                width: oldShape.width(), height: oldShape.height(),
+                scaleX: oldShape.scaleX(), scaleY: oldShape.scaleY(),
+                rotation: oldShape.rotation(),
+                draggable: true, name: 'photo',
+                fillPatternImage: oldShape.fillPatternImage(),
+                fillPatternRepeat: 'no-repeat',
+                fill: oldShape.fillPatternImage() ? null : '#e0e0e0', // Keep placeholder color if no image
+                stroke: '#bdbdbd', strokeWidth: 2,
             });
-        });
 
+            if (isCircle) {
+                newShape.radius(oldShape.width() / 2); // Make it a circle
+            } else {
+                newShape.cornerRadius(0); // Make it a sharp rectangle
+            }
 
-        // --- 6. ฟังก์ชันเพิ่มองค์ประกอบและจัดการ Events ---
+            oldShape.destroy();
+            elementsLayer.add(newShape);
+            newShape.on('dragmove', handleDragMove);
+            transformer.nodes([newShape]);
+            saveState();
+        }));
+
         function addElement(type) {
             let element;
             const commonProps = { x: 50, y: 50, draggable: true, name: type };
 
             switch(type) {
-                case 'photo':
-                    element = new Konva.Rect({ ...commonProps, width: 150, height: 150, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, cornerRadius: 75, name: 'photo' });
-                    break;
-                case 'name':
-                    element = new Konva.Text({ ...commonProps, text: 'สมชาย ใจดี', fontSize: 32, fontFamily: 'sans-serif', fill: 'black', name: 'employee_name' });
-                    break;
-                case 'id':
-                    element = new Konva.Text({ ...commonProps, text: 'ID: 12345', fontSize: 24, fontFamily: 'sans-serif', fill: '#424242', name: 'employee_id' });
-                    break;
-                case 'logo':
-                    element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' });
-                    break;
-                case 'qr':
-                     element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', stroke: 'black', strokeWidth: 2, name: 'qr_code' });
-                    break;
+                case 'photo': element = new Konva.Circle({ ...commonProps, radius: 75, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, name: 'photo' }); break;
+                case 'name': element = new Konva.Text({ ...commonProps, text: 'สมชาย ใจดี', fontSize: 32, fontFamily: 'sans-serif', fill: 'black', name: 'employee_name' }); break;
+                case 'id': element = new Konva.Text({ ...commonProps, text: 'ID: 12345', fontSize: 24, fontFamily: 'sans-serif', fill: '#424242', name: 'employee_id' }); break;
+                case 'logo': element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' }); break;
+                case 'qr': element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', stroke: 'black', strokeWidth: 2, name: 'qr_code' }); break;
             }
             if (element) {
-                element.on('dragend', saveState);
+                element.on('dragmove', handleDragMove);
                 elementsLayer.add(element);
                 transformer.nodes([element]);
                 saveState();
+                updatePropertiesPanel();
             }
         }
-
-        document.getElementById('add-photo').addEventListener('click', () => addElement('photo'));
-        document.getElementById('add-name').addEventListener('click', () => addElement('name'));
-        document.getElementById('add-id').addEventListener('click', () => addElement('id'));
-        document.getElementById('add-logo').addEventListener('click', () => addElement('logo'));
-        document.getElementById('add-qr').addEventListener('click', () => addElement('qr'));
+        
+        ['photo', 'name', 'id', 'logo', 'qr'].forEach(type => {
+            document.getElementById(`add-${type}`).addEventListener('click', () => addElement(type));
+        });
 
         stageFront.on('click tap', e => {
             if (e.target === stageFront || e.target.hasName('background')) {
                 transformer.nodes([]);
-                return;
-            }
-            if (e.target.getParent() === elementsLayer && e.target !== transformer) {
+            } else if (e.target.getParent() === elementsLayer && e.target !== transformer) {
                  transformer.nodes([e.target]);
             }
+            updatePropertiesPanel();
         });
 
-        // --- 7. ฟังก์ชันลบ และ Keyboard Shortcuts ---
+        // --- 7. Delete and Keyboard Shortcuts ---
         window.addEventListener('keydown', e => {
-            const selectedNodes = transformer.nodes();
             if (e.key === 'Delete' || e.key === 'Backspace') {
+                const selectedNodes = transformer.nodes();
                 if (selectedNodes.length > 0) {
                     e.preventDefault();
                     selectedNodes.forEach(node => node.destroy());
                     transformer.nodes([]);
                     saveState();
+                    updatePropertiesPanel();
                 }
             }
-            if (e.ctrlKey && e.key === 'z') {
-                e.preventDefault();
-                undo();
-            }
-            if (e.ctrlKey && e.key === 'y') {
-                e.preventDefault();
-                redo();
-            }
+            if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+            if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
         });
         
-        // --- 8. ฟังก์ชันส่งออก Layout เป็น JSON ---
+        // --- 8. Export to JSON ---
         document.getElementById('export-json').addEventListener('click', () => {
             const layoutConfig = {};
             const cardWidth = stageFront.width();
             const cardHeight = stageFront.height();
-
             elementsLayer.children.forEach(node => {
                 if (node === transformer) return;
                 const name = node.name();
                 if (!name) return;
+
+                const scaleX = node.scaleX();
+                const scaleY = node.scaleY();
+                
+                let width = node.width();
+                let height = node.height();
+                // For circle, width/height are based on radius
+                if(node.getClassName() === 'Circle') {
+                    width = height = node.radius() * 2;
+                }
                 
                 const config = {
                     left: `${(node.x() / cardWidth * 100).toFixed(2)}%`,
                     top: `${(node.y() / cardHeight * 100).toFixed(2)}%`,
-                    width: `${(node.width() * node.scaleX() / cardWidth * 100).toFixed(2)}%`,
-                    height: `${(node.height() * node.scaleY() / cardHeight * 100).toFixed(2)}%`
+                    width: `${(width * scaleX / cardWidth * 100).toFixed(2)}%`,
+                    height: `${(height * scaleY / cardHeight * 100).toFixed(2)}%`
                 };
 
                 if (node.rotation()) {
                     config.transform = `rotate(${node.rotation().toFixed(2)}deg)`;
                 }
 
+                // Add properties for PDF generation based on name
+                if (name === 'photo') {
+                    config.objectFit = 'cover';
+                    if (node.getClassName() === 'Circle') {
+                         config.borderRadius = '50%';
+                    }
+                }
+                
                 layoutConfig[name.replace(/_[0-9]+$/, '')] = config;
             });
-
-            const jsonString = JSON.stringify(layoutConfig, null, 2);
-            document.getElementById('json-output').value = jsonString;
+            document.getElementById('json-output').value = JSON.stringify(layoutConfig, null, 2);
             alert('Layout JSON has been generated!');
         });
     </script>
