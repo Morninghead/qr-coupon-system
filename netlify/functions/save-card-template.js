@@ -1,94 +1,135 @@
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
-const supabaseAdmin = createClient(supabaseUrl, serviceKey);
-
-export const handler = async (event, context) => {
+exports.handler = async (event, context) => {
+    // ตรวจสอบ method
     if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
+        return { 
+            statusCode: 405, 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ error: 'Method Not Allowed' })
+        };
+    }
+
+    // ตรวจสอบ CORS
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Content-Type': 'application/json'
+    };
+
+    if (event.httpMethod === 'OPTIONS') {
+        return { statusCode: 200, headers, body: '' };
     }
 
     try {
-        const token = event.headers.authorization?.split('Bearer ')[1];
-        if (!token) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
+        // สร้าง Supabase client
+        const supabase = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+
+        // ตรวจสอบ Authorization
+        const authHeader = event.headers.authorization;
+        if (!authHeader) {
+            return { 
+                statusCode: 401, 
+                headers,
+                body: JSON.stringify({ error: 'Missing authorization header' }) 
+            };
         }
-        const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+        
         if (userError || !user) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
+            console.error('Auth error:', userError);
+            return { 
+                statusCode: 401, 
+                headers,
+                body: JSON.stringify({ error: 'Invalid token' }) 
+            };
         }
 
-        const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
-        if (profile?.role !== 'superuser') {
-            return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied. Superuser role required to manage card templates.' }) };
-        }
-
+        // Parse request body
+        const body = JSON.parse(event.body);
         const { 
-            id, 
             template_name, 
             company_name, 
-            logo_url, 
-            background_front_url, 
-            background_back_url, 
-            layout_config,
-            orientation // <<< เพิ่ม orientation ที่นี่
-        } = JSON.parse(event.body);
+            layout_config, 
+            orientation = 'landscape',
+            logo_url = null,
+            background_front_url = null,
+            background_back_url = null
+        } = body;
 
-        if (!template_name || !orientation) { // <<< เพิ่ม orientation ในเงื่อนไขบังคับ
-            return { statusCode: 400, body: JSON.stringify({ message: 'Template name and orientation are required.' }) };
+        // Validate required fields
+        if (!template_name || !template_name.trim()) {
+            return { 
+                statusCode: 400, 
+                headers,
+                body: JSON.stringify({ error: 'Template name is required' }) 
+            };
         }
 
-        const templateData = {
-            template_name,
-            company_name: company_name || null,
-            logo_url: logo_url || null,
-            background_front_url: background_front_url || null,
-            background_back_url: background_back_url || null,
-            layout_config: layout_config || {},
-            orientation: orientation // <<< เพิ่ม orientation ใน templateData
-        };
-
-        let result = null;
-        let error = null;
-
-        if (id) {
-            templateData.updated_at = new Date().toISOString();
-            const { data, error: updateError } = await supabaseAdmin
-                .from('card_templates')
-                .update(templateData)
-                .eq('id', id)
-                .select()
-                .single();
-            result = data;
-            error = updateError;
-            if (error && error.code === 'PGRST116') {
-                return { statusCode: 404, body: JSON.stringify({ message: 'Card template not found for update.' }) };
-            }
-        } else {
-            templateData.created_at = new Date().toISOString();
-            templateData.updated_at = new Date().toISOString();
-            const { data, error: insertError } = await supabaseAdmin
-                .from('card_templates')
-                .insert(templateData)
-                .select()
-                .single();
-            result = data;
-            error = insertError;
+        if (!layout_config) {
+            return { 
+                statusCode: 400, 
+                headers,
+                body: JSON.stringify({ error: 'Layout configuration is required' }) 
+            };
         }
 
-        if (error) throw error;
+        // บันทึกลง database
+        const { data, error } = await supabase
+            .from('card_templates')
+            .insert({
+                template_name: template_name.trim(),
+                company_name: company_name ? company_name.trim() : null,
+                layout_config,
+                orientation,
+                logo_url,
+                background_front_url,
+                background_back_url,
+                created_by: user.id,
+                created_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Database error:', error);
+            return { 
+                statusCode: 500, 
+                headers,
+                body: JSON.stringify({ 
+                    error: 'Failed to save template',
+                    details: error.message 
+                }) 
+            };
+        }
+
+        console.log('Template saved successfully:', data);
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ success: true, message: 'Card template saved successfully.', template: result }),
+            headers,
+            body: JSON.stringify({ 
+                success: true, 
+                template: data,
+                message: `Template "${template_name}" saved successfully` 
+            })
         };
 
     } catch (error) {
-        console.error('Save Card Template Error:', error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ message: 'Failed to save card template', error: error.message }),
+        console.error('Error in save-card-template:', error);
+        return { 
+            statusCode: 500, 
+            headers,
+            body: JSON.stringify({ 
+                error: 'Internal server error',
+                details: error.message 
+            }) 
         };
     }
 };
