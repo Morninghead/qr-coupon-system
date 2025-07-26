@@ -354,6 +354,7 @@ function handlePhotoShapeChange(e) {
         return;
     }
 
+    // Save the state of the shape we are leaving
     const state = {
         fillPatternImage: oldShape.fillPatternImage(),
         fillPatternScaleX: oldShape.fillPatternScaleX(),
@@ -431,7 +432,10 @@ function setupAllEventListeners() {
     redoBtn.addEventListener('click', redo);
     document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', handleOrientationChange));
     ['photo', 'employee_name', 'employee_id', 'company_name', 'logo', 'qr'].forEach(type => {
-        document.getElementById(`add-${type.replace(/_/g, '-')}`)?.addEventListener('click', () => addElement(type));
+        const btn = document.getElementById(`add-${type.replace(/_/g, '-')}`);
+        if (btn) {
+            btn.addEventListener('click', () => addElement(type));
+        }
     });
 
     document.getElementById('export-json').addEventListener('click', exportJSON);
