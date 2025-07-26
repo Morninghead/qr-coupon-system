@@ -20,7 +20,9 @@
         .history-buttons { display: flex; gap: 10px; }
         textarea { width: 100%; height: 150px; font-family: monospace; font-size: 12px; }
         .canvases { display: flex; gap: 30px; flex-wrap: wrap; }
-        .stage-wrapper { position: relative; }
+        /* START: Added margin-top to move canvases down */
+        .stage-wrapper { position: relative; margin-top: 50px; }
+        /* END: Added margin-top */
         .canvas-container { padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; }
         .canvas-container.active { box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5), 0 0 0 2px #6366F1; }
         .canvas-container h2 { margin-top: 0; font-size: 1.2em; color: #444; text-align: center; }
@@ -119,33 +121,21 @@
 <script>
     // --- 1. Constants & Initial Variables ---
     const STANDARD_RATIO = 85.6 / 54.0;
-    const LANDSCAPE_WIDTH = 600;
-    const LANDSCAPE_HEIGHT = LANDSCAPE_WIDTH / STANDARD_RATIO;
-    const PORTRAIT_WIDTH = 400;
-    const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
-    const HISTORY_LIMIT = 11;
-    const SNAP_DISTANCE = 10;
+    const LANDSCAPE_WIDTH = 600; const LANDSCAPE_HEIGHT = LANDSCAPE_WIDTH / STANDARD_RATIO;
+    const PORTRAIT_WIDTH = 400; const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
+    const HISTORY_LIMIT = 11; const SNAP_DISTANCE = 10;
     const FONT_FAMILIES = ['Arial', 'Calibri', 'Times New Roman', 'Sarabun', 'Kanit', 'Mitr', 'Noto Sans JP', 'Noto Sans KR', 'Noto Sans SC'];
-
     let activeStageInfo = null;
     const stages = {};
-
-    // --- DOM Element References (Declared early to prevent ReferenceError) ---
-    const undoBtn = document.getElementById('undo-btn');
-    const redoBtn = document.getElementById('redo-btn');
-    const propertiesPanel = document.getElementById('properties-panel');
-    const rulerH = document.getElementById('ruler-horizontal');
-    const rulerV = document.getElementById('ruler-vertical');
-    const rulerCtxH = rulerH.getContext('2d');
-    const rulerCtxV = rulerV.getContext('2d');
+    const undoBtn = document.getElementById('undo-btn'), redoBtn = document.getElementById('redo-btn'), propertiesPanel = document.getElementById('properties-panel');
+    const rulerH = document.getElementById('ruler-horizontal'), rulerV = document.getElementById('ruler-vertical');
+    const rulerCtxH = rulerH.getContext('2d'), rulerCtxV = rulerV.getContext('2d');
 
     // --- 2. Main Initialization ---
     function initialize() {
-        WebFont.load({ google: { families: ['Sarabun', 'Kanit', 'Mitr', 'Noto Sans JP', 'Noto Sans KR', 'Noto Sans SC'] } });
-        
+        WebFont.load({ google: { families: FONT_FAMILIES.filter(f => !['Arial', 'Calibri', 'Times New Roman'].includes(f)) } });
         stages.front = setupNewStage('stage-container-front', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
         stages.back = setupNewStage('stage-container-back', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
-        
         setActiveStage(stages.front);
         setupRulers();
         setupAllEventListeners();
@@ -155,10 +145,7 @@
     function setupNewStage(containerId, width, height) {
         const stage = new Konva.Stage({ container: containerId, width, height });
         stage.container().style.cursor = 'default';
-        stage.add(new Konva.Layer()); // Background Layer [0]
-        stage.add(new Konva.Layer()); // Elements Layer [1]
-        stage.add(new Konva.Layer()); // Guides Layer [2]
-
+        stage.add(new Konva.Layer(), new Konva.Layer(), new Konva.Layer());
         const transformer = new Konva.Transformer({
             borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
             boundBoxFunc: (oldBox, newBox) => {
@@ -172,11 +159,8 @@
             }
         });
         stage.getLayers()[1].add(transformer);
-
         const stageInfo = { stage, transformer, history: [], historyStep: -1 };
-        
         transformer.on('transformend', () => saveStateFor(stageInfo));
-        
         return stageInfo;
     }
 
@@ -204,27 +188,14 @@
         stageInfo.stage.getLayers()[1].destroy();
         const newLayer = Konva.Node.create(stateJSON);
         stageInfo.stage.add(newLayer);
-        
         newLayer.add(stageInfo.transformer);
         newLayer.find('Rect, Text, Circle, Ellipse').forEach(node => {
             node.on('dragend', () => saveStateFor(stageInfo));
             node.on('dragmove', e => handleDragMove(e, stageInfo));
         });
     }
-    function undo() {
-        if (activeStageInfo.historyStep > 0) {
-            activeStageInfo.historyStep--;
-            loadStateFor(activeStageInfo, activeStageInfo.history[activeStageInfo.historyStep]);
-            updateHistoryButtons();
-        }
-    }
-    function redo() {
-        if (activeStageInfo.historyStep < activeStageInfo.history.length - 1) {
-            activeStageInfo.historyStep++;
-            loadStateFor(activeStageInfo, activeStageInfo.history[activeStageInfo.historyStep]);
-            updateHistoryButtons();
-        }
-    }
+    function undo() { if (activeStageInfo.historyStep > 0) { activeStageInfo.historyStep--; loadStateFor(activeStageInfo, activeStageInfo.history[activeStageInfo.historyStep]); updateHistoryButtons(); } }
+    function redo() { if (activeStageInfo.historyStep < activeStageInfo.history.length - 1) { activeStageInfo.historyStep++; loadStateFor(activeStageInfo, activeStageInfo.history[activeStageInfo.historyStep]); updateHistoryButtons(); } }
     function updateHistoryButtons() {
         if (!activeStageInfo) return;
         undoBtn.disabled = activeStageInfo.historyStep <= 0;
@@ -232,34 +203,17 @@
     }
 
     // --- 4. Rulers, Guides & Snapping ---
-    function setupRulers() {
-        const stage = stages.front.stage;
-        rulerH.width = stage.width(); rulerH.height = 25;
-        rulerV.width = 25; rulerV.height = stage.height();
-        drawRulers();
-    }
+    function setupRulers() { drawRulers(); }
     function drawRulers() {
         const { width, height } = stages.front.stage.size();
-        rulerH.width = width; rulerV.height = height;
-        rulerCtxH.clearRect(0, 0, rulerH.width, rulerH.height);
-        rulerCtxV.clearRect(0, 0, rulerV.width, rulerV.height);
-        rulerCtxH.strokeStyle = rulerCtxV.strokeStyle = '#ccc'; rulerCtxH.fillStyle = rulerCtxV.fillStyle = '#666'; rulerCtxH.font = rulerCtxV.font = '10px sans-serif';
-        for (let i = 0; i <= width; i += 10) {
-            const h = (i % 50 === 0) ? 10 : 5;
-            rulerCtxH.beginPath(); rulerCtxH.moveTo(i, 25); rulerCtxH.lineTo(i, 25 - h); rulerCtxH.stroke();
-            if (i % 50 === 0 && i > 0) rulerCtxH.fillText(i, i + 2, 12);
-        }
-        for (let i = 0; i <= height; i += 10) {
-            const w = (i % 50 === 0) ? 10 : 5;
-            rulerCtxV.beginPath(); rulerCtxV.moveTo(25, i); rulerCtxV.lineTo(25 - w, i); rulerCtxV.stroke();
-            if (i % 50 === 0 && i > 0) {
-                rulerCtxV.save(); rulerCtxV.translate(12, i + 2); rulerCtxV.rotate(-Math.PI / 2); rulerCtxV.fillText(i, 0, 0); rulerCtxV.restore();
-            }
-        }
+        rulerH.width = width; rulerH.height = 25; rulerV.width = 25; rulerV.height = height;
+        [rulerCtxH, rulerCtxV].forEach(ctx => { ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height); ctx.strokeStyle = '#ccc'; ctx.fillStyle = '#666'; ctx.font = '10px sans-serif'; });
+        for (let i = 0; i <= width; i+=10) { const h = (i % 50 === 0) ? 10 : 5; rulerCtxH.beginPath(); rulerCtxH.moveTo(i, 25); rulerCtxH.lineTo(i, 25 - h); rulerCtxH.stroke(); if (i % 50 === 0 && i > 0) rulerCtxH.fillText(i, i + 2, 12); }
+        for (let i = 0; i <= height; i+=10) { const w = (i % 50 === 0) ? 10 : 5; rulerCtxV.beginPath(); rulerCtxV.moveTo(25, i); rulerCtxV.lineTo(25 - w, i); rulerCtxV.stroke(); if (i % 50 === 0 && i > 0) { rulerCtxV.save(); rulerCtxV.translate(12, i + 2); rulerCtxV.rotate(-Math.PI / 2); rulerCtxV.fillText(i, 0, 0); rulerCtxV.restore(); }}
     }
     function getSnapLines(stageInfo) {
         const { width, height } = stageInfo.stage.size();
-        const lines = { vertical: [{ guide: width / 2 }], horizontal: [{ guide: height / 2 }]};
+        const lines = { vertical: [width/2], horizontal: [height/2] };
         stageInfo.stage.getLayers()[1].children.forEach(node => {
             if (node === stageInfo.transformer || !node.isVisible() || stageInfo.transformer.nodes().includes(node)) return;
             const box = node.getClientRect({ relativeTo: stageInfo.stage });
@@ -270,30 +224,21 @@
     }
     function getObjectSnappingEdges(node, stageInfo) {
         const box = node.getClientRect({ relativeTo: stageInfo.stage });
-        return {
-            vertical: [box.x, box.x + box.width / 2, box.x + box.width],
-            horizontal: [box.y, box.y + box.height / 2, box.y + box.height]
-        };
+        return { vertical: [box.x, box.x + box.width/2, box.x + box.width], horizontal: [box.y, box.y + box.height/2, box.y + box.height] };
     }
     function handleDragMove(e, stageInfo) {
-        const target = e.target;
-        const guidesLayer = stageInfo.stage.getLayers()[2];
+        const target = e.target, guidesLayer = stageInfo.stage.getLayers()[2];
         guidesLayer.destroyChildren();
-        const lines = getSnapLines(stageInfo);
-        const edges = getObjectSnappingEdges(target, stageInfo);
-        lines.vertical.forEach(g => edges.vertical.forEach(e => {
-            if (Math.abs(e - g) < SNAP_DISTANCE) { target.x(target.x() - (e - g)); drawGuide(g, 'vertical', stageInfo); }
-        }));
-        lines.horizontal.forEach(g => edges.horizontal.forEach(e => {
-            if (Math.abs(e - g) < SNAP_DISTANCE) { target.y(target.y() - (e - g)); drawGuide(g, 'horizontal', stageInfo); }
-        }));
+        const lines = getSnapLines(stageInfo), edges = getObjectSnappingEdges(target, stageInfo);
+        lines.vertical.forEach(g => edges.vertical.forEach(e => { if (Math.abs(e - g) < SNAP_DISTANCE) { target.x(target.x() - (e - g)); drawGuide(g, 'vertical', stageInfo); } }));
+        lines.horizontal.forEach(g => edges.horizontal.forEach(e => { if (Math.abs(e - g) < SNAP_DISTANCE) { target.y(target.y() - (e - g)); drawGuide(g, 'horizontal', stageInfo); } }));
     }
     function drawGuide(value, orientation, stageInfo) {
         const stage = stageInfo.stage;
         const points = orientation === 'vertical' ? [value, 0, value, stage.height()] : [0, value, stage.width(), value];
         stage.getLayers()[2].add(new Konva.Line({ points, stroke: 'rgba(255, 0, 0, 0.6)', strokeWidth: 1, dash: [4, 6] }));
     }
-
+    
     // --- 5. Background, Opacity & Orientation ---
     function setBackground(imageSrc, layer, width, height, opacity) {
         layer.destroyChildren();
@@ -324,7 +269,7 @@
         });
         stage.getLayers()[2].add(hole);
     }
-    
+
     // --- 6. Element Creation, Properties Panel & Event Handling ---
     function addElement(type) {
         let element;
@@ -346,7 +291,7 @@
         }
     }
     function updatePropertiesPanel() {
-        const selectedNodes = activeStageInfo.transformer.nodes();
+        const selectedNodes = activeStageInfo ? activeStageInfo.transformer.nodes() : [];
         const node = selectedNodes[0];
         propertiesPanel.style.display = 'none'; propertiesPanel.innerHTML = '';
         if (selectedNodes.length !== 1) return;
@@ -379,13 +324,35 @@
         reader.onload = (event) => {
             const img = new Image();
             img.onload = () => {
-                const currentWidth = node.width() * node.scaleX();
-                const ratio = img.width / img.height;
-                const newHeight = currentWidth / ratio;
-                node.size({ width: currentWidth, height: newHeight });
-                node.scale({x: 1, y: 1});
                 node.fill(null); node.fillPatternImage(img); node.fillPatternRepeat('no-repeat');
-                node.fillPatternScale({ x: currentWidth / img.width, y: newHeight / img.height });
+                
+                if (node.getClassName() === 'Circle' && node.hasName('photo')) {
+                    // START: Fix for Circle image positioning
+                    const radius = node.radius();
+                    const diameter = radius * 2;
+                    const ratio = img.width / img.height;
+                    let scale;
+                    // Scale to cover logic
+                    if (ratio > 1) { // Landscape image
+                        scale = diameter / img.height;
+                    } else { // Portrait or square image
+                        scale = diameter / img.width;
+                    }
+                    const scaledWidth = img.width * scale;
+
+                    // Set scale and offset to align top-center of image with circle center
+                    node.fillPatternScale({ x: scale, y: scale });
+                    node.fillPatternOffset({ x: scaledWidth / 2, y: 0 }); // Offset is relative to top-left of pattern
+                
+                } else { // Rectangle (Logo) logic
+                    const currentWidth = node.width() * node.scaleX();
+                    const ratio = img.width / img.height;
+                    const newHeight = currentWidth / ratio;
+                    node.size({ width: currentWidth, height: newHeight });
+                    node.scale({x: 1, y: 1});
+                    node.fillPatternScale({ x: currentWidth / img.width, y: newHeight / img.height });
+                }
+                
                 saveStateFor(activeStageInfo);
             };
             img.src = event.target.result;
@@ -393,13 +360,11 @@
         reader.readAsDataURL(e.target.files[0]);
     }
     function handlePhotoShapeChange(e) {
-        const oldShape = activeStageInfo.transformer.nodes()[0];
-        if (!oldShape) return;
+        const oldShape = activeStageInfo.transformer.nodes()[0]; if (!oldShape) return;
         const isCircle = e.target.value === 'circle';
-        const attrs = oldShape.getAttrs();
-        delete attrs.radius; delete attrs.cornerRadius;
+        const attrs = oldShape.getAttrs(); delete attrs.radius; delete attrs.cornerRadius;
         const newShape = isCircle ? new Konva.Circle(attrs) : new Konva.Rect(attrs);
-        if (isCircle) newShape.radius((oldShape.width() * oldShape.scaleX()) / 2); else newShape.cornerRadius(0);
+        if (isCircle) newShape.radius((oldShape.width() * oldShape.scaleX()) / 2);
         oldShape.destroy();
         activeStageInfo.stage.getLayers()[1].add(newShape);
         newShape.on('dragmove', ev => handleDragMove(ev, activeStageInfo));
@@ -407,43 +372,29 @@
         saveStateFor(activeStageInfo);
     }
     function handleFontChange() {
-        const node = activeStageInfo.transformer.nodes()[0];
-        if (!node) return;
+        const node = activeStageInfo.transformer.nodes()[0]; if (!node) return;
         node.fontSize(parseInt(propertiesPanel.querySelector('.font-size-input').value));
         node.fontFamily(propertiesPanel.querySelector('.font-family-select').value);
         saveStateFor(activeStageInfo);
     }
 
-    // --- 7. Main Event Listeners ---
+    // --- 7. Main Event Listeners Setup ---
     function setupAllEventListeners() {
-        undoBtn.addEventListener('click', undo);
-        redoBtn.addEventListener('click', redo);
-
-        document.getElementById('show-rulers').addEventListener('change', e => {
-            const display = e.target.checked ? 'block' : 'none';
-            rulerH.style.display = rulerV.style.display = display;
-        });
-        document.getElementById('show-hole-mark').addEventListener('change', e => {
-            Object.values(stages).forEach(s => {
-                const mark = s.stage.findOne('.hole-mark');
-                if (mark) mark.visible(e.target.checked);
-                else if(e.target.checked) addHoleMark(s);
-            });
-        });
-
+        undoBtn.addEventListener('click', undo); redoBtn.addEventListener('click', redo);
+        document.getElementById('show-rulers').addEventListener('change', e => { rulerH.style.display = rulerV.style.display = e.target.checked ? 'block' : 'none'; });
+        document.getElementById('show-hole-mark').addEventListener('change', e => Object.values(stages).forEach(s => { const m = s.stage.findOne('.hole-mark'); if(m) m.visible(e.target.checked); else if(e.target.checked) addHoleMark(s); }));
         document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', handleOrientationChange));
-
         ['photo', 'name', 'id', 'logo', 'qr'].forEach(type => document.getElementById(`add-${type}`).addEventListener('click', () => addElement(type)));
-
-        Object.values(stages).forEach(stageInfo => {
+        
+        Object.entries(stages).forEach(([key, stageInfo]) => {
+            document.getElementById(`${key}-container`).addEventListener('click', () => setActiveStage(stageInfo));
             stageInfo.stage.on('click tap', e => {
-                setActiveStage(stageInfo);
                 if (e.target === stageInfo.stage || e.target.hasName('background')) stageInfo.transformer.nodes([]);
                 else if (e.target.getParent() === stageInfo.stage.getLayers()[1]) stageInfo.transformer.nodes([e.target]);
                 updatePropertiesPanel();
             });
         });
-        
+
         window.addEventListener('keydown', e => {
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 const selectedNodes = activeStageInfo.transformer.nodes();
@@ -452,17 +403,13 @@
             if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
             if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
         });
-
         const frontReader = new FileReader();
         frontReader.onload = e => setBackground(e.target.result, stages.front.stage.getLayers()[0], stages.front.stage.width(), stages.front.stage.height(), parseFloat(document.getElementById('bg-opacity-slider').value));
         document.getElementById('bg-front-upload').addEventListener('change', e => e.target.files[0] && frontReader.readAsDataURL(e.target.files[0]));
-
         const backReader = new FileReader();
         backReader.onload = e => setBackground(e.target.result, stages.back.stage.getLayers()[0], stages.back.stage.width(), stages.back.stage.height(), 1);
         document.getElementById('bg-back-upload').addEventListener('change', e => e.target.files[0] && backReader.readAsDataURL(e.target.files[0]));
-        
-        const bgOpacitySlider = document.getElementById('bg-opacity-slider');
-        const bgOpacityInput = document.getElementById('bg-opacity-input');
+        const bgOpacitySlider = document.getElementById('bg-opacity-slider'), bgOpacityInput = document.getElementById('bg-opacity-input');
         function updateBgOpacity(value) {
             const bg = stages.front.stage.getLayers()[0].findOne('.background');
             if (bg) bg.opacity(value);
@@ -470,12 +417,7 @@
         }
         bgOpacitySlider.addEventListener('input', e => updateBgOpacity(parseFloat(e.target.value)));
         bgOpacityInput.addEventListener('change', e => updateBgOpacity(parseInt(e.target.value) / 100));
-
-        document.getElementById('lock-background').addEventListener('change', e => {
-            const bg = stages.front.stage.getLayers()[0].findOne('.background');
-            if (bg) bg.draggable(!e.target.checked);
-        });
-        
+        document.getElementById('lock-background').addEventListener('change', e => { const bg = stages.front.stage.getLayers()[0].findOne('.background'); if(bg) bg.draggable(!e.target.checked); });
         document.getElementById('export-json').addEventListener('click', exportJSON);
     }
     
