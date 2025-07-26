@@ -158,7 +158,6 @@ function setBackground(imageSrc, stageInfo, opacity) {
     const isFront = stageInfo.name === 'front';
     const isLocked = isFront ? document.getElementById('lock-background').checked : true;
     
-    // CORRECTED: Iterate over the collection to destroy nodes
     layer.find('.background').forEach(node => node.destroy());
     
     const img = new Image();
@@ -183,7 +182,6 @@ function handleOrientationChange() {
 }
 function addHoleMark(stageInfo) {
     const { stage } = stageInfo, guideLayer = stage.getLayers()[2];
-    // CORRECTED: Iterate to destroy
     guideLayer.find('.hole-mark').forEach(mark => mark.destroy());
     if (!document.getElementById('show-hole-mark').checked) return;
     const isLandscape = stage.width() > stage.height();
@@ -222,39 +220,47 @@ function handleDoubleClick(node) {
 }
 function editImageFill(node) {
     if (!node.fillPatternImage()) { alert('Please upload an image for this element first.'); return; }
-    const wasDraggable = node.draggable();
-    const layer = node.getLayer();
+    
     const stage = node.getStage();
+    const wasDraggable = node.draggable();
     node.draggable(false);
     activeStageInfo.transformer.nodes([]);
     
-    // CORRECTED: Implement manual dragging for fill
+    const doneBtn = document.createElement('button');
+    doneBtn.innerText = "Done Adjusting Image";
+    Object.assign(doneBtn.style, { position: 'absolute', zIndex: 1000, top: '25px', left: '350px', background: '#10B981' });
+    document.body.appendChild(doneBtn);
+    
     let lastPos = null;
-    function onDrag(e) {
-        if (!lastPos) {
-            lastPos = stage.getPointerPosition();
-            return;
-        }
+    const onMouseDown = () => {
+        lastPos = stage.getPointerPosition();
+        stage.on('mousemove.fill', onDrag);
+        stage.on('mouseup.fill touchend.fill', onMouseUp);
+    };
+
+    const onDrag = () => {
+        if (!lastPos) return;
         const pos = stage.getPointerPosition();
         const dx = pos.x - lastPos.x;
         const dy = pos.y - lastPos.y;
         node.fillPatternOffsetX(node.fillPatternOffsetX() - dx);
         node.fillPatternOffsetY(node.fillPatternOffsetY() - dy);
         lastPos = pos;
-        layer.batchDraw();
-    }
-    stage.on('mousemove.fill', onDrag);
+    };
 
-    const doneBtn = document.createElement('button');
-    doneBtn.innerText = "Done Adjusting Image";
-    Object.assign(doneBtn.style, { position: 'absolute', zIndex: 1000, top: '25px', left: '350px', background: '#10B981' });
-    document.body.appendChild(doneBtn);
-    
-    function endEdit() {
+    const onMouseUp = () => {
+        lastPos = null;
         stage.off('mousemove.fill');
+        stage.off('mouseup.fill touchend.fill');
+    };
+    
+    node.on('mousedown.fill touchstart.fill', onMouseDown);
+
+    function endEdit() {
+        stage.off('mousemove.fill mouseup.fill touchend.fill');
+        node.off('mousedown.fill touchstart.fill');
         node.draggable(wasDraggable);
         document.body.removeChild(doneBtn);
-        lastPos = null;
     }
     doneBtn.addEventListener('click', endEdit);
 }
@@ -454,8 +460,8 @@ function exportJSON() {
     document.getElementById('json-output').value = jsonString;
     navigator.clipboard.writeText(jsonString).then(() => alert('JSON copied to clipboard!'));
 }
-// เป็นการสั่งให้เบราว์เซอร์เรียกใช้ฟังก์ชัน initialize()
-// ก็ต่อเมื่อหน้าเว็บ (HTML) โหลดเสร็จสมบูรณ์แล้ว
+
+// --- Run Application ---
 document.addEventListener('DOMContentLoaded', function() {
     initialize();
 });
