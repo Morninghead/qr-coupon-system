@@ -233,7 +233,7 @@ function editImageFill(node) {
     Object.assign(doneBtn.style, {
         position: 'absolute', zIndex: 1000, background: '#10B981', color: 'white',
         border: 'none', borderRadius: '5px', padding: '5px 10px', cursor: 'pointer',
-        top: `${nodeBox.y - 40}px`, // CORRECTED: Position above the node
+        top: `${nodeBox.y - 40}px`,
         left: `${nodeBox.x + (nodeBox.width / 2)}px`,
         transform: 'translateX(-50%)'
     });
@@ -250,7 +250,7 @@ function editImageFill(node) {
         stage.container().style.cursor = 'grabbing';
     };
 
-    const onDrag = (e) => {
+    const onDrag = () => {
         if (!lastPos) return;
         const pos = stage.getPointerPosition();
         if (!pos) return;
