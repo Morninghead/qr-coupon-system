@@ -21,7 +21,7 @@
         textarea { width: 100%; height: 150px; font-family: monospace; font-size: 12px; }
         .canvases { display: flex; gap: 30px; flex-wrap: wrap; }
         .stage-wrapper { position: relative; }
-        .canvas-container { padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .canvas-container { padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; }
         .canvas-container.active { box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5), 0 0 0 2px #6366F1; }
         .canvas-container h2 { margin-top: 0; font-size: 1.2em; color: #444; text-align: center; }
         .konvajs-content { border: 1px dashed #ccc; background-color: #fafafa; }
@@ -32,27 +32,28 @@
         .opacity-control input[type=number] { width: 60px; }
         .font-size-control input[type=number] { flex-grow: 1; }
         .font-size-control button { width: 40px; padding: 4px; margin: 0; }
-        .ruler { position: absolute; background-color: #fdfdfd; overflow: hidden; }
+        .ruler { position: absolute; background-color: #fdfdfd; overflow: hidden; display: none; }
         .ruler.horizontal { top: -25px; left: 0; height: 25px; }
         .ruler.vertical { top: 0; left: -25px; width: 25px; }
     </style>
 </head>
 <body>
+
     <div class="editor-wrapper">
         <div class="controls">
-            <div class="control-group">
+             <div class="control-group">
                 <h3>History</h3>
                 <div class="history-buttons">
                     <button id="undo-btn">Undo</button>
                     <button id="redo-btn">Redo</button>
                 </div>
-                <small><i>Tip: Press 'Delete' to remove item.</i></small>
+                <small><i>Tip: Press 'Delete' key to remove item.</i></small>
             </div>
             <hr>
             <div class="control-group">
                 <h3>View Options</h3>
                 <div class="checkbox-group">
-                    <label><input type="checkbox" id="show-rulers" checked> Show Rulers</label>
+                    <label><input type="checkbox" id="show-rulers"> Show Rulers</label>
                     <label><input type="checkbox" id="show-hole-mark"> Show Hole Mark</label>
                 </div>
             </div>
@@ -101,7 +102,7 @@
             <div class="stage-wrapper">
                 <canvas id="ruler-vertical" class="ruler vertical"></canvas>
                 <canvas id="ruler-horizontal" class="ruler horizontal"></canvas>
-                <div class="canvas-container active" id="front-container">
+                <div class="canvas-container" id="front-container">
                     <h2>Front</h2>
                     <div id="stage-container-front"></div>
                 </div>
@@ -116,503 +117,399 @@
     </div>
 
 <script>
-// --- 1. Constants & Initial Variables ---
-const STANDARD_RATIO = 85.6 / 54.0;
-const LANDSCAPE_WIDTH = 600;
-const LANDSCAPE_HEIGHT = LANDSCAPE_WIDTH / STANDARD_RATIO;
-const PORTRAIT_WIDTH = 400;
-const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
-const HISTORY_LIMIT = 11;
-const SNAP_DISTANCE = 10;
-const FONT_FAMILIES = [
-    'Arial', 'Calibri', 'Times New Roman', // System
-    'Sarabun', 'Kanit', 'Mitr', // Thai (Google Fonts)
-    'Noto Sans JP', // Japanese (Google Fonts)
-    'Noto Sans KR', // Korean (Google Fonts)
-    'Noto Sans SC' // Chinese Simplified (Google Fonts)
-];
+    // --- 1. Constants & Initial Variables ---
+    const STANDARD_RATIO = 85.6 / 54.0;
+    const LANDSCAPE_WIDTH = 600;
+    const LANDSCAPE_HEIGHT = LANDSCAPE_WIDTH / STANDARD_RATIO;
+    const PORTRAIT_WIDTH = 400;
+    const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
+    const HISTORY_LIMIT = 11;
+    const SNAP_DISTANCE = 10;
+    const FONT_FAMILIES = ['Arial', 'Calibri', 'Times New Roman', 'Sarabun', 'Kanit', 'Mitr', 'Noto Sans JP', 'Noto Sans KR', 'Noto Sans SC'];
 
-let activeStage = null;
-const stages = {};
+    let activeStageInfo = null;
+    const stages = {};
 
-// --- 2. Initial Setup ---
-function initialize() {
-    WebFont.load({
-        google: { families: ['Sarabun', 'Kanit', 'Mitr', 'Noto Sans JP', 'Noto Sans KR', 'Noto Sans SC'] }
-    });
-    
-    stages.front = setupNewStage('stage-container-front', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
-    stages.back = setupNewStage('stage-container-back', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
-    
-    setActiveStage(stages.front);
-    setupRulers();
-    
-    document.getElementById('front-container').addEventListener('click', () => setActiveStage(stages.front));
-    document.getElementById('back-container').addEventListener('click', () => setActiveStage(stages.back));
+    // --- DOM Element References (Declared early to prevent ReferenceError) ---
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    const propertiesPanel = document.getElementById('properties-panel');
+    const rulerH = document.getElementById('ruler-horizontal');
+    const rulerV = document.getElementById('ruler-vertical');
+    const rulerCtxH = rulerH.getContext('2d');
+    const rulerCtxV = rulerV.getContext('2d');
 
-    setupAllEventListeners();
-    saveAllHistories();
-}
+    // --- 2. Main Initialization ---
+    function initialize() {
+        WebFont.load({ google: { families: ['Sarabun', 'Kanit', 'Mitr', 'Noto Sans JP', 'Noto Sans KR', 'Noto Sans SC'] } });
+        
+        stages.front = setupNewStage('stage-container-front', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
+        stages.back = setupNewStage('stage-container-back', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
+        
+        setActiveStage(stages.front);
+        setupRulers();
+        setupAllEventListeners();
+        saveAllHistories();
+    }
 
-function setupNewStage(containerId, width, height) {
-    const stage = new Konva.Stage({ container: containerId, width, height });
-    stage.container().style.cursor = 'default';
-    stage.add(new Konva.Layer()); // Background Layer [0]
-    stage.add(new Konva.Layer()); // Elements Layer [1]
-    stage.add(new Konva.Layer()); // Guides Layer [2]
+    function setupNewStage(containerId, width, height) {
+        const stage = new Konva.Stage({ container: containerId, width, height });
+        stage.container().style.cursor = 'default';
+        stage.add(new Konva.Layer()); // Background Layer [0]
+        stage.add(new Konva.Layer()); // Elements Layer [1]
+        stage.add(new Konva.Layer()); // Guides Layer [2]
 
-    const transformer = new Konva.Transformer({
-        borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
-        boundBoxFunc: (oldBox, newBox) => {
-            const node = transformer.nodes()[0];
-            if (node && (node.hasName('photo') || node.hasName('logo'))) {
-                const ratio = oldBox.width / oldBox.height;
-                newBox.width = Math.max(20, newBox.width); // min width 20px
-                newBox.height = newBox.width / ratio;
+        const transformer = new Konva.Transformer({
+            borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
+            boundBoxFunc: (oldBox, newBox) => {
+                const node = transformer.nodes()[0];
+                if (node && (node.hasName('photo') || node.hasName('logo'))) {
+                    const ratio = oldBox.width / oldBox.height;
+                    if (Math.abs(newBox.width) < 10 || Math.abs(newBox.height) < 10) return oldBox;
+                    newBox.height = Math.abs(newBox.width / ratio);
+                }
+                return newBox;
             }
-            return newBox;
-        }
-    });
-    
-    stage.getLayers()[1].add(transformer);
-    stage.history = [];
-    stage.historyStep = -1;
-    
-    transformer.on('transformend', () => saveStateFor(stage));
-    
-    return { stage, transformer };
-}
+        });
+        stage.getLayers()[1].add(transformer);
 
-function setActiveStage(stageInfo) {
-    if (activeStage === stageInfo) return;
-    activeStage = stageInfo;
-    document.getElementById('front-container').classList.toggle('active', activeStage === stages.front);
-    document.getElementById('back-container').classList.toggle('active', activeStage === stages.back);
-    updatePropertiesPanel();
-}
+        const stageInfo = { stage, transformer, history: [], historyStep: -1 };
+        
+        transformer.on('transformend', () => saveStateFor(stageInfo));
+        
+        return stageInfo;
+    }
 
-// --- 3. History (Undo/Redo) Management ---
-function saveStateFor(stageInfo) {
-    let { history, historyStep } = stageInfo;
-    if (historyStep < history.length - 1) history.splice(historyStep + 1);
-    history.push(stageInfo.stage.getLayers()[1].toJSON());
-    if (history.length > HISTORY_LIMIT) history.shift();
-    stageInfo.historyStep = history.length - 1;
-    updateHistoryButtons();
-}
-
-function saveAllHistories() {
-    saveStateFor(stages.front);
-    saveStateFor(stages.back);
-}
-
-function loadStateFor(stageInfo, stateJSON) {
-    stageInfo.transformer.nodes([]);
-    stageInfo.stage.getLayers()[1].destroy();
-    const newLayer = Konva.Node.create(stateJSON);
-    stageInfo.stage.add(newLayer);
-    
-    // Add transformer back and re-attach listeners
-    newLayer.add(stageInfo.transformer);
-    newLayer.find('Rect, Text, Circle, Ellipse').forEach(node => {
-        node.on('dragend', () => saveStateFor(stageInfo));
-        node.on('dragmove', e => handleDragMove(e, stageInfo));
-    });
-}
-
-function undo() {
-    if (activeStage.historyStep > 0) {
-        activeStage.historyStep--;
-        loadStateFor(activeStage, activeStage.history[activeStage.historyStep]);
+    function setActiveStage(stageInfo) {
+        if (activeStageInfo === stageInfo) return;
+        activeStageInfo = stageInfo;
+        document.getElementById('front-container').classList.toggle('active', activeStageInfo === stages.front);
+        document.getElementById('back-container').classList.toggle('active', activeStageInfo === stages.back);
         updateHistoryButtons();
-    }
-}
-function redo() {
-    if (activeStage.historyStep < activeStage.history.length - 1) {
-        activeStage.historyStep++;
-        loadStateFor(activeStage, activeStage.history[activeStage.historyStep]);
-        updateHistoryButtons();
-    }
-}
-function updateHistoryButtons() {
-    undoBtn.disabled = activeStage.historyStep <= 0;
-    redoBtn.disabled = activeStage.historyStep >= activeStage.history.length - 1;
-}
-
-// --- 4. Rulers & Guides ---
-const rulerH = document.getElementById('ruler-horizontal');
-const rulerV = document.getElementById('ruler-vertical');
-const rulerCtxH = rulerH.getContext('2d');
-const rulerCtxV = rulerV.getContext('2d');
-
-function setupRulers() {
-    const stage = stages.front.stage;
-    rulerH.width = stage.width();
-    rulerH.height = 25;
-    rulerV.width = 25;
-    rulerV.height = stage.height();
-    drawRulers();
-}
-
-function drawRulers() {
-    const stage = stages.front.stage;
-    const { width, height } = stage.size();
-    
-    rulerH.width = width;
-    rulerV.height = height;
-    rulerCtxH.clearRect(0, 0, rulerH.width, rulerH.height);
-    rulerCtxV.clearRect(0, 0, rulerV.width, rulerV.height);
-
-    rulerCtxH.strokeStyle = rulerCtxV.strokeStyle = '#ccc';
-    rulerCtxH.fillStyle = rulerCtxV.fillStyle = '#666';
-    rulerCtxH.font = rulerCtxV.font = '10px sans-serif';
-
-    // Horizontal Ruler
-    for (let i = 0; i <= width; i += 10) {
-        const tickHeight = (i % 50 === 0) ? 10 : 5;
-        rulerCtxH.beginPath();
-        rulerCtxH.moveTo(i, 25);
-        rulerCtxH.lineTo(i, 25 - tickHeight);
-        rulerCtxH.stroke();
-        if (i % 50 === 0 && i > 0) {
-            rulerCtxH.fillText(i, i + 2, 12);
-        }
-    }
-    // Vertical Ruler
-    for (let i = 0; i <= height; i += 10) {
-        const tickWidth = (i % 50 === 0) ? 10 : 5;
-        rulerCtxV.beginPath();
-        rulerCtxV.moveTo(25, i);
-        rulerCtxV.lineTo(25 - tickWidth, i);
-        rulerCtxV.stroke();
-        if (i % 50 === 0 && i > 0) {
-            rulerCtxV.save();
-            rulerCtxV.translate(12, i + 2);
-            rulerCtxV.rotate(-Math.PI / 2);
-            rulerCtxV.fillText(i, 0, 0);
-            rulerCtxV.restore();
-        }
-    }
-}
-
-// --- 5. Snapping Logic ---
-function getSnapLines(stageInfo) {
-    const { width, height } = stageInfo.stage.size();
-    const lines = {
-        vertical: [ { guide: width / 2, snap: 'center' } ],
-        horizontal: [ { guide: height / 2, snap: 'center' } ]
-    };
-    stageInfo.stage.getLayers()[1].children.forEach(node => {
-        if (node === stageInfo.transformer || !node.isVisible() || transformer.nodes().includes(node)) return;
-        const box = node.getClientRect({ relativeTo: stageInfo.stage });
-        lines.vertical.push({ guide: box.x, snap: 'start' }, { guide: box.x + box.width, snap: 'end' });
-        lines.horizontal.push({ guide: box.y, snap: 'start' }, { guide: box.y + box.height, snap: 'end' });
-    });
-    return lines;
-}
-function getObjectSnappingEdges(node, stageInfo) {
-    const box = node.getClientRect({ relativeTo: stageInfo.stage });
-    return {
-        vertical: [{ edge: box.x, snap: 'start' }, { edge: box.x + box.width / 2, snap: 'center' }, { edge: box.x + box.width, snap: 'end' }],
-        horizontal: [{ edge: box.y, snap: 'start' }, { edge: box.y + box.height / 2, snap: 'center' }, { edge: box.y + box.height, snap: 'end' }]
-    };
-}
-function handleDragMove(e, stageInfo) {
-    const target = e.target;
-    const guidesLayer = stageInfo.stage.getLayers()[2];
-    guidesLayer.destroyChildren();
-
-    const lines = getSnapLines(stageInfo);
-    const edges = getObjectSnappingEdges(target, stageInfo);
-    
-    lines.vertical.forEach(l => edges.vertical.forEach(e => {
-        if (Math.abs(e.edge - l.guide) < SNAP_DISTANCE) {
-            target.x(target.x() - (e.edge - l.guide));
-            drawGuide(l.guide, 'vertical', stageInfo);
-        }
-    }));
-    lines.horizontal.forEach(l => edges.horizontal.forEach(e => {
-        if (Math.abs(e.edge - l.guide) < SNAP_DISTANCE) {
-            target.y(target.y() - (e.edge - l.guide));
-            drawGuide(l.guide, 'horizontal', stageInfo);
-        }
-    }));
-}
-function drawGuide(value, orientation, stageInfo) {
-    const stage = stageInfo.stage;
-    const points = orientation === 'vertical' ? [value, 0, value, stage.height()] : [0, value, stage.width(), value];
-    stage.getLayers()[2].add(new Konva.Line({ points, stroke: 'rgba(255, 0, 0, 0.6)', strokeWidth: 1, dash: [4, 6] }));
-}
-
-// --- 6. Element & Property Management ---
-const propertiesPanel = document.getElementById('properties-panel');
-function addElement(type) {
-    let element;
-    const {stage, transformer} = activeStage;
-    const commonProps = { x: 50, y: 50, draggable: true, name: type };
-    switch(type) {
-        case 'photo': element = new Konva.Circle({ ...commonProps, radius: 75, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, name: 'photo' }); break;
-        case 'name': element = new Konva.Text({ ...commonProps, text: 'Employee Name', fontSize: 32, fontFamily: 'Sarabun', fill: 'black', name: 'employee_name' }); break;
-        case 'id': element = new Konva.Text({ ...commonProps, text: '12345', fontSize: 24, fontFamily: 'Sarabun', fill: '#424242', name: 'employee_id' }); break;
-        case 'logo': element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' }); break;
-        case 'qr': element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', name: 'qr_code' }); break;
-    }
-    if (element) {
-        element.on('dragmove', e => handleDragMove(e, activeStage));
-        stage.getLayers()[1].add(element);
-        transformer.nodes([element]);
-        saveStateFor(activeStage);
         updatePropertiesPanel();
     }
-}
-function updatePropertiesPanel() {
-    const selectedNodes = activeStage.transformer.nodes();
-    const node = selectedNodes[0];
-    propertiesPanel.style.display = 'none';
-    propertiesPanel.innerHTML = '';
-    if (selectedNodes.length !== 1) return;
-    
-    propertiesPanel.style.display = 'block';
-    let content = `<h3>${node.name()} Properties</h3>`;
-    
-    if (node.hasName('photo') || node.hasName('logo')) {
-        content += `<label>Upload Image</label><input type="file" class="element-image-upload" accept="image/*">`;
+
+    // --- 3. History (Undo/Redo) Management ---
+    function saveStateFor(stageInfo) {
+        let { history } = stageInfo;
+        if (stageInfo.historyStep < history.length - 1) history.splice(stageInfo.historyStep + 1);
+        history.push(stageInfo.stage.getLayers()[1].toJSON());
+        if (history.length > HISTORY_LIMIT) history.shift();
+        stageInfo.historyStep = history.length - 1;
+        updateHistoryButtons();
     }
-    if (node.hasName('photo')) {
-        content += `
-            <label>Photo Shape</label>
-            <div class="radio-group">
-                <label><input type="radio" name="photoShape" value="circle" ${node.getClassName() === 'Circle' ? 'checked' : ''}> Circle</label>
-                <label><input type="radio" name="photoShape" value="rect" ${node.getClassName() === 'Rect' ? 'checked' : ''}> Rectangle</label>
-            </div>`;
-    }
-    if (node.getClassName() === 'Text') {
-        content += `
-            <label>Font Family</label>
-            <select class="font-family-select">
-                ${FONT_FAMILIES.map(f => `<option value="${f}" ${node.fontFamily() === f ? 'selected' : ''}>${f}</option>`).join('')}
-            </select>
-            <label>Font Size</label>
-            <div class="font-size-control">
-                <button class="font-size-dec">-</button>
-                <input type="number" class="font-size-input" value="${node.fontSize()}">
-                <button class="font-size-inc">+</button>
-            </div>
-        `;
-    }
-    propertiesPanel.innerHTML = content;
-    attachPropertiesListeners();
-}
-function attachPropertiesListeners() {
-    const imageUpload = propertiesPanel.querySelector('.element-image-upload');
-    if (imageUpload) imageUpload.addEventListener('change', handleElementImageUpload);
-
-    propertiesPanel.querySelectorAll('input[name="photoShape"]').forEach(radio => {
-        radio.addEventListener('change', handlePhotoShapeChange);
-    });
-
-    const fontFamilySelect = propertiesPanel.querySelector('.font-family-select');
-    if (fontFamilySelect) fontFamilySelect.addEventListener('change', handleFontChange);
-
-    const fontSizeInput = propertiesPanel.querySelector('.font-size-input');
-    if (fontSizeInput) {
-        fontSizeInput.addEventListener('change', handleFontChange);
-        propertiesPanel.querySelector('.font-size-dec').addEventListener('click', () => { fontSizeInput.value = parseInt(fontSizeInput.value) - 1; handleFontChange(); });
-        propertiesPanel.querySelector('.font-size-inc').addEventListener('click', () => { fontSizeInput.value = parseInt(fontSizeInput.value) + 1; handleFontChange(); });
-    }
-}
-function handleElementImageUpload(e) {
-    const node = activeStage.transformer.nodes()[0];
-    if (!node || !e.target.files[0]) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-            const currentWidth = node.width() * node.scaleX();
-            const ratio = img.width / img.height;
-            const newHeight = currentWidth / ratio;
-            
-            node.size({ width: currentWidth, height: newHeight });
-            node.scale({x: 1, y: 1}); // reset scale after resizing
-
-            node.fill(null);
-            node.fillPatternImage(img);
-            node.fillPatternRepeat('no-repeat');
-            node.fillPatternScale({ x: currentWidth / img.width, y: newHeight / img.height });
-            
-            saveStateFor(activeStage);
-        };
-        img.src = event.target.result;
-    };
-    reader.readAsDataURL(e.target.files[0]);
-}
-function handlePhotoShapeChange(e) {
-    const oldShape = activeStage.transformer.nodes()[0];
-    if (!oldShape) return;
-    const isCircle = e.target.value === 'circle';
-    const newShape = isCircle ? new Konva.Circle({}) : new Konva.Rect({});
-    
-    newShape.setAttrs({
-        ...oldShape.getAttrs(),
-        cornerRadius: isCircle ? undefined : 0,
-        radius: isCircle ? (oldShape.width() * oldShape.scaleX()) / 2 : undefined
-    });
-    if(isCircle) newShape.size({}); // let radius control size
-
-    oldShape.destroy();
-    activeStage.stage.getLayers()[1].add(newShape);
-    newShape.on('dragmove', ev => handleDragMove(ev, activeStage));
-    activeStage.transformer.nodes([newShape]);
-    saveStateFor(activeStage);
-}
-function handleFontChange() {
-    const node = activeStage.transformer.nodes()[0];
-    if (!node) return;
-    const newSize = parseInt(propertiesPanel.querySelector('.font-size-input').value);
-    const newFamily = propertiesPanel.querySelector('.font-family-select').value;
-    node.fontSize(newSize);
-    node.fontFamily(newFamily);
-    saveStateFor(activeStage);
-}
-
-// --- 7. Main Event Listeners ---
-function setupAllEventListeners() {
-    // History
-    undoBtn.addEventListener('click', undo);
-    redoBtn.addEventListener('click', redo);
-
-    // View Options
-    document.getElementById('show-rulers').addEventListener('change', e => {
-        const display = e.target.checked ? 'block' : 'none';
-        rulerH.style.display = rulerV.style.display = display;
-    });
-    document.getElementById('show-hole-mark').addEventListener('change', e => {
-        [stages.front, stages.back].forEach(s => {
-            const guideLayer = s.stage.getLayers()[2];
-            const mark = guideLayer.findOne('.hole-mark');
-            if (mark) {
-                mark.visible(e.target.checked);
-            } else if(e.target.checked) {
-                addHoleMark(s);
-            }
-        });
-    });
-
-    // Orientation
-    document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', handleOrientationChange));
-
-    // Element Buttons
-    ['photo', 'name', 'id', 'logo', 'qr'].forEach(type => document.getElementById(`add-${type}`).addEventListener('click', () => addElement(type)));
-
-    // Stage Selection
-    [stages.front, stages.back].forEach(stageInfo => {
-        stageInfo.stage.on('click tap', e => {
-            setActiveStage(stageInfo);
-            if (e.target === stageInfo.stage || e.target.hasName('background')) {
-                stageInfo.transformer.nodes([]);
-            } else if (e.target.getParent() === stageInfo.stage.getLayers()[1] && e.target !== stageInfo.transformer) {
-                 stageInfo.transformer.nodes([e.target]);
-            }
-            updatePropertiesPanel();
-        });
-    });
-    
-    // Keyboard Shortcuts
-    window.addEventListener('keydown', e => {
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-            const selectedNodes = activeStage.transformer.nodes();
-            if (selectedNodes.length > 0) {
-                e.preventDefault();
-                selectedNodes.forEach(node => node.destroy());
-                activeStage.transformer.nodes([]);
-                saveStateFor(activeStage);
-                updatePropertiesPanel();
-            }
-        }
-        if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
-        if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
-    });
-
-    // Background Controls
-    document.getElementById('lock-background').addEventListener('change', e => {
-        const bg = bgLayerFront.findOne('.background');
-        if (bg) {
-            bg.draggable(!e.target.checked);
-            // In a real app, you might add a transformer for the bg too
-        }
-    });
-    
-    // Export
-    document.getElementById('export-json').addEventListener('click', exportJSON);
-}
-
-function handleOrientationChange(e) {
-    const isLandscape = e.target.value === 'landscape';
-    const newSize = { width: isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH, height: isLandscape ? LANDSCAPE_HEIGHT : PORTRAIT_HEIGHT };
-    
-    Object.values(stages).forEach(s => {
-        s.stage.size(newSize);
-        s.stage.findOne('.background')?.size(newSize);
-        const hole = s.stage.findOne('.hole-mark');
-        if(hole) {
-           hole.position(isLandscape ? {x: newSize.width / 2, y: 15} : {x: 15, y: newSize.height / 2});
-        }
-    });
-    drawRulers();
-}
-
-function addHoleMark(stageInfo) {
-    const { stage } = stageInfo;
-    const isLandscape = stage.width() > stage.height();
-    const hole = new Konva.Ellipse({
-        x: isLandscape ? stage.width() / 2 : 15,
-        y: isLandscape ? 15 : stage.height() / 2,
-        radiusX: isLandscape ? 14 / (85.6 / stage.width()) * 1.5 : 3 / (54 / stage.width()) * 1.5,
-        radiusY: isLandscape ? 3 / (54 / stage.height()) * 1.5 : 14 / (85.6 / stage.height()) * 1.5,
-        fill: 'rgba(0,0,0,0.3)',
-        name: 'hole-mark',
-        visible: document.getElementById('show-hole-mark').checked
-    });
-    stage.getLayers()[2].add(hole);
-}
-
-// --- 8. Export to JSON ---
-function exportJSON() {
-    const finalConfig = {};
-    ['front', 'back'].forEach(side => {
-        const stageInfo = stages[side];
-        const layoutConfig = {};
-        const { width: cardWidth, height: cardHeight } = stageInfo.stage.size();
+    function saveAllHistories() { Object.values(stages).forEach(saveStateFor); }
+    function loadStateFor(stageInfo, stateJSON) {
+        stageInfo.transformer.nodes([]);
+        stageInfo.stage.getLayers()[1].destroy();
+        const newLayer = Konva.Node.create(stateJSON);
+        stageInfo.stage.add(newLayer);
         
-        stageInfo.stage.getLayers()[1].children.forEach(node => {
-            if (node === stageInfo.transformer || !node.name()) return;
-            const scaleX = node.scaleX(), scaleY = node.scaleY();
-            let width = node.width(), height = node.height();
-            if(node.getClassName() === 'Circle') width = height = node.radius() * 2;
-            
-            const config = {
-                left: `${(node.x() / cardWidth * 100).toFixed(2)}%`,
-                top: `${(node.y() / cardHeight * 100).toFixed(2)}%`,
-                width: `${(width * scaleX / cardWidth * 100).toFixed(2)}%`,
-                height: `${(height * scaleY / cardHeight * 100).toFixed(2)}%`
-            };
-            if (node.rotation()) config.transform = `rotate(${node.rotation().toFixed(2)}deg)`;
-            if (node.hasName('photo')) {
-                config.objectFit = 'cover';
-                if (node.getClassName() === 'Circle') config.borderRadius = '50%';
-            }
-            layoutConfig[node.name().replace(/_[0-9]+$/, '')] = config;
+        newLayer.add(stageInfo.transformer);
+        newLayer.find('Rect, Text, Circle, Ellipse').forEach(node => {
+            node.on('dragend', () => saveStateFor(stageInfo));
+            node.on('dragmove', e => handleDragMove(e, stageInfo));
         });
-        finalConfig[`${side}Layout`] = layoutConfig;
-    });
+    }
+    function undo() {
+        if (activeStageInfo.historyStep > 0) {
+            activeStageInfo.historyStep--;
+            loadStateFor(activeStageInfo, activeStageInfo.history[activeStageInfo.historyStep]);
+            updateHistoryButtons();
+        }
+    }
+    function redo() {
+        if (activeStageInfo.historyStep < activeStageInfo.history.length - 1) {
+            activeStageInfo.historyStep++;
+            loadStateFor(activeStageInfo, activeStageInfo.history[activeStageInfo.historyStep]);
+            updateHistoryButtons();
+        }
+    }
+    function updateHistoryButtons() {
+        if (!activeStageInfo) return;
+        undoBtn.disabled = activeStageInfo.historyStep <= 0;
+        redoBtn.disabled = activeStageInfo.historyStep >= activeStageInfo.history.length - 1;
+    }
 
-    document.getElementById('json-output').value = JSON.stringify(finalConfig, null, 2);
-    alert('Layout JSON has been generated!');
-}
+    // --- 4. Rulers, Guides & Snapping ---
+    function setupRulers() {
+        const stage = stages.front.stage;
+        rulerH.width = stage.width(); rulerH.height = 25;
+        rulerV.width = 25; rulerV.height = stage.height();
+        drawRulers();
+    }
+    function drawRulers() {
+        const { width, height } = stages.front.stage.size();
+        rulerH.width = width; rulerV.height = height;
+        rulerCtxH.clearRect(0, 0, rulerH.width, rulerH.height);
+        rulerCtxV.clearRect(0, 0, rulerV.width, rulerV.height);
+        rulerCtxH.strokeStyle = rulerCtxV.strokeStyle = '#ccc'; rulerCtxH.fillStyle = rulerCtxV.fillStyle = '#666'; rulerCtxH.font = rulerCtxV.font = '10px sans-serif';
+        for (let i = 0; i <= width; i += 10) {
+            const h = (i % 50 === 0) ? 10 : 5;
+            rulerCtxH.beginPath(); rulerCtxH.moveTo(i, 25); rulerCtxH.lineTo(i, 25 - h); rulerCtxH.stroke();
+            if (i % 50 === 0 && i > 0) rulerCtxH.fillText(i, i + 2, 12);
+        }
+        for (let i = 0; i <= height; i += 10) {
+            const w = (i % 50 === 0) ? 10 : 5;
+            rulerCtxV.beginPath(); rulerCtxV.moveTo(25, i); rulerCtxV.lineTo(25 - w, i); rulerCtxV.stroke();
+            if (i % 50 === 0 && i > 0) {
+                rulerCtxV.save(); rulerCtxV.translate(12, i + 2); rulerCtxV.rotate(-Math.PI / 2); rulerCtxV.fillText(i, 0, 0); rulerCtxV.restore();
+            }
+        }
+    }
+    function getSnapLines(stageInfo) {
+        const { width, height } = stageInfo.stage.size();
+        const lines = { vertical: [{ guide: width / 2 }], horizontal: [{ guide: height / 2 }]};
+        stageInfo.stage.getLayers()[1].children.forEach(node => {
+            if (node === stageInfo.transformer || !node.isVisible() || stageInfo.transformer.nodes().includes(node)) return;
+            const box = node.getClientRect({ relativeTo: stageInfo.stage });
+            lines.vertical.push(box.x, box.x + box.width, box.x + box.width / 2);
+            lines.horizontal.push(box.y, box.y + box.height, box.y + box.height / 2);
+        });
+        return lines;
+    }
+    function getObjectSnappingEdges(node, stageInfo) {
+        const box = node.getClientRect({ relativeTo: stageInfo.stage });
+        return {
+            vertical: [box.x, box.x + box.width / 2, box.x + box.width],
+            horizontal: [box.y, box.y + box.height / 2, box.y + box.height]
+        };
+    }
+    function handleDragMove(e, stageInfo) {
+        const target = e.target;
+        const guidesLayer = stageInfo.stage.getLayers()[2];
+        guidesLayer.destroyChildren();
+        const lines = getSnapLines(stageInfo);
+        const edges = getObjectSnappingEdges(target, stageInfo);
+        lines.vertical.forEach(g => edges.vertical.forEach(e => {
+            if (Math.abs(e - g) < SNAP_DISTANCE) { target.x(target.x() - (e - g)); drawGuide(g, 'vertical', stageInfo); }
+        }));
+        lines.horizontal.forEach(g => edges.horizontal.forEach(e => {
+            if (Math.abs(e - g) < SNAP_DISTANCE) { target.y(target.y() - (e - g)); drawGuide(g, 'horizontal', stageInfo); }
+        }));
+    }
+    function drawGuide(value, orientation, stageInfo) {
+        const stage = stageInfo.stage;
+        const points = orientation === 'vertical' ? [value, 0, value, stage.height()] : [0, value, stage.width(), value];
+        stage.getLayers()[2].add(new Konva.Line({ points, stroke: 'rgba(255, 0, 0, 0.6)', strokeWidth: 1, dash: [4, 6] }));
+    }
 
-// --- Run Application ---
-initialize();
+    // --- 5. Background, Opacity & Orientation ---
+    function setBackground(imageSrc, layer, width, height, opacity) {
+        layer.destroyChildren();
+        const img = new Image();
+        img.onload = () => layer.add(new Konva.Image({ image: img, width, height, name: 'background', opacity, draggable: false }));
+        img.src = imageSrc;
+    }
+    function handleOrientationChange() {
+        const isLandscape = document.querySelector('input[name="orientation"]:checked').value === 'landscape';
+        const newSize = { width: isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH, height: isLandscape ? LANDSCAPE_HEIGHT : PORTRAIT_HEIGHT };
+        Object.values(stages).forEach(s => {
+            s.stage.size(newSize);
+            s.stage.findOne('.background')?.size(newSize);
+            const hole = s.stage.findOne('.hole-mark');
+            if(hole) hole.position(isLandscape ? {x: newSize.width - 30, y: newSize.height / 2} : {x: newSize.width / 2, y: 15});
+        });
+        drawRulers();
+    }
+    function addHoleMark(stageInfo) {
+        const { stage } = stageInfo;
+        const isLandscape = stage.width() > stage.height();
+        const hole = new Konva.Ellipse({
+            x: isLandscape ? stage.width() - 30 : stage.width() / 2,
+            y: isLandscape ? stage.height() / 2 : 15,
+            radiusX: 14, radiusY: 3,
+            fill: 'rgba(255,255,255,0.8)', stroke: 'rgba(0,0,0,0.3)', strokeWidth: 1,
+            name: 'hole-mark', visible: document.getElementById('show-hole-mark').checked
+        });
+        stage.getLayers()[2].add(hole);
+    }
+    
+    // --- 6. Element Creation, Properties Panel & Event Handling ---
+    function addElement(type) {
+        let element;
+        const { stage, transformer } = activeStageInfo;
+        const commonProps = { x: 50, y: 50, draggable: true, name: type };
+        switch(type) {
+            case 'photo': element = new Konva.Circle({ ...commonProps, radius: 75, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, name: 'photo' }); break;
+            case 'name': element = new Konva.Text({ ...commonProps, text: 'Employee Name', fontSize: 32, fontFamily: 'Sarabun', fill: 'black', name: 'employee_name' }); break;
+            case 'id': element = new Konva.Text({ ...commonProps, text: '12345', fontSize: 24, fontFamily: 'Sarabun', fill: '#424242', name: 'employee_id' }); break;
+            case 'logo': element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' }); break;
+            case 'qr': element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', name: 'qr_code' }); break;
+        }
+        if (element) {
+            element.on('dragmove', e => handleDragMove(e, activeStageInfo));
+            stage.getLayers()[1].add(element);
+            transformer.nodes([element]);
+            saveStateFor(activeStageInfo);
+            updatePropertiesPanel();
+        }
+    }
+    function updatePropertiesPanel() {
+        const selectedNodes = activeStageInfo.transformer.nodes();
+        const node = selectedNodes[0];
+        propertiesPanel.style.display = 'none'; propertiesPanel.innerHTML = '';
+        if (selectedNodes.length !== 1) return;
+        
+        propertiesPanel.style.display = 'block';
+        let content = `<h3>${node.name()} Properties</h3>`;
+        if (node.hasName('photo') || node.hasName('logo')) content += `<label>Upload Image</label><input type="file" class="element-image-upload" accept="image/*">`;
+        if (node.hasName('photo')) content += `<label>Photo Shape</label><div class="radio-group"><label><input type="radio" name="photoShape" value="circle" ${node.getClassName()==='Circle'?'checked':''}> Circle</label><label><input type="radio" name="photoShape" value="rect" ${node.getClassName()==='Rect'?'checked':''}> Rectangle</label></div>`;
+        if (node.getClassName() === 'Text') content += `<label>Font Family</label><select class="font-family-select">${FONT_FAMILIES.map(f => `<option value="${f}" ${node.fontFamily()===f?'selected':''}>${f}</option>`).join('')}</select><label>Font Size</label><div class="font-size-control"><button class="font-size-dec">-</button><input type="number" class="font-size-input" value="${node.fontSize()}"><button class="font-size-inc">+</button></div>`;
+        propertiesPanel.innerHTML = content;
+        attachPropertiesListeners();
+    }
+    function attachPropertiesListeners() {
+        const imageUpload = propertiesPanel.querySelector('.element-image-upload');
+        if (imageUpload) imageUpload.addEventListener('change', handleElementImageUpload);
+        propertiesPanel.querySelectorAll('input[name="photoShape"]').forEach(radio => radio.addEventListener('change', handlePhotoShapeChange));
+        const fontFamilySelect = propertiesPanel.querySelector('.font-family-select');
+        if (fontFamilySelect) fontFamilySelect.addEventListener('change', handleFontChange);
+        const fontSizeInput = propertiesPanel.querySelector('.font-size-input');
+        if (fontSizeInput) {
+            fontSizeInput.addEventListener('change', handleFontChange);
+            propertiesPanel.querySelector('.font-size-dec').addEventListener('click', () => { fontSizeInput.value = parseInt(fontSizeInput.value) - 1; handleFontChange(); });
+            propertiesPanel.querySelector('.font-size-inc').addEventListener('click', () => { fontSizeInput.value = parseInt(fontSizeInput.value) + 1; handleFontChange(); });
+        }
+    }
+    function handleElementImageUpload(e) {
+        const node = activeStageInfo.transformer.nodes()[0];
+        if (!node || !e.target.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const currentWidth = node.width() * node.scaleX();
+                const ratio = img.width / img.height;
+                const newHeight = currentWidth / ratio;
+                node.size({ width: currentWidth, height: newHeight });
+                node.scale({x: 1, y: 1});
+                node.fill(null); node.fillPatternImage(img); node.fillPatternRepeat('no-repeat');
+                node.fillPatternScale({ x: currentWidth / img.width, y: newHeight / img.height });
+                saveStateFor(activeStageInfo);
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    }
+    function handlePhotoShapeChange(e) {
+        const oldShape = activeStageInfo.transformer.nodes()[0];
+        if (!oldShape) return;
+        const isCircle = e.target.value === 'circle';
+        const attrs = oldShape.getAttrs();
+        delete attrs.radius; delete attrs.cornerRadius;
+        const newShape = isCircle ? new Konva.Circle(attrs) : new Konva.Rect(attrs);
+        if (isCircle) newShape.radius((oldShape.width() * oldShape.scaleX()) / 2); else newShape.cornerRadius(0);
+        oldShape.destroy();
+        activeStageInfo.stage.getLayers()[1].add(newShape);
+        newShape.on('dragmove', ev => handleDragMove(ev, activeStageInfo));
+        activeStageInfo.transformer.nodes([newShape]);
+        saveStateFor(activeStageInfo);
+    }
+    function handleFontChange() {
+        const node = activeStageInfo.transformer.nodes()[0];
+        if (!node) return;
+        node.fontSize(parseInt(propertiesPanel.querySelector('.font-size-input').value));
+        node.fontFamily(propertiesPanel.querySelector('.font-family-select').value);
+        saveStateFor(activeStageInfo);
+    }
 
+    // --- 7. Main Event Listeners ---
+    function setupAllEventListeners() {
+        undoBtn.addEventListener('click', undo);
+        redoBtn.addEventListener('click', redo);
+
+        document.getElementById('show-rulers').addEventListener('change', e => {
+            const display = e.target.checked ? 'block' : 'none';
+            rulerH.style.display = rulerV.style.display = display;
+        });
+        document.getElementById('show-hole-mark').addEventListener('change', e => {
+            Object.values(stages).forEach(s => {
+                const mark = s.stage.findOne('.hole-mark');
+                if (mark) mark.visible(e.target.checked);
+                else if(e.target.checked) addHoleMark(s);
+            });
+        });
+
+        document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', handleOrientationChange));
+
+        ['photo', 'name', 'id', 'logo', 'qr'].forEach(type => document.getElementById(`add-${type}`).addEventListener('click', () => addElement(type)));
+
+        Object.values(stages).forEach(stageInfo => {
+            stageInfo.stage.on('click tap', e => {
+                setActiveStage(stageInfo);
+                if (e.target === stageInfo.stage || e.target.hasName('background')) stageInfo.transformer.nodes([]);
+                else if (e.target.getParent() === stageInfo.stage.getLayers()[1]) stageInfo.transformer.nodes([e.target]);
+                updatePropertiesPanel();
+            });
+        });
+        
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                const selectedNodes = activeStageInfo.transformer.nodes();
+                if (selectedNodes.length > 0) { e.preventDefault(); selectedNodes.forEach(n => n.destroy()); activeStageInfo.transformer.nodes([]); saveStateFor(activeStageInfo); updatePropertiesPanel(); }
+            }
+            if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+            if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
+        });
+
+        const frontReader = new FileReader();
+        frontReader.onload = e => setBackground(e.target.result, stages.front.stage.getLayers()[0], stages.front.stage.width(), stages.front.stage.height(), parseFloat(document.getElementById('bg-opacity-slider').value));
+        document.getElementById('bg-front-upload').addEventListener('change', e => e.target.files[0] && frontReader.readAsDataURL(e.target.files[0]));
+
+        const backReader = new FileReader();
+        backReader.onload = e => setBackground(e.target.result, stages.back.stage.getLayers()[0], stages.back.stage.width(), stages.back.stage.height(), 1);
+        document.getElementById('bg-back-upload').addEventListener('change', e => e.target.files[0] && backReader.readAsDataURL(e.target.files[0]));
+        
+        const bgOpacitySlider = document.getElementById('bg-opacity-slider');
+        const bgOpacityInput = document.getElementById('bg-opacity-input');
+        function updateBgOpacity(value) {
+            const bg = stages.front.stage.getLayers()[0].findOne('.background');
+            if (bg) bg.opacity(value);
+            bgOpacitySlider.value = value; bgOpacityInput.value = Math.round(value * 100);
+        }
+        bgOpacitySlider.addEventListener('input', e => updateBgOpacity(parseFloat(e.target.value)));
+        bgOpacityInput.addEventListener('change', e => updateBgOpacity(parseInt(e.target.value) / 100));
+
+        document.getElementById('lock-background').addEventListener('change', e => {
+            const bg = stages.front.stage.getLayers()[0].findOne('.background');
+            if (bg) bg.draggable(!e.target.checked);
+        });
+        
+        document.getElementById('export-json').addEventListener('click', exportJSON);
+    }
+    
+    // --- 8. Export to JSON ---
+    function exportJSON() {
+        const finalConfig = {};
+        ['front', 'back'].forEach(side => {
+            const stageInfo = stages[side];
+            const layoutConfig = {};
+            const { width: cardWidth, height: cardHeight } = stageInfo.stage.size();
+            stageInfo.stage.getLayers()[1].children.forEach(node => {
+                if (node === stageInfo.transformer || !node.name()) return;
+                const scaleX = node.scaleX(), scaleY = node.scaleY();
+                let width = node.width(), height = node.height();
+                if(node.getClassName() === 'Circle') width = height = node.radius() * 2;
+                const config = {
+                    left: `${(node.x() / cardWidth * 100).toFixed(2)}%`, top: `${(node.y() / cardHeight * 100).toFixed(2)}%`,
+                    width: `${(width * scaleX / cardWidth * 100).toFixed(2)}%`, height: `${(height * scaleY / cardHeight * 100).toFixed(2)}%`
+                };
+                if (node.rotation()) config.transform = `rotate(${node.rotation().toFixed(2)}deg)`;
+                if (node.hasName('photo')) {
+                    config.objectFit = 'cover';
+                    if (node.getClassName() === 'Circle') config.borderRadius = '50%';
+                }
+                layoutConfig[node.name().replace(/_[0-9]+$/, '')] = config;
+            });
+            finalConfig[`${side}Layout`] = layoutConfig;
+        });
+        document.getElementById('json-output').value = JSON.stringify(finalConfig, null, 2);
+        alert('Layout JSON has been generated!');
+    }
+
+    // --- Run Application ---
+    initialize();
 </script>
 </body>
 </html>
