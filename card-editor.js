@@ -7,14 +7,40 @@ const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
 const HISTORY_LIMIT = 11; 
 const SNAP_DISTANCE = 10;
 const FONT_FAMILIES = ['Arial', 'Calibri', 'Times New Roman', 'Sarabun', 'Kanit', 'Mitr', 'Noto Sans JP', 'Noto Sans KR', 'Noto Sans SC'];
+
 let activeStageInfo = null;
 const stages = {};
-const undoBtn = document.getElementById('undo-btn');
-const redoBtn = document.getElementById('redo-btn');
-const propertiesPanel = document.getElementById('properties-panel');
+let supabaseClient = null;
+let currentUser = null;
 
-// --- 2. Main Initialization ---
+// --- 2. Initialize Supabase ---
+async function initializeSupabase() {
+    try {
+        const response = await fetch('/.netlify/functions/get-config');
+        const config = await response.json();
+        
+        if (typeof Supabase !== 'undefined') {
+            supabaseClient = Supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            
+            // ตรวจสอบ user session
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            currentUser = user;
+            
+            if (!currentUser) {
+                console.warn('No authenticated user found');
+            }
+        }
+    } catch (error) {
+        console.error('Failed to initialize Supabase:', error);
+    }
+}
+
+// --- 3. Main Initialization ---
 function initialize() {
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    const propertiesPanel = document.getElementById('properties-panel');
+    
     const textButtons = ['add-employee-name', 'add-employee-id', 'add-company-name'];
     textButtons.forEach(id => {
         const btn = document.getElementById(id);
@@ -41,8 +67,12 @@ function initialize() {
     setActiveStage(stages.front);
     setupAllEventListeners();
     saveAllHistories();
+    
+    // Initialize Supabase
+    initializeSupabase();
 }
 
+// --- 4. Setup New Stage ---
 function setupNewStage(name, width, height) {
     const stage = new Konva.Stage({ container: `stage-container-${name}`, width, height });
     stage.container().style.cursor = 'default';
@@ -75,13 +105,15 @@ function setActiveStage(stageInfo) {
          activeStageInfo.bgTransformer.nodes([]);
     }
     activeStageInfo = stageInfo;
-    document.getElementById('front-container').classList.toggle('active', activeStageInfo === stages.front);
-    document.getElementById('back-container').classList.toggle('active', activeStageInfo === stages.back);
+    const frontContainer = document.getElementById('front-container');
+    const backContainer = document.getElementById('back-container');
+    if (frontContainer) frontContainer.classList.toggle('active', activeStageInfo === stages.front);
+    if (backContainer) backContainer.classList.toggle('active', activeStageInfo === stages.back);
     updateHistoryButtons();
     updatePropertiesPanel();
 }
 
-// --- 3. History (Undo/Redo) Management ---
+// --- 5. History Management ---
 function saveStateFor(stageInfo) {
     let { history } = stageInfo;
     if (stageInfo.historyStep < history.length - 1) history.splice(stageInfo.historyStep + 1);
@@ -126,11 +158,174 @@ function redo() {
 
 function updateHistoryButtons() {
     if (!activeStageInfo) return;
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
     if (undoBtn) undoBtn.disabled = activeStageInfo.historyStep <= 0;
     if (redoBtn) redoBtn.disabled = activeStageInfo.historyStep >= activeStageInfo.history.length - 1;
 }
 
-// --- 4. Rulers, Guides & Snapping ---
+// --- 6. Save Template Function (NEW) ---
+async function saveTemplate() {
+    const templateNameInput = document.getElementById('template-name');
+    const companyNameInput = document.getElementById('company-name');
+    const saveBtn = document.getElementById('save-template-btn');
+    
+    if (!templateNameInput || !saveBtn) {
+        alert('Template form elements not found');
+        return;
+    }
+
+    const templateName = templateNameInput.value?.trim();
+    const companyName = companyNameInput?.value?.trim() || '';
+    
+    if (!templateName) {
+        alert('กรุณาใส่ชื่อ Template');
+        templateNameInput.focus();
+        return;
+    }
+
+    // แสดง loading state
+    const originalText = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'กำลังบันทึก...';
+
+    try {
+        // Export layout ปัจจุบัน
+        const layoutConfig = exportJSON(false); // false = ไม่ copy clipboard
+        
+        // Get current orientation
+        const orientationRadio = document.querySelector('input[name="orientation"]:checked');
+        const orientation = orientationRadio?.value || 'landscape';
+
+        // เตรียมข้อมูล
+        const templateData = {
+            template_name: templateName,
+            company_name: companyName,
+            layout_config: layoutConfig,
+            orientation: orientation
+        };
+
+        console.log('Saving template:', templateData);
+
+        // Get auth token
+        let authToken = null;
+        if (supabaseClient) {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            authToken = session?.access_token;
+        }
+
+        if (!authToken) {
+            // Fallback: try to get from localStorage
+            const keys = Object.keys(localStorage);
+            const authKey = keys.find(key => key.includes('auth-token'));
+            if (authKey) {
+                const authData = JSON.parse(localStorage.getItem(authKey) || '{}');
+                authToken = authData?.access_token;
+            }
+        }
+
+        if (!authToken) {
+            throw new Error('ไม่พบ authentication token กรุณาล็อกอินใหม่');
+        }
+
+        // เรียก API
+        const response = await fetch('/.netlify/functions/save-card-template', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(templateData)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert(`Template "${templateName}" บันทึกเรียบร้อยแล้ว!`);
+            console.log('Template saved successfully:', result.template);
+            
+            // แสดงข้อมูลที่บันทึก
+            console.log('Template ID:', result.template.id);
+            console.log('Created at:', result.template.created_at);
+            
+        } else {
+            throw new Error(result.error || 'ไม่สามารถบันทึก Template ได้');
+        }
+
+    } catch (error) {
+        console.error('Save template error:', error);
+        alert('เกิดข้อผิดพลาดในการบันทึก: ' + error.message);
+    } finally {
+        // คืนสถานะปุ่ม
+        saveBtn.disabled = false;
+        saveBtn.textContent = originalText;
+    }
+}
+
+// --- 7. Export JSON Function ---
+function exportJSON(copyToClipboard = true) {
+    const finalConfig = {};
+    
+    Object.values(stages).forEach(stageInfo => {
+        const side = stageInfo.name;
+        const layoutConfig = {};
+        const { width: stageWidth, height: stageHeight } = stageInfo.stage.size();
+        
+        // Background
+        const bgImage = stageInfo.stage.getLayers()[0].findOne('.background');
+        if(bgImage) {
+            const box = bgImage.getClientRect({skipTransform: true});
+            layoutConfig['background'] = {
+                left: `${(box.x / stageWidth * 100).toFixed(2)}%`, 
+                top: `${(box.y / stageHeight * 100).toFixed(2)}%`,
+                width: `${(box.width / stageWidth * 100).toFixed(2)}%`, 
+                height: `${(box.height / stageHeight * 100).toFixed(2)}%`,
+                rotation: bgImage.rotation()
+            }
+        }
+        
+        // Elements
+        stageInfo.stage.getLayers()[1].find('Rect, Text, Circle, Ellipse').forEach(node => {
+            if (!node.name()) return;
+            const box = node.getClientRect({ relativeTo: stageInfo.stage });
+            const config = {
+                left: `${(box.x / stageWidth * 100).toFixed(2)}%`, 
+                top: `${(box.y / stageHeight * 100).toFixed(2)}%`,
+                width: `${(box.width / stageWidth * 100).toFixed(2)}%`, 
+                height: `${(box.height / stageHeight * 100).toFixed(2)}%`,
+            };
+            
+            if (node.rotation()) config.transform = `rotate(${node.rotation()}deg)`;
+            
+            if (node.hasName('photo')) {
+                config.objectFit = 'cover';
+                if (node.getClassName() === 'Circle') config.borderRadius = '50%';
+            }
+            
+            layoutConfig[node.name()] = config;
+        });
+        
+        finalConfig[`${side}Layout`] = layoutConfig;
+    });
+
+    const jsonString = JSON.stringify(finalConfig, null, 2);
+    
+    const jsonOutput = document.getElementById('json-output');
+    if (jsonOutput) jsonOutput.value = jsonString;
+    
+    if (copyToClipboard) {
+        navigator.clipboard.writeText(jsonString).then(() => {
+            alert('JSON copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            alert('JSON generated but failed to copy to clipboard.');
+        });
+    }
+    
+    return finalConfig;
+}
+
+// --- 8. Rulers, Guides & Snapping ---
 function drawRulers() {
     Object.values(stages).forEach(s => {
         const { width, height } = s.stage.size();
@@ -225,7 +420,7 @@ function drawGuide(value, orientation, stageInfo) {
     }));
 }
 
-// --- 5. Background, Opacity & Orientation ---
+// --- 9. Background Functions ---
 function setBackground(imageSrc, stageInfo, opacity) {
     const layer = stageInfo.stage.getLayers()[0];
     const isFront = stageInfo.name === 'front';
@@ -282,8 +477,8 @@ function addHoleMark(stageInfo) {
         radiusX: 14, radiusY: 3, fill: 'rgba(0,0,0,0.3)', name: 'hole-mark',
     }));
 }
-    
-// --- 6. Element Creation, Properties Panel & In-place Editing ---
+
+// --- 10. Element Creation ---
 function addElement(type) {
     if (!activeStageInfo) return;
     
@@ -426,9 +621,11 @@ function editImageFill(node) {
     window.addEventListener('keydown', onEscapeKey);
 }
 
+// --- 11. Properties Panel ---
 function updatePropertiesPanel() {
     const selectedNodes = activeStageInfo ? activeStageInfo.transformer.nodes() : [];
     const node = selectedNodes[0];
+    const propertiesPanel = document.getElementById('properties-panel');
     if (!propertiesPanel) return;
     
     propertiesPanel.innerHTML = '';
@@ -467,6 +664,7 @@ function updatePropertiesPanel() {
 }
 
 function attachPropertiesListeners() {
+    const propertiesPanel = document.getElementById('properties-panel');
     if (!propertiesPanel) return;
     
     const imageUpload = propertiesPanel.querySelector('.element-image-upload');
@@ -607,7 +805,10 @@ function handlePhotoShapeChange(e) {
 }
 
 function handleFontChange() {
-    if (!activeStageInfo || !propertiesPanel) return;
+    if (!activeStageInfo) return;
+    const propertiesPanel = document.getElementById('properties-panel');
+    if (!propertiesPanel) return;
+    
     const node = activeStageInfo.transformer.nodes()[0]; 
     if (!node) return;
     
@@ -619,10 +820,13 @@ function handleFontChange() {
     saveStateFor(activeStageInfo);
 }
 
-// --- 7. Main Event Listeners Setup ---
+// --- 12. Event Listeners Setup ---
 function setupAllEventListeners() {
     try {
         // History buttons
+        const undoBtn = document.getElementById('undo-btn');
+        const redoBtn = document.getElementById('redo-btn');
+        
         if (undoBtn) undoBtn.addEventListener('click', undo);
         else console.warn('Undo button not found');
         
@@ -644,23 +848,12 @@ function setupAllEventListeners() {
             }
         });
 
-        // Save template button
+        // Save template button (UPDATED)
         const saveBtn = document.getElementById('save-template-btn');
         if (saveBtn) {
-            saveBtn.addEventListener('click', () => {
-                const templateName = document.getElementById('template-name')?.value || 'Untitled Template';
-                const companyName = document.getElementById('company-name')?.value || '';
-                
-                const templateData = {
-                    name: templateName,
-                    company: companyName,
-                    layout: exportJSON(false) // false = ไม่ copy clipboard
-                };
-                
-                console.log('Template saved:', templateData);
-                alert(`Template "${templateName}" saved successfully!`);
-                // ที่นี่สามารถส่งข้อมูลไปยัง server ได้
-            });
+            saveBtn.addEventListener('click', saveTemplate);
+        } else {
+            console.warn('Save template button not found');
         }
 
         // Export JSON button
@@ -814,71 +1007,8 @@ function setupAllEventListeners() {
         throw error;
     }
 }
-    
-// --- 8. Export to JSON ---
-function exportJSON(copyToClipboard = true) {
-    const finalConfig = {};
-    
-    Object.values(stages).forEach(stageInfo => {
-        const side = stageInfo.name;
-        const layoutConfig = {};
-        const { width: stageWidth, height: stageHeight } = stageInfo.stage.size();
-        
-        // Background
-        const bgImage = stageInfo.stage.getLayers()[0].findOne('.background');
-        if(bgImage) {
-            const box = bgImage.getClientRect({skipTransform: true});
-            layoutConfig['background'] = {
-                left: `${(box.x / stageWidth * 100).toFixed(2)}%`, 
-                top: `${(box.y / stageHeight * 100).toFixed(2)}%`,
-                width: `${(box.width / stageWidth * 100).toFixed(2)}%`, 
-                height: `${(box.height / stageHeight * 100).toFixed(2)}%`,
-                rotation: bgImage.rotation()
-            }
-        }
-        
-        // Elements
-        stageInfo.stage.getLayers()[1].find('Rect, Text, Circle, Ellipse').forEach(node => {
-            if (!node.name()) return;
-            const box = node.getClientRect({ relativeTo: stageInfo.stage });
-            const config = {
-                left: `${(box.x / stageWidth * 100).toFixed(2)}%`, 
-                top: `${(box.y / stageHeight * 100).toFixed(2)}%`,
-                width: `${(box.width / stageWidth * 100).toFixed(2)}%`, 
-                height: `${(box.height / stageHeight * 100).toFixed(2)}%`,
-            };
-            
-            if (node.rotation()) config.transform = `rotate(${node.rotation()}deg)`;
-            
-            if (node.hasName('photo')) {
-                config.objectFit = 'cover';
-                if (node.getClassName() === 'Circle') config.borderRadius = '50%';
-            }
-            
-            layoutConfig[node.name()] = config;
-        });
-        
-        finalConfig[`${side}Layout`] = layoutConfig;
-    });
 
-    const jsonString = JSON.stringify(finalConfig, null, 2);
-    
-    const jsonOutput = document.getElementById('json-output');
-    if (jsonOutput) jsonOutput.value = jsonString;
-    
-    if (copyToClipboard) {
-        navigator.clipboard.writeText(jsonString).then(() => {
-            alert('JSON copied to clipboard!');
-        }).catch(err => {
-            console.error('Failed to copy: ', err);
-            alert('JSON generated but failed to copy to clipboard.');
-        });
-    }
-    
-    return finalConfig;
-}
-
-// --- 9. Safe Initialization ---
+// --- 13. Safe Initialization ---
 function safeInitialize() {
     // เช็คว่า DOM elements พร้อมหรือยัง
     const requiredElements = [
