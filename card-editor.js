@@ -228,12 +228,12 @@ function editImageFill(node) {
     stage.container().style.cursor = 'grab';
 
     const doneBtn = document.createElement('button');
-    doneBtn.innerText = "Done Adjusting";
+    doneBtn.innerText = "Done Adjusting Image";
     const nodeBox = node.getClientRect({relativeTo: stage.container().parentElement});
     Object.assign(doneBtn.style, {
         position: 'absolute', zIndex: 1000, background: '#10B981', color: 'white',
-        border: 'none', borderRadius: '5px', padding: '5px 10px',
-        top: `${nodeBox.y + nodeBox.height + 5}px`,
+        border: 'none', borderRadius: '5px', padding: '5px 10px', cursor: 'pointer',
+        top: `${nodeBox.y - 40}px`, // CORRECTED: Position above the node
         left: `${nodeBox.x + (nodeBox.width / 2)}px`,
         transform: 'translateX(-50%)'
     });
@@ -244,7 +244,7 @@ function editImageFill(node) {
     const onMouseDown = (e) => {
         if (e.target !== node) return;
         lastPos = stage.getPointerPosition();
-        window.addEventListener('mousemove', onDrag);
+        stage.on('mousemove.fill', onDrag);
         window.addEventListener('mouseup', onMouseUp, true);
         window.addEventListener('touchend', onMouseUp, true);
         stage.container().style.cursor = 'grabbing';
@@ -263,7 +263,7 @@ function editImageFill(node) {
 
     const onMouseUp = () => {
         lastPos = null;
-        window.removeEventListener('mousemove', onDrag);
+        stage.off('mousemove.fill');
         window.removeEventListener('mouseup', onMouseUp, true);
         window.removeEventListener('touchend', onMouseUp, true);
         stage.container().style.cursor = 'grab';
