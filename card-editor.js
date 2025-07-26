@@ -454,3 +454,8 @@ function exportJSON() {
     document.getElementById('json-output').value = jsonString;
     navigator.clipboard.writeText(jsonString).then(() => alert('JSON copied to clipboard!'));
 }
+// เป็นการสั่งให้เบราว์เซอร์เรียกใช้ฟังก์ชัน initialize()
+// ก็ต่อเมื่อหน้าเว็บ (HTML) โหลดเสร็จสมบูรณ์แล้ว
+document.addEventListener('DOMContentLoaded', function() {
+    initialize();
+});
