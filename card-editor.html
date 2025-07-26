@@ -36,7 +36,7 @@
 
     <div class="editor-wrapper">
         <div class="controls">
-            <div class="control-group">
+             <div class="control-group">
                 <h3>History</h3>
                 <div class="history-buttons">
                     <button id="undo-btn">Undo</button>
@@ -121,9 +121,7 @@
         // --- 2. Konva Stage and Layer Setup ---
         function createStage(containerId, width, height) {
             const stage = new Konva.Stage({ container: containerId, width, height });
-            stage.add(new Konva.Layer());
-            stage.add(new Konva.Layer());
-            stage.add(new Konva.Layer());
+            stage.add(new Konva.Layer()); stage.add(new Konva.Layer()); stage.add(new Konva.Layer());
             return stage;
         }
 
@@ -137,23 +135,34 @@
         let transformer;
 
         function initializeTransformer() {
-            transformer = new Konva.Transformer({ nodes: [], keepRatio: true, borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white' });
+            transformer = new Konva.Transformer({
+                nodes: [],
+                borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
+                // START: Lock aspect ratio logic
+                boundBoxFunc: (oldBox, newBox) => {
+                    const node = transformer.nodes()[0];
+                    if (node && (node.hasName('photo') || node.hasName('logo'))) {
+                        const ratio = oldBox.width / oldBox.height;
+                        if (newBox.height * ratio > newBox.width) {
+                            newBox.width = newBox.height * ratio;
+                        } else {
+                            newBox.height = newBox.width / ratio;
+                        }
+                    }
+                    return newBox;
+                }
+                // END: Lock aspect ratio logic
+            });
             elementsLayer.add(transformer);
             transformer.on('transformend', saveState);
         }
         initializeTransformer();
 
         // --- 3. History (Undo/Redo) Management ---
-        let history = [];
-        let historyStep = -1;
+        let history = []; let historyStep = -1;
         const undoBtn = document.getElementById('undo-btn');
         const redoBtn = document.getElementById('redo-btn');
-
-        function updateHistoryButtons() {
-            undoBtn.disabled = historyStep <= 0;
-            redoBtn.disabled = historyStep >= history.length - 1;
-        }
-
+        function updateHistoryButtons() { undoBtn.disabled = historyStep <= 0; redoBtn.disabled = historyStep >= history.length - 1; }
         function saveState() {
             if (historyStep < history.length - 1) history = history.slice(0, historyStep + 1);
             history.push(elementsLayer.toJSON());
@@ -161,33 +170,27 @@
             historyStep = history.length - 1;
             updateHistoryButtons();
         }
-        
         function loadState(stateJSON) {
             transformer.nodes([]);
             elementsLayer.destroy();
             elementsLayer = Konva.Node.create(stateJSON);
             stageFront.add(elementsLayer);
             initializeTransformer();
-            elementsLayer.find('Rect, Text, Circle').forEach(node => { // Add Circle to selector
+            elementsLayer.find('Rect, Text, Circle').forEach(node => {
                 node.on('dragend', saveState);
                 node.on('dragmove', handleDragMove);
             });
         }
-
         function undo() { if (historyStep > 0) { historyStep--; loadState(history[historyStep]); updateHistoryButtons(); } }
         function redo() { if (historyStep < history.length - 1) { historyStep++; loadState(history[historyStep]); updateHistoryButtons(); } }
-        
         undoBtn.addEventListener('click', undo);
         redoBtn.addEventListener('click', redo);
         saveState();
 
         // --- 4. Snapping and Guide Lines ---
         function getSnapLines() {
-            const width = stageFront.width(), height = stageFront.height();
-            return {
-                vertical: [{ guide: width / 2, snap: 'center' }],
-                horizontal: [{ guide: height / 2, snap: 'center' }]
-            };
+            const { width, height } = stageFront.size();
+            return { vertical: [{ guide: width / 2, snap: 'center' }], horizontal: [{ guide: height / 2, snap: 'center' }]};
         }
         function getObjectSnappingEdges(node) {
             const box = node.getClientRect({ relativeTo: stageFront });
@@ -199,20 +202,11 @@
         function handleDragMove(e) {
             const target = e.target;
             guidesLayer.destroyChildren();
-            const lines = getSnapLines();
-            const edges = getObjectSnappingEdges(target);
-            
-            lines.vertical.forEach(line => edges.vertical.forEach(edge => {
-                if (Math.abs(edge.edge - line.guide) < SNAP_DISTANCE) {
-                    target.x(target.x() - (edge.edge - line.guide));
-                    drawGuide(line.guide, 'vertical');
-                }
+            getSnapLines().vertical.forEach(l => getObjectSnappingEdges(target).vertical.forEach(e => {
+                if (Math.abs(e.edge - l.guide) < SNAP_DISTANCE) { target.x(target.x() - (e.edge - l.guide)); drawGuide(l.guide, 'vertical'); }
             }));
-            lines.horizontal.forEach(line => edges.horizontal.forEach(edge => {
-                if (Math.abs(edge.edge - line.guide) < SNAP_DISTANCE) {
-                    target.y(target.y() - (edge.edge - line.guide));
-                    drawGuide(line.guide, 'horizontal');
-                }
+            getSnapLines().horizontal.forEach(l => getObjectSnappingEdges(target).horizontal.forEach(e => {
+                if (Math.abs(e.edge - l.guide) < SNAP_DISTANCE) { target.y(target.y() - (e.edge - l.guide)); drawGuide(l.guide, 'horizontal'); }
             }));
         }
         function drawGuide(value, orientation) {
@@ -222,36 +216,28 @@
         elementsLayer.on('dragstart', () => guidesLayer.show());
         elementsLayer.on('dragend', () => { guidesLayer.hide(); saveState(); });
 
-
         // --- 5. Background, Opacity & Orientation ---
         function setBackground(imageSrc, layer, width, height) {
             layer.destroyChildren();
             const img = new Image();
-            img.onload = () => {
-                const konvaImage = new Konva.Image({ image: img, width, height, name: 'background', opacity: layer === bgLayerFront ? parseFloat(document.getElementById('bg-opacity-slider').value) : 1 });
-                layer.add(konvaImage);
-            };
+            img.onload = () => layer.add(new Konva.Image({ image: img, width, height, name: 'background', opacity: layer === bgLayerFront ? parseFloat(document.getElementById('bg-opacity-slider').value) : 1 }));
             img.src = imageSrc;
         }
-        
         const frontReader = new FileReader();
         frontReader.onload = e => setBackground(e.target.result, bgLayerFront, stageFront.width(), stageFront.height());
         document.getElementById('bg-front-upload').addEventListener('change', e => e.target.files[0] && frontReader.readAsDataURL(e.target.files[0]));
-
         const backReader = new FileReader();
         backReader.onload = e => setBackground(e.target.result, bgLayerBack, stageBack.width(), stageBack.height());
         document.getElementById('bg-back-upload').addEventListener('change', e => e.target.files[0] && backReader.readAsDataURL(e.target.files[0]));
-
+        
         const bgOpacitySlider = document.getElementById('bg-opacity-slider');
         const bgOpacityInput = document.getElementById('bg-opacity-input');
-        
         function updateBgOpacity(value) {
             const bg = bgLayerFront.findOne('.background');
-            if(bg) bg.opacity(value);
+            if (bg) bg.opacity(value);
             bgOpacitySlider.value = value;
             bgOpacityInput.value = Math.round(value * 100);
         }
-
         bgOpacitySlider.addEventListener('input', e => updateBgOpacity(parseFloat(e.target.value)));
         bgOpacityInput.addEventListener('change', e => updateBgOpacity(parseInt(e.target.value) / 100));
 
@@ -270,21 +256,17 @@
 
         function updatePropertiesPanel() {
             const selectedNodes = transformer.nodes();
-            if (selectedNodes.length !== 1) {
-                propertiesPanel.style.display = 'none';
-                return;
-            }
             const node = selectedNodes[0];
-            propertiesPanel.style.display = 'block';
+            propertiesPanel.style.display = selectedNodes.length === 1 ? 'block' : 'none';
+            if (!node) return;
 
-            // Show options based on node name
             photoShapeOptions.style.display = node.hasName('photo') ? 'block' : 'none';
             imageUploadOption.style.display = (node.hasName('photo') || node.hasName('logo')) ? 'block' : 'none';
-
             if(node.hasName('photo')) document.getElementById('image-upload-label').innerText = 'Upload Photo';
             if(node.hasName('logo')) document.getElementById('image-upload-label').innerText = 'Upload Logo';
         }
 
+        // START: Resize shape on image upload to keep proportion
         document.getElementById('element-image-upload').addEventListener('change', e => {
             const node = transformer.nodes()[0];
             if (!node || !e.target.files[0]) return;
@@ -292,41 +274,42 @@
             reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
-                    node.fill(null); // Remove placeholder color
+                    const currentWidth = node.width();
+                    const ratio = img.width / img.height;
+                    const newHeight = currentWidth / ratio;
+
+                    node.size({ width: currentWidth, height: newHeight });
+
+                    node.fill(null);
                     node.fillPatternImage(img);
                     node.fillPatternRepeat('no-repeat');
-                    node.fillPatternScale({ x: node.width() / img.width, y: node.height() / img.height });
+                    node.fillPatternScale({ x: currentWidth / img.width, y: newHeight / img.height });
+
+                    saveState();
                 };
                 img.src = event.target.result;
             };
             reader.readAsDataURL(e.target.files[0]);
-            e.target.value = ''; // Reset file input
+            e.target.value = '';
         });
+        // END: Resize shape on image upload
 
         document.querySelectorAll('input[name="photoShape"]').forEach(radio => radio.addEventListener('change', e => {
             const oldShape = transformer.nodes()[0];
             if (!oldShape || !oldShape.hasName('photo')) return;
 
             const isCircle = e.target.value === 'circle';
-            const newShape = isCircle ? new Konva.Circle({}) : new Konva.Rect({});
-            
-            newShape.setAttrs({
-                x: oldShape.x(), y: oldShape.y(),
-                width: oldShape.width(), height: oldShape.height(),
-                scaleX: oldShape.scaleX(), scaleY: oldShape.scaleY(),
-                rotation: oldShape.rotation(),
+            const newShapeConfig = {
+                x: oldShape.x(), y: oldShape.y(), width: oldShape.width(), height: oldShape.height(),
+                scaleX: oldShape.scaleX(), scaleY: oldShape.scaleY(), rotation: oldShape.rotation(),
                 draggable: true, name: 'photo',
-                fillPatternImage: oldShape.fillPatternImage(),
-                fillPatternRepeat: 'no-repeat',
-                fill: oldShape.fillPatternImage() ? null : '#e0e0e0', // Keep placeholder color if no image
+                fillPatternImage: oldShape.fillPatternImage(), fillPatternRepeat: 'no-repeat',
+                fill: oldShape.fillPatternImage() ? null : '#e0e0e0',
                 stroke: '#bdbdbd', strokeWidth: 2,
-            });
+            };
 
-            if (isCircle) {
-                newShape.radius(oldShape.width() / 2); // Make it a circle
-            } else {
-                newShape.cornerRadius(0); // Make it a sharp rectangle
-            }
+            const newShape = isCircle ? new Konva.Circle(newShapeConfig) : new Konva.Rect(newShapeConfig);
+            if (isCircle) newShape.radius(oldShape.width() / 2);
 
             oldShape.destroy();
             elementsLayer.add(newShape);
@@ -338,7 +321,6 @@
         function addElement(type) {
             let element;
             const commonProps = { x: 50, y: 50, draggable: true, name: type };
-
             switch(type) {
                 case 'photo': element = new Konva.Circle({ ...commonProps, radius: 75, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, name: 'photo' }); break;
                 case 'name': element = new Konva.Text({ ...commonProps, text: 'สมชาย ใจดี', fontSize: 32, fontFamily: 'sans-serif', fill: 'black', name: 'employee_name' }); break;
@@ -355,9 +337,7 @@
             }
         }
         
-        ['photo', 'name', 'id', 'logo', 'qr'].forEach(type => {
-            document.getElementById(`add-${type}`).addEventListener('click', () => addElement(type));
-        });
+        ['photo', 'name', 'id', 'logo', 'qr'].forEach(type => document.getElementById(`add-${type}`).addEventListener('click', () => addElement(type)));
 
         stageFront.on('click tap', e => {
             if (e.target === stageFront || e.target.hasName('background')) {
@@ -387,22 +367,12 @@
         // --- 8. Export to JSON ---
         document.getElementById('export-json').addEventListener('click', () => {
             const layoutConfig = {};
-            const cardWidth = stageFront.width();
-            const cardHeight = stageFront.height();
+            const { width: cardWidth, height: cardHeight } = stageFront.size();
             elementsLayer.children.forEach(node => {
-                if (node === transformer) return;
-                const name = node.name();
-                if (!name) return;
-
-                const scaleX = node.scaleX();
-                const scaleY = node.scaleY();
-                
-                let width = node.width();
-                let height = node.height();
-                // For circle, width/height are based on radius
-                if(node.getClassName() === 'Circle') {
-                    width = height = node.radius() * 2;
-                }
+                if (node === transformer || !node.name()) return;
+                const scaleX = node.scaleX(), scaleY = node.scaleY();
+                let width = node.width(), height = node.height();
+                if(node.getClassName() === 'Circle') { width = height = node.radius() * 2; }
                 
                 const config = {
                     left: `${(node.x() / cardWidth * 100).toFixed(2)}%`,
@@ -410,20 +380,12 @@
                     width: `${(width * scaleX / cardWidth * 100).toFixed(2)}%`,
                     height: `${(height * scaleY / cardHeight * 100).toFixed(2)}%`
                 };
-
-                if (node.rotation()) {
-                    config.transform = `rotate(${node.rotation().toFixed(2)}deg)`;
-                }
-
-                // Add properties for PDF generation based on name
-                if (name === 'photo') {
+                if (node.rotation()) config.transform = `rotate(${node.rotation().toFixed(2)}deg)`;
+                if (node.hasName('photo')) {
                     config.objectFit = 'cover';
-                    if (node.getClassName() === 'Circle') {
-                         config.borderRadius = '50%';
-                    }
+                    if (node.getClassName() === 'Circle') config.borderRadius = '50%';
                 }
-                
-                layoutConfig[name.replace(/_[0-9]+$/, '')] = config;
+                layoutConfig[node.name().replace(/_[0-9]+$/, '')] = config;
             });
             document.getElementById('json-output').value = JSON.stringify(layoutConfig, null, 2);
             alert('Layout JSON has been generated!');
