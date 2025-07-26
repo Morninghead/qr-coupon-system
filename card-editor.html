@@ -15,6 +15,7 @@
         .control-group button { background-color: #6366F1; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
         .control-group button:hover { background-color: #4f46e5; }
         .control-group button:disabled { background-color: #c7d2fe; cursor: not-allowed; }
+        .remove-bg-btn { background-color: #EF4444 !important; font-size: 0.8em; padding: 4px; margin-top: -5px; }
         #export-json { background-color: #10B981; }
         #export-json:hover { background-color: #059669; }
         .history-buttons { display: flex; gap: 10px; }
@@ -22,9 +23,9 @@
         .canvases { display: flex; gap: 30px; flex-wrap: wrap; }
         .canvas-container-wrapper { padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .canvas-container-wrapper.active { box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5), 0 0 0 2px #6366F1; }
-        .canvas-container-wrapper h2 { margin-top: 0; font-size: 1.2em; color: #444; text-align: center; }
-        .stage-wrapper { position: relative; cursor: pointer; }
-        .konvajs-content { border: 1px solid #ccc; background-color: #fff; margin-top: 25px; margin-left: 25px; }
+        .canvas-container-wrapper h2 { margin-bottom: 15px; font-size: 1.2em; color: #444; text-align: center; }
+        .stage-wrapper { position: relative; cursor: pointer; padding-left: 25px; padding-top: 25px;}
+        .konvajs-content { border: 1px solid #ccc; background-color: #fff; }
         .radio-group label, .checkbox-group label { display: inline-flex; align-items: center; margin-right: 15px; cursor: pointer; font-weight: normal; }
         #properties-panel { border-top: 1px solid #eee; padding-top: 15px; }
         .opacity-control, .font-size-control { display: flex; align-items: center; gap: 10px; }
@@ -32,7 +33,7 @@
         .opacity-control input[type=number] { width: 60px; }
         .font-size-control input[type=number] { flex-grow: 1; }
         .font-size-control button { width: 40px; padding: 4px; margin: 0; }
-        .ruler { position: absolute; background-color: #fdfdfd; overflow: hidden; display: none; }
+        .ruler { position: absolute; background-color: #f8f8f8; overflow: hidden; display: none; }
         .ruler.horizontal { top: 0; left: 25px; height: 25px; border-bottom: 1px solid #ccc; }
         .ruler.vertical { top: 25px; left: 0; width: 25px; border-right: 1px solid #ccc; }
     </style>
@@ -64,14 +65,14 @@
             <hr>
             <div class="control-group">
                 <label>Front Background</label>
-                <input type="file" id="bg-front-upload" accept="image/*">
+                <input type="file" id="bg-front-upload" accept="image/*"><button id="remove-bg-front" class="remove-bg-btn">Remove</button>
                 <div class="opacity-control">
                     <input type="range" id="bg-opacity-slider" min="0" max="1" step="0.01" value="1">
                     <input type="number" id="bg-opacity-input" min="0" max="100" value="100"> %
                 </div>
                 <div class="checkbox-group"><label><input type="checkbox" id="lock-background"> Lock Background</label></div>
             </div>
-            <div class="control-group"><label for="bg-back-upload">Back Background</label><input type="file" id="bg-back-upload" accept="image/*"></div>
+            <div class="control-group"><label for="bg-back-upload">Back Background</label><input type="file" id="bg-back-upload" accept="image/*"><button id="remove-bg-back" class="remove-bg-btn">Remove</button></div>
             <hr>
             <div class="control-group">
                 <label>Add Elements (to Active Card)</label>
@@ -94,487 +95,20 @@
             <div class="canvas-container-wrapper" id="front-container">
                 <h2>Front</h2>
                 <div class="stage-wrapper">
-                    <canvas id="ruler-v-front" class="ruler vertical"></canvas>
-                    <canvas id="ruler-h-front" class="ruler horizontal"></canvas>
+                    <canvas id="ruler-v-front" class="ruler vertical"></canvas><canvas id="ruler-h-front" class="ruler horizontal"></canvas>
                     <div id="stage-container-front"></div>
                 </div>
             </div>
             <div class="canvas-container-wrapper" id="back-container">
                 <h2>Back</h2>
                 <div class="stage-wrapper">
-                     <canvas id="ruler-v-back" class="ruler vertical"></canvas>
-                     <canvas id="ruler-h-back" class="ruler horizontal"></canvas>
+                     <canvas id="ruler-v-back" class="ruler vertical"></canvas><canvas id="ruler-h-back" class="ruler horizontal"></canvas>
                      <div id="stage-container-back"></div>
                 </div>
             </div>
         </div>
     </div>
 
-<script>
-    // --- 1. Constants & Initial Variables ---
-    const STANDARD_RATIO = 85.6 / 54.0;
-    const LANDSCAPE_WIDTH = 600; const LANDSCAPE_HEIGHT = LANDSCAPE_WIDTH / STANDARD_RATIO;
-    const PORTRAIT_WIDTH = 400; const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
-    const HISTORY_LIMIT = 11; const SNAP_DISTANCE = 10;
-    const FONT_FAMILIES = ['Arial', 'Calibri', 'Times New Roman', 'Sarabun', 'Kanit', 'Mitr', 'Noto Sans JP', 'Noto Sans KR', 'Noto Sans SC'];
-    let activeStageInfo = null;
-    const stages = {};
-    const undoBtn = document.getElementById('undo-btn'), redoBtn = document.getElementById('redo-btn'), propertiesPanel = document.getElementById('properties-panel');
-
-    // --- 2. Main Initialization ---
-    function initialize() {
-        const textButtons = ['add-employee-name', 'add-employee-id', 'add-company-name'].map(id => document.getElementById(id));
-        textButtons.forEach(btn => { if(btn) btn.disabled = true; });
-
-        WebFont.load({
-            google: { families: FONT_FAMILIES.filter(f => !['Arial', 'Calibri', 'Times New Roman'].includes(f)) },
-            active: () => textButtons.forEach(btn => { if(btn) btn.disabled = false; }),
-            inactive: () => {
-                alert('Could not load custom fonts. Using system defaults.');
-                textButtons.forEach(btn => { if(btn) btn.disabled = false; });
-            }
-        });
-
-        stages.front = setupNewStage('front', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
-        stages.back = setupNewStage('back', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
-        setActiveStage(stages.front);
-        setupAllEventListeners();
-        saveAllHistories();
-    }
-
-    function setupNewStage(name, width, height) {
-        const stage = new Konva.Stage({ container: `stage-container-${name}`, width, height });
-        stage.container().style.cursor = 'default';
-        stage.add(new Konva.Layer(), new Konva.Layer(), new Konva.Layer());
-        const transformer = new Konva.Transformer({
-            borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
-            boundBoxFunc: (oldBox, newBox) => {
-                const node = transformer.nodes()[0];
-                if (node && (node.hasName('photo') || node.hasName('logo'))) {
-                    const ratio = oldBox.width / oldBox.height;
-                    if (Math.abs(newBox.width) < 10 || Math.abs(newBox.height) < 10) return oldBox;
-                    newBox.height = Math.abs(newBox.width / ratio);
-                }
-                return newBox;
-            }
-        });
-        stage.getLayers()[1].add(transformer);
-        const stageInfo = { name, stage, transformer, history: [], historyStep: -1 };
-        transformer.on('transformend', () => saveStateFor(stageInfo));
-        return stageInfo;
-    }
-
-    function setActiveStage(stageInfo) {
-        if (activeStageInfo === stageInfo) return;
-        if(activeStageInfo) activeStageInfo.transformer.nodes([]);
-        activeStageInfo = stageInfo;
-        document.getElementById('front-container').classList.toggle('active', activeStageInfo === stages.front);
-        document.getElementById('back-container').classList.toggle('active', activeStageInfo === stages.back);
-        updateHistoryButtons();
-        updatePropertiesPanel();
-    }
-
-    // --- 3. History (Undo/Redo) Management ---
-    function saveStateFor(stageInfo) {
-        let { history } = stageInfo;
-        if (stageInfo.historyStep < history.length - 1) history.splice(stageInfo.historyStep + 1);
-        history.push(stageInfo.stage.getLayers()[1].toJSON());
-        if (history.length > HISTORY_LIMIT) history.shift();
-        stageInfo.historyStep = history.length - 1;
-        updateHistoryButtons();
-    }
-    function saveAllHistories() { Object.values(stages).forEach(saveStateFor); }
-    function loadStateFor(stageInfo, stateJSON) {
-        stageInfo.transformer.nodes([]);
-        stageInfo.stage.getLayers()[1].destroy();
-        const newLayer = Konva.Node.create(stateJSON);
-        stageInfo.stage.add(newLayer);
-        newLayer.add(stageInfo.transformer);
-        newLayer.find('Rect, Text, Circle, Ellipse').forEach(node => {
-            node.on('dragend', () => saveStateFor(stageInfo));
-            node.on('dragmove', e => handleDragMove(e, stageInfo));
-            node.on('dblclick dbltap', () => handleDoubleClick(node));
-        });
-    }
-    function undo() { if (activeStageInfo.historyStep > 0) { activeStageInfo.historyStep--; loadStateFor(activeStageInfo, activeStageInfo.history[activeStageInfo.historyStep]); updateHistoryButtons(); } }
-    function redo() { if (activeStageInfo.historyStep < activeStageInfo.history.length - 1) { activeStageInfo.historyStep++; loadStateFor(activeStageInfo, activeStageInfo.history[activeStageInfo.historyStep]); updateHistoryButtons(); } }
-    function updateHistoryButtons() {
-        if (!activeStageInfo) return;
-        undoBtn.disabled = activeStageInfo.historyStep <= 0;
-        redoBtn.disabled = activeStageInfo.historyStep >= activeStageInfo.history.length - 1;
-    }
-
-    // --- 4. Rulers, Guides & Snapping ---
-    function drawRulers() {
-        Object.values(stages).forEach(s => {
-            const { width, height } = s.stage.size();
-            const rulerH = document.getElementById(`ruler-h-${s.name}`);
-            const rulerV = document.getElementById(`ruler-v-${s.name}`);
-            rulerH.width = width; rulerH.height = 25; rulerV.width = 25; rulerV.height = height;
-            const ctxH = rulerH.getContext('2d'); const ctxV = rulerV.getContext('2d');
-            [ctxH, ctxV].forEach(ctx => { ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height); ctx.strokeStyle = '#ccc'; ctx.fillStyle = '#666'; ctx.font = '10px sans-serif'; });
-            for (let i = 0; i <= width; i+=10) { const h = (i % 50 === 0) ? 10 : 5; ctxH.beginPath(); ctxH.moveTo(i, 25); ctxH.lineTo(i, 25 - h); ctxH.stroke(); if (i % 50 === 0 && i > 0) ctxH.fillText(i, i + 2, 12); }
-            for (let i = 0; i <= height; i+=10) { const w = (i % 50 === 0) ? 10 : 5; ctxV.beginPath(); ctxV.moveTo(25, i); ctxV.lineTo(25 - w, i); ctxV.stroke(); if (i % 50 === 0 && i > 0) { ctxV.save(); ctxV.translate(12, i + 2); ctxV.rotate(-Math.PI / 2); ctxV.fillText(i, 0, 0); ctxV.restore(); }}
-        });
-    }
-    function getSnapLines(stageInfo) {
-        const { width, height } = stageInfo.stage.size();
-        const lines = { vertical: [width / 2], horizontal: [height / 2]};
-        stageInfo.stage.getLayers()[1].children.forEach(node => {
-            if (node === stageInfo.transformer || !node.isVisible() || stageInfo.transformer.nodes().includes(node)) return;
-            const box = node.getClientRect({ relativeTo: stageInfo.stage });
-            lines.vertical.push(box.x, box.x + box.width, box.x + box.width / 2);
-            lines.horizontal.push(box.y, box.y + box.height, box.y + box.height / 2);
-        });
-        return lines;
-    }
-    function getObjectSnappingEdges(node, stageInfo) {
-        const box = node.getClientRect({ relativeTo: stageInfo.stage });
-        return {
-            vertical: [box.x, box.x + box.width / 2, box.x + box.width],
-            horizontal: [box.y, box.y + box.height / 2, box.y + box.height]
-        };
-    }
-    function handleDragMove(e, stageInfo) {
-        const target = e.target;
-        const guidesLayer = stageInfo.stage.getLayers()[2];
-        guidesLayer.destroyChildren();
-        const lines = getSnapLines(stageInfo);
-        const edges = getObjectSnappingEdges(target, stageInfo);
-        lines.vertical.forEach(g => edges.vertical.forEach(e => {
-            if (Math.abs(e - g) < SNAP_DISTANCE) {
-                target.x(target.x() - (e - g));
-                drawGuide(g, 'vertical', stageInfo);
-            }
-        }));
-        lines.horizontal.forEach(g => edges.horizontal.forEach(e => {
-            if (Math.abs(e - g) < SNAP_DISTANCE) {
-                target.y(target.y() - (e - g));
-                drawGuide(g, 'horizontal', stageInfo);
-            }
-        }));
-    }
-    function drawGuide(value, orientation, stageInfo) {
-        const stage = stageInfo.stage;
-        const points = orientation === 'vertical' ? [value, 0, value, stage.height()] : [0, value, stage.width(), value];
-        stage.getLayers()[2].add(new Konva.Line({ points, stroke: 'rgba(255, 0, 0, 0.6)', strokeWidth: 1, dash: [4, 6] }));
-    }
-
-    // --- 5. Background, Opacity & Orientation ---
-    function setBackground(imageSrc, layer, width, height, opacity, isDraggable) {
-        layer.destroyChildren();
-        const img = new Image();
-        img.onload = () => {
-            const konvaImage = new Konva.Image({ image: img, width, height, name: 'background', opacity, draggable: isDraggable });
-            layer.add(konvaImage);
-        };
-        img.src = imageSrc;
-    }
-    function handleOrientationChange() {
-        const isLandscape = document.querySelector('input[name="orientation"]:checked').value === 'landscape';
-        const newSize = { width: isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH, height: isLandscape ? LANDSCAPE_HEIGHT : PORTRAIT_HEIGHT };
-        Object.values(stages).forEach(s => {
-            s.stage.size(newSize);
-            s.stage.findOne('.background')?.size(newSize);
-            const hole = s.stage.findOne('.hole-mark');
-            if(hole) hole.position(isLandscape ? {x: newSize.width - 30, y: newSize.height / 2} : {x: newSize.width / 2, y: 15});
-        });
-        drawRulers();
-    }
-    function addHoleMark(stageInfo) {
-        const { stage } = stageInfo;
-        const isLandscape = stage.width() > stage.height();
-        const hole = new Konva.Ellipse({
-            x: isLandscape ? stage.width() - 30 : stage.width() / 2,
-            y: isLandscape ? stage.height() / 2 : 15,
-            radiusX: 14, radiusY: 3,
-            fill: 'rgba(255,255,255,0.8)', stroke: 'rgba(0,0,0,0.3)', strokeWidth: 1,
-            name: 'hole-mark', visible: document.getElementById('show-hole-mark').checked
-        });
-        stage.getLayers()[2].add(hole);
-    }
-    
-    // --- 6. Element Creation, Properties Panel & In-place Editing ---
-    function addElement(type) {
-        let element;
-        const { stage, transformer } = activeStageInfo;
-        const commonProps = { x: 50, y: 50, draggable: true, name: type };
-        switch(type) {
-            case 'photo': element = new Konva.Circle({ ...commonProps, radius: 75, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, name: 'photo' }); break;
-            case 'employee_name': element = new Konva.Text({ ...commonProps, text: 'Employee Name', fontSize: 32, fontFamily: 'Sarabun', fill: 'black', name: 'employee_name' }); break;
-            case 'employee_id': element = new Konva.Text({ ...commonProps, text: 'ID: 12345', fontSize: 24, fontFamily: 'Sarabun', fill: '#424242', name: 'employee_id' }); break;
-            case 'company_name': element = new Konva.Text({ ...commonProps, text: 'Company Name', fontSize: 28, fontFamily: 'Sarabun', fill: 'black', name: 'company_name' }); break;
-            case 'logo': element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' }); break;
-            case 'qr': element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', name: 'qr_code' }); break;
-        }
-        if (element) {
-            element.on('dragmove', e => handleDragMove(e, activeStageInfo));
-            element.on('dblclick dbltap', () => handleDoubleClick(element));
-            stage.getLayers()[1].add(element);
-            transformer.nodes([element]);
-            saveStateFor(activeStageInfo);
-            updatePropertiesPanel();
-        }
-    }
-
-    function handleDoubleClick(node) {
-        if (node.getClassName() === 'Text') {
-            editTextNode(node);
-        } else if (node.hasName('photo') || node.hasName('logo')) {
-            editImageFill(node);
-        }
-    }
-
-    function editTextNode(textNode) {
-        const stage = textNode.getStage();
-        const textPosition = textNode.absolutePosition();
-        const stageBox = stage.container().getBoundingClientRect();
-        const areaPosition = { x: stageBox.left + textPosition.x, y: stageBox.top + textPosition.y };
-
-        const textarea = document.createElement('textarea');
-        document.body.appendChild(textarea);
-        
-        textarea.value = textNode.text();
-        textarea.style.position = 'absolute';
-        textarea.style.top = areaPosition.y + 'px';
-        textarea.style.left = areaPosition.x + 'px';
-        textarea.style.width = textNode.width() - textNode.padding() * 2 + 'px';
-        textarea.style.height = textNode.height() - textNode.padding() * 2 + 5 + 'px';
-        textarea.style.fontSize = textNode.fontSize() + 'px';
-        textarea.style.border = '1px solid #6366F1';
-        textarea.style.padding = '0px';
-        textarea.style.margin = '0px';
-        textarea.style.overflow = 'hidden';
-        textarea.style.background = 'none';
-        textarea.style.outline = 'none';
-        textarea.style.resize = 'none';
-        textarea.style.lineHeight = textNode.lineHeight();
-        textarea.style.fontFamily = textNode.fontFamily();
-        textarea.style.transformOrigin = 'left top';
-        textarea.style.textAlign = textNode.align();
-        textarea.style.color = textNode.fill();
-        textarea.style.transform = `rotateZ(${textNode.rotation()}deg)`;
-        
-        textNode.hide();
-        textarea.focus();
-
-        function removeTextarea() {
-            textarea.parentNode.removeChild(textarea);
-            window.removeEventListener('click', handleOutsideClick);
-            textNode.show();
-            saveStateFor(activeStageInfo);
-        }
-
-        function setTextareaWidth() {
-            let newWidth = textNode.width() > textNode.getClientRect().width ? textNode.width() : textNode.getClientRect().width;
-            textarea.style.width = newWidth + 'px';
-        }
-
-        textarea.addEventListener('keydown', e => {
-            if (e.keyCode === 13 && !e.shiftKey) { textNode.text(textarea.value); removeTextarea(); }
-            if (e.keyCode === 27) { removeTextarea(); }
-        });
-
-        textarea.addEventListener('input', () => { textNode.text(textarea.value); });
-
-        function handleOutsideClick(e) { if (e.target !== textarea) { textNode.text(textarea.value); removeTextarea(); } }
-        setTimeout(() => window.addEventListener('click', handleOutsideClick));
-    }
-    
-    function editImageFill(node) {
-        if (!node.fillPatternImage()) { alert('Please upload an image for this element first.'); return; }
-        const wasDraggable = node.draggable();
-        node.draggable(false);
-        node.fillPatternDraggable(true);
-        activeStageInfo.transformer.nodes([]);
-        
-        const doneBtn = document.createElement('button');
-        doneBtn.innerText = "Done Adjusting Image";
-        doneBtn.style.position = 'absolute';
-        const nodeBox = node.getClientRect();
-        doneBtn.style.top = (nodeBox.y + nodeBox.height + 5) + 'px';
-        doneBtn.style.left = nodeBox.x + 'px';
-        document.body.appendChild(doneBtn);
-        
-        function endEdit() {
-            node.draggable(wasDraggable);
-            node.fillPatternDraggable(false);
-            doneBtn.remove();
-        }
-        doneBtn.addEventListener('click', endEdit);
-    }
-    
-    // ... other property panel functions from previous steps, refactored ...
-
-    function updatePropertiesPanel() {
-        const selectedNodes = activeStageInfo ? activeStageInfo.transformer.nodes() : [];
-        const node = selectedNodes[0];
-        propertiesPanel.style.display = 'none'; propertiesPanel.innerHTML = '';
-        if (selectedNodes.length !== 1) return;
-        
-        propertiesPanel.style.display = 'block';
-        let content = `<h3>${node.name()} Properties</h3>`;
-        if (node.hasName('photo') || node.hasName('logo')) content += `<label>Upload Image</label><input type="file" class="element-image-upload" accept="image/*">`;
-        if (node.hasName('photo')) content += `<label>Photo Shape</label><div class="radio-group"><label><input type="radio" name="photoShape" value="circle" ${node.getClassName()==='Circle'?'checked':''}> Circle</label><label><input type="radio" name="photoShape" value="rect" ${node.getClassName()==='Rect'?'checked':''}> Rectangle</label></div>`;
-        if (node.getClassName() === 'Text') content += `<label>Font Family</label><select class="font-family-select">${FONT_FAMILIES.map(f => `<option value="${f}" ${node.fontFamily()===f?'selected':''}>${f}</option>`).join('')}</select><label>Font Size</label><div class="font-size-control"><button class="font-size-dec">-</button><input type="number" class="font-size-input" value="${node.fontSize()}"><button class="font-size-inc">+</button></div>`;
-        propertiesPanel.innerHTML = content;
-        attachPropertiesListeners();
-    }
-    function attachPropertiesListeners() {
-        const imageUpload = propertiesPanel.querySelector('.element-image-upload');
-        if (imageUpload) imageUpload.addEventListener('change', handleElementImageUpload);
-        propertiesPanel.querySelectorAll('input[name="photoShape"]').forEach(radio => radio.addEventListener('change', handlePhotoShapeChange));
-        const fontFamilySelect = propertiesPanel.querySelector('.font-family-select');
-        if (fontFamilySelect) fontFamilySelect.addEventListener('change', handleFontChange);
-        const fontSizeInput = propertiesPanel.querySelector('.font-size-input');
-        if (fontSizeInput) {
-            fontSizeInput.addEventListener('change', handleFontChange);
-            propertiesPanel.querySelector('.font-size-dec').addEventListener('click', () => { fontSizeInput.value = parseInt(fontSizeInput.value) - 1; handleFontChange(); });
-            propertiesPanel.querySelector('.font-size-inc').addEventListener('click', () => { fontSizeInput.value = parseInt(fontSizeInput.value) + 1; handleFontChange(); });
-        }
-    }
-    function handleElementImageUpload(e) {
-        const node = activeStageInfo.transformer.nodes()[0];
-        if (!node || !e.target.files[0]) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const img = new Image();
-            img.onload = () => {
-                node.fill(null); node.fillPatternImage(img); node.fillPatternRepeat('no-repeat');
-                if (node.getClassName() === 'Circle' && node.hasName('photo')) {
-                    const radius = node.radius();
-                    const diameter = radius * 2;
-                    const scale = (img.width > img.height) ? diameter / img.height : diameter / img.width;
-                    node.fillPatternScale({ x: scale, y: scale });
-                    node.fillPatternOffset({ x: (img.width * scale) / 2, y: 0 });
-                } else {
-                    const currentWidth = node.width() * node.scaleX();
-                    const newHeight = currentWidth / (img.width / img.height);
-                    node.size({ width: currentWidth, height: newHeight });
-                    node.scale({x: 1, y: 1});
-                    node.fillPatternScale({ x: currentWidth / img.width, y: newHeight / img.height });
-                }
-                saveStateFor(activeStageInfo);
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(e.target.files[0]);
-    }
-    function handlePhotoShapeChange(e) { /* ... same as before ... */ }
-    function handleFontChange() { /* ... same as before ... */ }
-
-
-    // --- 7. Main Event Listeners Setup ---
-    function setupAllEventListeners() {
-        undoBtn.addEventListener('click', undo);
-        redoBtn.addEventListener('click', redo);
-        document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', handleOrientationChange));
-        
-        ['photo', 'employee_name', 'employee_id', 'company_name', 'logo', 'qr'].forEach(type => {
-            const btnId = `add-${type.replace(/_/g, '-')}`;
-            const button = document.getElementById(btnId);
-            if (button) {
-                button.addEventListener('click', () => addElement(type));
-            }
-        });
-
-        document.getElementById('export-json').addEventListener('click', exportJSON);
-        
-        const frontReader = new FileReader();
-        frontReader.onload = e => setBackground(e.target.result, stages.front.stage.getLayers()[0], stages.front.stage.width(), stages.front.stage.height(), document.getElementById('bg-opacity-slider').value, !document.getElementById('lock-background').checked);
-        document.getElementById('bg-front-upload').addEventListener('change', e => e.target.files[0] && frontReader.readAsDataURL(e.target.files[0]));
-
-        const backReader = new FileReader();
-        backReader.onload = e => setBackground(e.target.result, stages.back.stage.getLayers()[0], stages.back.stage.width(), stages.back.stage.height(), 1, false);
-        document.getElementById('bg-back-upload').addEventListener('change', e => e.target.files[0] && backReader.readAsDataURL(e.target.files[0]));
-
-        document.getElementById('show-rulers').addEventListener('change', e => {
-            document.querySelectorAll('.ruler').forEach(r => r.style.display = e.target.checked ? 'block' : 'none');
-            if (e.target.checked) drawRulers();
-        });
-        document.getElementById('show-hole-mark').addEventListener('change', e => {
-            Object.values(stages).forEach(s => {
-                let mark = s.stage.findOne('.hole-mark');
-                if (!mark && e.target.checked) addHoleMark(s);
-                else if (mark) mark.visible(e.target.checked);
-            });
-        });
-
-        document.getElementById('lock-background').addEventListener('change', e => {
-            stages.front.stage.getLayers()[0].find('.background').forEach(bg => bg.draggable(!e.target.checked));
-        });
-
-        Object.values(stages).forEach(stageInfo => {
-            stageInfo.stage.container().parentElement.addEventListener('click', () => setActiveStage(stageInfo));
-            stageInfo.stage.on('click tap', e => {
-                if (e.target === stageInfo.stage) stageInfo.transformer.nodes([]);
-                else if (e.target.getParent().className === 'Transformer') return;
-                else if (e.target.hasName('background') || e.target.hasName('hole-mark')) stageInfo.transformer.nodes([]);
-                else stageInfo.transformer.nodes([e.target]);
-                updatePropertiesPanel();
-            });
-        });
-
-        window.addEventListener('keydown', e => {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (activeStageInfo && activeStageInfo.transformer.nodes().length > 0) {
-                    e.preventDefault();
-                    activeStageInfo.transformer.nodes().forEach(node => node.destroy());
-                    activeStageInfo.transformer.nodes([]);
-                    saveStateFor(activeStageInfo);
-                }
-            }
-            if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
-            if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
-        });
-        
-        const bgOpacitySlider = document.getElementById('bg-opacity-slider');
-        const bgOpacityInput = document.getElementById('bg-opacity-input');
-        function updateBgOpacity(value) {
-            const bg = stages.front.stage.getLayers()[0].findOne('.background');
-            if (bg) bg.opacity(value);
-            bgOpacitySlider.value = value;
-            bgOpacityInput.value = Math.round(value * 100);
-        }
-        bgOpacitySlider.addEventListener('input', e => updateBgOpacity(parseFloat(e.target.value)));
-        bgOpacityInput.addEventListener('change', e => updateBgOpacity(parseInt(e.target.value, 10) / 100));
-    }
-    
-    // --- 8. Export to JSON ---
-    function exportJSON() {
-        const finalConfig = {};
-        Object.values(stages).forEach(stageInfo => {
-            const side = stageInfo.name;
-            const layoutConfig = {};
-            const { width: stageWidth, height: stageHeight } = stageInfo.stage.size();
-
-            stageInfo.stage.getLayers()[1].find('Rect, Text, Circle, Ellipse').forEach(node => {
-                if (!node.name()) return;
-
-                const box = node.getClientRect({ skipTransform: true });
-                const config = {
-                    left: `${(box.x / stageWidth * 100).toFixed(2)}%`,
-                    top: `${(box.y / stageHeight * 100).toFixed(2)}%`,
-                    width: `${(box.width / stageWidth * 100).toFixed(2)}%`,
-                    height: `${(box.height / stageHeight * 100).toFixed(2)}%`,
-                };
-                if (node.rotation()) config.transform = `rotate(${node.rotation()}deg)`;
-                if (node.hasName('photo')) {
-                    config.objectFit = 'cover';
-                    if (node.getClassName() === 'Circle') config.borderRadius = '50%';
-                }
-                layoutConfig[node.name()] = config;
-            });
-            finalConfig[`${side}Layout`] = layoutConfig;
-        });
-
-        const jsonString = JSON.stringify(finalConfig, null, 2);
-        document.getElementById('json-output').value = jsonString;
-        navigator.clipboard.writeText(jsonString).then(() => alert('JSON copied to clipboard!'));
-    }
-
-    // --- Run Application ---
-    initialize();
-</script>
+    <script src="card-editor.js" defer></script>
 </body>
 </html>
