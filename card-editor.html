@@ -164,7 +164,8 @@
 
         // --- 2. ตั้งค่า Konva Stages และ Layers ---
         function createStage(containerId, width, height) {
-            const stage = new Konva.Stage({ container, width, height });
+            // THIS LINE IS CORRECTED
+            const stage = new Konva.Stage({ container: containerId, width, height });
             stage.add(new Konva.Layer()); // Background Layer [0]
             stage.add(new Konva.Layer()); // Elements Layer [1]
             return stage;
@@ -218,18 +219,14 @@
         }
         
         function loadState(stateJSON) {
-            // Detach transformer before destroying layer
             transformer.nodes([]);
             elementsLayer.destroy();
 
-            // Create new layer from JSON
-            elementsLayer = Konva.Node.create(stateJSON, stageFront.container());
+            elementsLayer = Konva.Node.create(stateJSON);
             stageFront.add(elementsLayer);
             
-            // Re-initialize and re-attach transformer
             initializeTransformer();
             
-            // Re-attach dragend listeners to all elements for history saving
             elementsLayer.find('Rect, Text').forEach(node => {
                 node.on('dragend', saveState);
             });
@@ -328,7 +325,7 @@
             if (element) {
                 element.on('dragend', saveState);
                 elementsLayer.add(element);
-                transformer.nodes([element]); // Auto-select new element
+                transformer.nodes([element]);
                 saveState();
             }
         }
@@ -360,7 +357,6 @@
                     saveState();
                 }
             }
-            // Keyboard shortcuts for Undo/Redo
             if (e.ctrlKey && e.key === 'z') {
                 e.preventDefault();
                 undo();
