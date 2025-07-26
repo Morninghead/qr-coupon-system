@@ -361,6 +361,7 @@ function handlePhotoShapeChange(e) {
         return;
     }
 
+    // Save the state of the shape we are leaving
     const state = {
         fillPatternImage: oldShape.fillPatternImage(),
         fillPatternScaleX: oldShape.fillPatternScaleX(),
