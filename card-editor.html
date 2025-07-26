@@ -116,13 +116,19 @@
 
     // --- 2. Main Initialization ---
     function initialize() {
+        const textButtons = [
+            document.getElementById('add-employee-name'),
+            document.getElementById('add-employee-id'),
+            document.getElementById('add-company-name')
+        ];
+        textButtons.forEach(btn => { if (btn) btn.disabled = true; }); // Disable buttons until fonts are loaded
+
         WebFont.load({ google: { families: FONT_FAMILIES.filter(f => !['Arial', 'Calibri', 'Times New Roman'].includes(f)) }, active: () => {
-            document.getElementById('add-text').disabled = false;
+            textButtons.forEach(btn => { if (btn) btn.disabled = false; });
         }, inactive: () => {
             alert('Could not load custom fonts. Using system defaults.');
-            document.getElementById('add-text').disabled = false;
+            textButtons.forEach(btn => { if (btn) btn.disabled = false; });
         }});
-        document.getElementById('add-text').disabled = true; // Disable until fonts are loaded
 
         stages.front = setupNewStage('front', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
         stages.back = setupNewStage('back', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
