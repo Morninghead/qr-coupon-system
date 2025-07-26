@@ -250,7 +250,7 @@ function editImageFill(node) {
         stage.container().style.cursor = 'grabbing';
     };
 
-    const onDrag = () => {
+    const onDrag = (e) => {
         if (!lastPos) return;
         const pos = stage.getPointerPosition();
         if (!pos) return;
@@ -352,9 +352,36 @@ function handleElementImageUpload(e) {
 function handlePhotoShapeChange(e) {
     const oldShape = activeStageInfo.transformer.nodes()[0]; if (!oldShape) return;
     const isCircle = e.target.value === 'circle';
-    const attrs = oldShape.getAttrs(); delete attrs.radius; delete attrs.cornerRadius;
+    const attrs = oldShape.getAttrs();
+    
+    // Preserve fill properties
+    const fillProps = {
+        fillPatternImage: attrs.fillPatternImage,
+        fillPatternRepeat: attrs.fillPatternRepeat,
+        fillPatternScaleX: attrs.fillPatternScaleX,
+        fillPatternScaleY: attrs.fillPatternScaleY,
+        fillPatternOffsetX: attrs.fillPatternOffsetX,
+        fillPatternOffsetY: attrs.fillPatternOffsetY
+    };
+    
+    delete attrs.radius; delete attrs.cornerRadius;
+    
     const newShape = isCircle ? new Konva.Circle(attrs) : new Konva.Rect(attrs);
-    if (isCircle) newShape.radius((oldShape.width() * oldShape.scaleX()) / 2);
+    
+    if (isCircle) {
+        newShape.radius((oldShape.width() * oldShape.scaleX()) / 2);
+    } else { // It's a rect
+        const radius = oldShape.radius() * oldShape.scaleX();
+        newShape.width(radius * 2);
+        newShape.height(radius * 2);
+    }
+    
+    // Re-apply fill properties
+    newShape.setAttrs(fillProps);
+    if (!fillProps.fillPatternImage) {
+        newShape.fill('#e0e0e0');
+    }
+    
     oldShape.destroy();
     activeStageInfo.stage.getLayers()[1].add(newShape);
     newShape.on('dragmove', ev => handleDragMove(ev, activeStageInfo));
