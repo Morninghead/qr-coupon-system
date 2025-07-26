@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <title>Bulk Card Generator</title>
     
-    <!-- ⭐ ใช้ CDN แบบ Static ตรงๆ -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <!-- ⭐ ใช้ Local Supabase File แทน CDN -->
+    <script src="./js/supabase.min.js"></script>
     
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; }
@@ -25,9 +25,12 @@
         .breadcrumb a:hover { text-decoration: underline; }
         .error-message { text-align: center; padding: 50px; color: red; }
         .error-message h2 { color: #dc2626; }
-        .error-message ul { text-align: left; display: inline-block; }
+        .error-message ul { text-align: left; display: inline-block; margin: 20px 0; }
         .error-message button { background: #6366F1; color: white; border: none; border-radius: 4px; padding: 10px 20px; cursor: pointer; margin: 5px; }
         .error-message button:hover { background: #4f46e5; }
+        .success-message { background: #f0fdf4; border: 1px solid #16a34a; color: #15803d; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid #6366F1; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -38,164 +41,225 @@
         
         <h1>🎨 Bulk Card Generator</h1>
 
-        <!-- Section 1: Template Selection -->
-        <div class="section">
-            <h2>1. เลือก Template</h2>
-            <select id="template-select">
-                <option value="">กำลังโหลด templates...</option>
-            </select>
-            <div id="template-preview" style="margin-top: 15px; display: none;">
-                <h4>Template Preview:</h4>
-                <div id="template-details"></div>
-            </div>
+        <!-- Loading Section -->
+        <div id="loading-section">
+            <div class="loading-spinner"></div>
+            <p style="text-align: center;">กำลังเริ่มต้นระบบ...</p>
         </div>
 
-        <!-- Section 2: Employee Selection -->
-        <div class="section">
-            <h2>2. เลือกพนักงาน</h2>
-            <div style="margin-bottom: 15px;">
-                <button id="select-all-btn">เลือกทั้งหมด</button>
-                <button id="select-by-dept-btn">เลือกตามแผนก</button>
-                <select id="department-filter" style="display: none;">
-                    <option value="">เลือกแผนก...</option>
+        <!-- Main Content (ซ่อนไว้จนกว่าจะโหลดเสร็จ) -->
+        <div id="main-content" style="display: none;">
+            <!-- Section 1: Template Selection -->
+            <div class="section">
+                <h2>1. เลือก Template</h2>
+                <select id="template-select">
+                    <option value="">กำลังโหลด templates...</option>
                 </select>
-            </div>
-            <div id="employee-list" class="employee-list">
-                กำลังโหลดรายชื่อพนักงาน...
-            </div>
-            <div id="selection-summary" style="margin-top: 10px; font-weight: bold;">
-                เลือกแล้ว: 0 คน
-            </div>
-        </div>
-
-        <!-- Section 3: Print Settings -->
-        <div class="section">
-            <h2>3. ตั้งค่าการพิมพ์</h2>
-            <label>
-                <input type="radio" name="print-layout" value="A4-8cards" checked> 
-                A4 (8 บัตรต่อหน้า) - เหมาะสำหรับ Printer ธรรมดา
-            </label><br>
-            <label>
-                <input type="radio" name="print-layout" value="A3-16cards"> 
-                A3 (16 บัตรต่อหน้า) - ประหยัดกระดาษมากขึ้น
-            </label><br>
-            <label>
-                <input type="checkbox" id="include-cropmarks" checked> 
-                ใส่เส้นตัด (Crop marks)
-            </label><br>
-            <label>
-                <input type="checkbox" id="double-sided"> 
-                พิมพ์ 2 หน้า (หน้า-หลัง)
-            </label>
-        </div>
-
-        <!-- Section 4: Generate -->
-        <div class="section">
-            <h2>4. สร้างบัตร</h2>
-            <button id="generate-cards-btn" disabled>🚀 สร้างบัตรพนักงาน</button>
-            <div id="progress-section" style="display: none; margin-top: 20px;">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progress-fill"></div>
+                <div id="template-preview" style="margin-top: 15px; display: none;">
+                    <h4>Template Preview:</h4>
+                    <div id="template-details"></div>
                 </div>
-                <div id="progress-text" style="text-align: center; margin-top: 10px;">กำลังประมวลผล...</div>
             </div>
-        </div>
 
-        <!-- Section 5: Download -->
-        <div id="download-section" class="section" style="display: none;">
-            <h2>5. ดาวน์โหลดผลลัพธ์</h2>
-            <div id="download-links"></div>
+            <!-- Section 2: Employee Selection -->
+            <div class="section">
+                <h2>2. เลือกพนักงาน</h2>
+                <div style="margin-bottom: 15px;">
+                    <button id="select-all-btn">เลือกทั้งหมด</button>
+                    <button id="select-by-dept-btn">เลือกตามแผนก</button>
+                    <select id="department-filter" style="display: none;">
+                        <option value="">เลือกแผนก...</option>
+                    </select>
+                </div>
+                <div id="employee-list" class="employee-list">
+                    กำลังโหลดรายชื่อพนักงาน...
+                </div>
+                <div id="selection-summary" style="margin-top: 10px; font-weight: bold;">
+                    เลือกแล้ว: 0 คน
+                </div>
+            </div>
+
+            <!-- Section 3: Print Settings -->
+            <div class="section">
+                <h2>3. ตั้งค่าการพิมพ์</h2>
+                <label>
+                    <input type="radio" name="print-layout" value="A4-8cards" checked> 
+                    A4 (8 บัตรต่อหน้า) - เหมาะสำหรับ Printer ธรรมดา
+                </label><br>
+                <label>
+                    <input type="radio" name="print-layout" value="A3-16cards"> 
+                    A3 (16 บัตรต่อหน้า) - ประหยัดกระดาษมากขึ้น
+                </label><br>
+                <label>
+                    <input type="checkbox" id="include-cropmarks" checked> 
+                    ใส่เส้นตัด (Crop marks)
+                </label><br>
+                <label>
+                    <input type="checkbox" id="double-sided"> 
+                    พิมพ์ 2 หน้า (หน้า-หลัง)
+                </label>
+            </div>
+
+            <!-- Section 4: Generate -->
+            <div class="section">
+                <h2>4. สร้างบัตร</h2>
+                <button id="generate-cards-btn" disabled>🚀 สร้างบัตรพนักงาน</button>
+                <div id="progress-section" style="display: none; margin-top: 20px;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div id="progress-text" style="text-align: center; margin-top: 10px;">กำลังประมวลผล...</div>
+                </div>
+            </div>
+
+            <!-- Section 5: Download -->
+            <div id="download-section" class="section" style="display: none;">
+                <h2>5. ดาวน์โหลดผลลัพธ์</h2>
+                <div id="download-links"></div>
+            </div>
         </div>
     </div>
 
     <!-- Script Section: ตรวจสอบและโหลด JavaScript -->
     <script>
-        // ตรวจสอบ Supabase แบบง่าย
-        if (typeof Supabase === 'undefined') {
-            // แสดง Error Message หาก Supabase ไม่โหลด
-            document.body.innerHTML = `
+        // ฟังก์ชันเริ่มต้นระบบ
+        async function initializeSystem() {
+            const loadingSection = document.getElementById('loading-section');
+            const mainContent = document.getElementById('main-content');
+
+            try {
+                // ตรวจสอบ Supabase
+                if (typeof Supabase === 'undefined') {
+                    throw new Error('ไม่สามารถโหลด Supabase ได้ - ตรวจสอบไฟล์ js/supabase.min.js');
+                }
+
+                console.log('✅ Supabase loaded successfully from local file');
+
+                // โหลด JavaScript หลัก
+                await loadMainScript();
+
+                // แสดง success message
+                loadingSection.innerHTML = `
+                    <div class="success-message">
+                        <strong>✅ ระบบเริ่มต้นสำเร็จ!</strong> 
+                        Supabase โหลดจาก Local File และพร้อมใช้งาน
+                    </div>
+                `;
+
+                // ซ่อน loading และแสดง content หลังจาก 1 วินาที
+                setTimeout(() => {
+                    loadingSection.style.display = 'none';
+                    mainContent.style.display = 'block';
+                }, 1000);
+
+            } catch (error) {
+                console.error('System initialization failed:', error);
+                showErrorMessage(error.message);
+            }
+        }
+
+        // ฟังก์ชันโหลด JavaScript หลัก
+        function loadMainScript() {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'bulk-card-generator.js';
+                script.onload = () => {
+                    console.log('✅ Bulk Card Generator JavaScript loaded successfully');
+                    resolve();
+                };
+                script.onerror = () => {
+                    reject(new Error('ไม่สามารถโหลด bulk-card-generator.js ได้ - ตรวจสอบว่าไฟล์อยู่ในโฟลเดอร์เดียวกัน'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        // ฟังก์ชันแสดง Error Message
+        function showErrorMessage(message) {
+            const loadingSection = document.getElementById('loading-section');
+            loadingSection.innerHTML = `
                 <div class="error-message">
-                    <h2>⚠️ ไม่สามารถโหลด Supabase ได้</h2>
-                    <p>ระบบไม่สามารถเชื่อมต่อกับ Supabase CDN ได้</p>
-                    <p><strong>กรุณาตรวจสอบ:</strong></p>
-                    <ul>
-                        <li>การเชื่อมต่ออินเทอร์เน็ต</li>
-                        <li>Ad Blocker หรือ Browser Extensions ที่อาจบล็อก CDN</li>
-                        <li>Firewall หรือ Network Policy ของบริษัท</li>
-                        <li>VPN ที่อาจบล็อก CDN</li>
-                    </ul>
+                    <h2>⚠️ ไม่สามารถเริ่มต้นระบบได้</h2>
+                    <p><strong>ข้อผิดพลาด:</strong> ${message}</p>
+                    
+                    <div style="background: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h4>🔧 วิธีแก้ไข:</h4>
+                        <ul>
+                            <li>ตรวจสอบว่าไฟล์ <code>js/supabase.min.js</code> อยู่ในโฟลเดอร์ที่ถูกต้อง</li>
+                            <li>ตรวจสอบว่าไฟล์ <code>bulk-card-generator.js</code> อยู่ในโฟลเดอร์เดียวกัน</li>
+                            <li>ตรวจสอบ Console เพื่อดู error details</li>
+                            <li>ลองใช้ Static CDN แทน (วิธีแก้ไขที่ 2)</li>
+                        </ul>
+                    </div>
+
                     <div>
                         <button onclick="location.reload()">🔄 โหลดใหม่</button>
-                        <button onclick="testConnections()">🧪 ทดสอบการเชื่อมต่อ</button>
-                        <button onclick="showAlternatives()">💡 ทางเลือกอื่น</button>
+                        <button onclick="openConsole()">🔍 เปิด Console</button>
+                        <button onclick="checkFiles()">📁 ตรวจสอบไฟล์</button>
                     </div>
-                    <div id="test-results" style="margin-top: 20px;"></div>
+                    
+                    <div id="file-check-results" style="margin-top: 20px;"></div>
                 </div>
             `;
+        }
 
-            // ฟังก์ชันทดสอบการเชื่อมต่อ
-            window.testConnections = function() {
-                const testResults = document.getElementById('test-results');
-                testResults.innerHTML = '<p>กำลังทดสอบ...</p>';
-                
-                const testURLs = [
-                    { name: 'Google', url: 'https://google.com' },
-                    { name: 'jsDelivr CDN', url: 'https://cdn.jsdelivr.net' },
-                    { name: 'Supabase CDN', url: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js' }
-                ];
-                
-                Promise.allSettled(testURLs.map(test => 
-                    fetch(test.url, { method: 'HEAD', mode: 'no-cors' })
-                        .then(() => ({ name: test.name, status: 'success' }))
-                        .catch(() => ({ name: test.name, status: 'failed' }))
-                )).then(results => {
-                    let html = '<h4>ผลการทดสอบ:</h4><ul style="text-align: left;">';
-                    results.forEach((result, index) => {
-                        const status = result.status === 'fulfilled' ? '✅' : '❌';
-                        html += `<li>${status} ${testURLs[index].name}</li>`;
-                    });
-                    html += '</ul>';
-                    testResults.innerHTML = html;
+        // ฟังก์ชันเปิด Console
+        window.openConsole = function() {
+            alert('กด F12 หรือ Ctrl+Shift+I เพื่อเปิด DevTools แล้วดูที่ Console tab');
+        };
+
+        // ฟังก์ชันตรวจสอบไฟล์
+        window.checkFiles = function() {
+            const results = document.getElementById('file-check-results');
+            results.innerHTML = '<p>กำลังตรวจสอบไฟล์...</p>';
+
+            const filesToCheck = [
+                { name: 'Supabase Local', url: './js/supabase.min.js' },
+                { name: 'Main JavaScript', url: './bulk-card-generator.js' },
+                { name: 'Menu Page', url: './menu.html' }
+            ];
+
+            Promise.allSettled(filesToCheck.map(file => 
+                fetch(file.url, { method: 'HEAD' })
+                    .then(response => ({ 
+                        name: file.name, 
+                        status: response.ok ? 'found' : 'not-found',
+                        code: response.status 
+                    }))
+                    .catch(() => ({ 
+                        name: file.name, 
+                        status: 'error' 
+                    }))
+            )).then(results => {
+                let html = '<h4>📁 ผลการตรวจสอบไฟล์:</h4><ul style="text-align: left;">';
+                results.forEach((result, index) => {
+                    const data = result.value || result.reason;
+                    let icon = '❌';
+                    if (data.status === 'found') icon = '✅';
+                    else if (data.status === 'not-found') icon = '⚠️';
+                    
+                    html += `<li>${icon} ${data.name} ${data.code ? `(${data.code})` : ''}</li>`;
                 });
-            };
-
-            // ฟังก์ชันแสดงทางเลือกอื่น
-            window.showAlternatives = function() {
-                const testResults = document.getElementById('test-results');
-                testResults.innerHTML = `
-                    <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 4px solid #0ea5e9;">
-                        <h4>💡 ทางเลือกในการแก้ไข:</h4>
-                        <ol style="text-align: left;">
-                            <li><strong>ปิด Ad Blocker</strong> สำหรับเว็บไซต์นี้ชั่วคราว</li>
-                            <li><strong>ลองใช้ Browser อื่น</strong> (Chrome, Firefox, Edge)</li>
-                            <li><strong>ลองใช้เครือข่ายอื่น</strong> (Mobile Hotspot)</li>
-                            <li><strong>ติดต่อ IT Support</strong> เพื่อปลดล็อก CDN</li>
-                            <li><strong>ใช้ Local Version</strong> (ติดต่อผู้พัฒนา)</li>
-                        </ol>
+                html += '</ul>';
+                
+                html += `
+                    <div style="background: #e0f2fe; padding: 10px; border-radius: 8px; margin-top: 15px;">
+                        <strong>📝 หมายเหตุ:</strong><br>
+                        ✅ = ไฟล์พบและโหลดได้<br>
+                        ⚠️ = ไฟล์ไม่พบ (404)<br>
+                        ❌ = เกิดข้อผิดพลาดในการเข้าถึง
                     </div>
                 `;
-            };
+                
+                results.innerHTML = html;
+            });
+        };
 
+        // เริ่มต้นระบบเมื่อ DOM พร้อม
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeSystem);
         } else {
-            // Supabase โหลดสำเร็จ - โหลด JavaScript หลัก
-            console.log('✅ Supabase loaded successfully from CDN');
-            
-            const script = document.createElement('script');
-            script.src = 'bulk-card-generator.js';
-            script.onload = function() {
-                console.log('✅ Bulk Card Generator JavaScript loaded successfully');
-            };
-            script.onerror = function() {
-                document.body.innerHTML = `
-                    <div class="error-message">
-                        <h2>⚠️ ไม่สามารถโหลด bulk-card-generator.js ได้</h2>
-                        <p>ไฟล์ JavaScript หลักไม่สามารถโหลดได้</p>
-                        <p>กรุณาตรวจสอบว่าไฟล์ <code>bulk-card-generator.js</code> อยู่ในโฟลเดอร์เดียวกัน</p>
-                        <button onclick="location.reload()">🔄 โหลดใหม่</button>
-                    </div>
-                `;
-            };
-            document.head.appendChild(script);
+            initializeSystem();
         }
     </script>
 </body>
