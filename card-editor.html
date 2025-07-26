@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Advanced Card Template Editor</title>
-    <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
+    <!-- ใช้ Konva.js ใน local แทน CDN -->
+    <script src="./root/js/konva.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; display: flex; gap: 30px; flex-wrap: wrap; }
@@ -33,7 +34,7 @@
         .ruler { position: absolute; background-color: #f8f8f8; overflow: hidden; display: none; }
         .ruler.horizontal { top: 0; left: 25px; height: 25px; border-bottom: 1px solid #ccc; }
         .ruler.vertical { top: 25px; left: 0; width: 25px; border-right: 1px solid #ccc; }
-        #page-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center; font-size: 1.2em; font-weight: 600; color: var(--dark-gray); }
+        #page-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center; font-size: 1.2em; font-weight: 600; color: #333; }
     </style>
 </head>
 <body>
@@ -94,6 +95,12 @@
                 <button id="add-qr">Add QR Code</button>
             </div>
             <div id="properties-panel" class="control-group" style="display: none;"></div>
+            <hr>
+            <div class="control-group">
+                <h3>Export</h3>
+                <button id="export-json">Export to JSON</button>
+                <textarea id="json-output" rows="10" placeholder="JSON output will appear here..."></textarea>
+            </div>
         </div>
         <div class="canvases">
             <div class="canvas-container-wrapper" id="front-container">
@@ -113,6 +120,24 @@
         </div>
     </div>
 
-    <script src="card-editor.js" defer></script>
+    <script>
+    // รอให้ทุกอย่างโหลดเสร็จก่อน
+    window.addEventListener('load', function() {
+        // ซ่อน loader
+        document.getElementById('page-loader').style.display = 'none';
+        
+        // โหลด card-editor.js
+        const script = document.createElement('script');
+        script.src = 'card-editor.js';
+        script.onload = function() {
+            console.log('Card editor loaded successfully');
+        };
+        script.onerror = function() {
+            console.error('Failed to load card-editor.js');
+            alert('Failed to load editor. Please refresh the page.');
+        };
+        document.head.appendChild(script);
+    });
+    </script>
 </body>
 </html>
