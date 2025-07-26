@@ -349,46 +349,63 @@ function handleElementImageUpload(e) {
     };
     reader.readAsDataURL(e.target.files[0]);
 }
+
+// START: Corrected Shape Change Logic
 function handlePhotoShapeChange(e) {
-    const oldShape = activeStageInfo.transformer.nodes()[0]; if (!oldShape) return;
+    const oldShape = activeStageInfo.transformer.nodes()[0];
+    if (!oldShape) return;
     const isCircle = e.target.value === 'circle';
-    const attrs = oldShape.getAttrs();
-    
-    // Preserve fill properties
-    const fillProps = {
-        fillPatternImage: attrs.fillPatternImage,
-        fillPatternRepeat: attrs.fillPatternRepeat,
-        fillPatternScaleX: attrs.fillPatternScaleX,
-        fillPatternScaleY: attrs.fillPatternScaleY,
-        fillPatternOffsetX: attrs.fillPatternOffsetX,
-        fillPatternOffsetY: attrs.fillPatternOffsetY
+
+    // Create a base configuration by copying only safe, common attributes
+    const baseConfig = {
+        x: oldShape.x(),
+        y: oldShape.y(),
+        scaleX: oldShape.scaleX(),
+        scaleY: oldShape.scaleY(),
+        rotation: oldShape.rotation(),
+        draggable: oldShape.draggable(),
+        name: oldShape.name(),
+        stroke: oldShape.stroke(),
+        strokeWidth: oldShape.strokeWidth(),
+        // Explicitly copy all fill pattern properties
+        fillPatternImage: oldShape.fillPatternImage(),
+        fillPatternRepeat: oldShape.fillPatternRepeat(),
+        fillPatternScaleX: oldShape.fillPatternScaleX(),
+        fillPatternScaleY: oldShape.fillPatternScaleY(),
+        fillPatternOffsetX: oldShape.fillPatternOffsetX(),
+        fillPatternOffsetY: oldShape.fillPatternOffsetY(),
     };
-    
-    delete attrs.radius; delete attrs.cornerRadius;
-    
-    const newShape = isCircle ? new Konva.Circle(attrs) : new Konva.Rect(attrs);
-    
+
+    let newShape;
+
     if (isCircle) {
-        newShape.radius((oldShape.width() * oldShape.scaleX()) / 2);
-    } else { // It's a rect
-        const radius = oldShape.radius() * oldShape.scaleX();
-        newShape.width(radius * 2);
-        newShape.height(radius * 2);
+        // Switching from RECTANGLE to CIRCLE
+        const size = oldShape.width() * oldShape.scaleX();
+        baseConfig.radius = size / 2;
+        newShape = new Konva.Circle(baseConfig);
+    } else {
+        // Switching from CIRCLE to RECTANGLE
+        const size = oldShape.radius() * oldShape.scaleX() * 2;
+        baseConfig.width = size;
+        baseConfig.height = size;
+        newShape = new Konva.Rect(baseConfig);
     }
-    
-    // Re-apply fill properties
-    newShape.setAttrs(fillProps);
-    if (!fillProps.fillPatternImage) {
+
+    if (!baseConfig.fillPatternImage) {
         newShape.fill('#e0e0e0');
     }
-    
+
     oldShape.destroy();
     activeStageInfo.stage.getLayers()[1].add(newShape);
+    
     newShape.on('dragmove', ev => handleDragMove(ev, activeStageInfo));
     newShape.on('dblclick dbltap', () => handleDoubleClick(newShape));
+    
     activeStageInfo.transformer.nodes([newShape]);
     saveStateFor(activeStageInfo);
 }
+// END: Corrected Shape Change Logic
+
 function handleFontChange() {
     const node = activeStageInfo.transformer.nodes()[0]; if (!node) return;
     node.fontSize(parseInt(propertiesPanel.querySelector('.font-size-input').value));
