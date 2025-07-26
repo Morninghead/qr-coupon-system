@@ -20,11 +20,11 @@
         .history-buttons { display: flex; gap: 10px; }
         textarea { width: 100%; height: 150px; font-family: monospace; font-size: 12px; }
         .canvases { display: flex; gap: 30px; flex-wrap: wrap; }
-        .stage-wrapper { position: relative; margin-top: 50px; }
-        .canvas-container { padding: 25px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; }
-        .canvas-container.active { box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5), 0 0 0 2px #6366F1; }
-        .canvas-container h2 { margin-top: -10px; margin-bottom: 15px; font-size: 1.2em; color: #444; text-align: center; }
-        .konvajs-content { border: 1px solid #ccc; background-color: #fff; }
+        .canvas-container-wrapper { padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .canvas-container-wrapper.active { box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5), 0 0 0 2px #6366F1; }
+        .canvas-container-wrapper h2 { margin-top: 0; font-size: 1.2em; color: #444; text-align: center; }
+        .stage-wrapper { position: relative; cursor: pointer; }
+        .konvajs-content { border: 1px solid #ccc; background-color: #fff; margin-top: 25px; margin-left: 25px; }
         .radio-group label, .checkbox-group label { display: inline-flex; align-items: center; margin-right: 15px; cursor: pointer; font-weight: normal; }
         #properties-panel { border-top: 1px solid #eee; padding-top: 15px; }
         .opacity-control, .font-size-control { display: flex; align-items: center; gap: 10px; }
@@ -38,10 +38,9 @@
     </style>
 </head>
 <body>
-
     <div class="editor-wrapper">
         <div class="controls">
-             <div class="control-group">
+            <div class="control-group">
                 <h3>History</h3>
                 <div class="history-buttons"><button id="undo-btn">Undo</button><button id="redo-btn">Redo</button></div>
                 <small><i>Tip: Press 'Delete' key to remove item.</i></small>
@@ -92,13 +91,21 @@
             </div>
         </div>
         <div class="canvases">
-            <div class="stage-wrapper">
-                <canvas id="ruler-v-front" class="ruler vertical"></canvas><canvas id="ruler-h-front" class="ruler horizontal"></canvas>
-                <div class="canvas-container" id="front-container"><h2>Front</h2><div id="stage-container-front"></div></div>
+            <div class="canvas-container-wrapper" id="front-container">
+                <h2>Front</h2>
+                <div class="stage-wrapper">
+                    <canvas id="ruler-v-front" class="ruler vertical"></canvas>
+                    <canvas id="ruler-h-front" class="ruler horizontal"></canvas>
+                    <div id="stage-container-front"></div>
+                </div>
             </div>
-            <div class="stage-wrapper">
-                 <canvas id="ruler-v-back" class="ruler vertical"></canvas><canvas id="ruler-h-back" class="ruler horizontal"></canvas>
-                 <div class="canvas-container" id="back-container"><h2>Back</h2><div id="stage-container-back"></div></div>
+            <div class="canvas-container-wrapper" id="back-container">
+                <h2>Back</h2>
+                <div class="stage-wrapper">
+                     <canvas id="ruler-v-back" class="ruler vertical"></canvas>
+                     <canvas id="ruler-h-back" class="ruler horizontal"></canvas>
+                     <div id="stage-container-back"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -116,19 +123,17 @@
 
     // --- 2. Main Initialization ---
     function initialize() {
-        const textButtons = [
-            document.getElementById('add-employee-name'),
-            document.getElementById('add-employee-id'),
-            document.getElementById('add-company-name')
-        ];
-        textButtons.forEach(btn => { if (btn) btn.disabled = true; }); // Disable buttons until fonts are loaded
+        const textButtons = ['add-employee-name', 'add-employee-id', 'add-company-name'].map(id => document.getElementById(id));
+        textButtons.forEach(btn => { if(btn) btn.disabled = true; });
 
-        WebFont.load({ google: { families: FONT_FAMILIES.filter(f => !['Arial', 'Calibri', 'Times New Roman'].includes(f)) }, active: () => {
-            textButtons.forEach(btn => { if (btn) btn.disabled = false; });
-        }, inactive: () => {
-            alert('Could not load custom fonts. Using system defaults.');
-            textButtons.forEach(btn => { if (btn) btn.disabled = false; });
-        }});
+        WebFont.load({
+            google: { families: FONT_FAMILIES.filter(f => !['Arial', 'Calibri', 'Times New Roman'].includes(f)) },
+            active: () => textButtons.forEach(btn => { if(btn) btn.disabled = false; }),
+            inactive: () => {
+                alert('Could not load custom fonts. Using system defaults.');
+                textButtons.forEach(btn => { if(btn) btn.disabled = false; });
+            }
+        });
 
         stages.front = setupNewStage('front', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
         stages.back = setupNewStage('back', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
@@ -212,10 +217,48 @@
             for (let i = 0; i <= height; i+=10) { const w = (i % 50 === 0) ? 10 : 5; ctxV.beginPath(); ctxV.moveTo(25, i); ctxV.lineTo(25 - w, i); ctxV.stroke(); if (i % 50 === 0 && i > 0) { ctxV.save(); ctxV.translate(12, i + 2); ctxV.rotate(-Math.PI / 2); ctxV.fillText(i, 0, 0); ctxV.restore(); }}
         });
     }
-    function getSnapLines(stageInfo) { /* ... same as before ... */ }
-    function getObjectSnappingEdges(node, stageInfo) { /* ... same as before ... */ }
-    function handleDragMove(e, stageInfo) { /* ... same as before ... */ }
-    function drawGuide(value, orientation, stageInfo) { /* ... same as before ... */ }
+    function getSnapLines(stageInfo) {
+        const { width, height } = stageInfo.stage.size();
+        const lines = { vertical: [width / 2], horizontal: [height / 2]};
+        stageInfo.stage.getLayers()[1].children.forEach(node => {
+            if (node === stageInfo.transformer || !node.isVisible() || stageInfo.transformer.nodes().includes(node)) return;
+            const box = node.getClientRect({ relativeTo: stageInfo.stage });
+            lines.vertical.push(box.x, box.x + box.width, box.x + box.width / 2);
+            lines.horizontal.push(box.y, box.y + box.height, box.y + box.height / 2);
+        });
+        return lines;
+    }
+    function getObjectSnappingEdges(node, stageInfo) {
+        const box = node.getClientRect({ relativeTo: stageInfo.stage });
+        return {
+            vertical: [box.x, box.x + box.width / 2, box.x + box.width],
+            horizontal: [box.y, box.y + box.height / 2, box.y + box.height]
+        };
+    }
+    function handleDragMove(e, stageInfo) {
+        const target = e.target;
+        const guidesLayer = stageInfo.stage.getLayers()[2];
+        guidesLayer.destroyChildren();
+        const lines = getSnapLines(stageInfo);
+        const edges = getObjectSnappingEdges(target, stageInfo);
+        lines.vertical.forEach(g => edges.vertical.forEach(e => {
+            if (Math.abs(e - g) < SNAP_DISTANCE) {
+                target.x(target.x() - (e - g));
+                drawGuide(g, 'vertical', stageInfo);
+            }
+        }));
+        lines.horizontal.forEach(g => edges.horizontal.forEach(e => {
+            if (Math.abs(e - g) < SNAP_DISTANCE) {
+                target.y(target.y() - (e - g));
+                drawGuide(g, 'horizontal', stageInfo);
+            }
+        }));
+    }
+    function drawGuide(value, orientation, stageInfo) {
+        const stage = stageInfo.stage;
+        const points = orientation === 'vertical' ? [value, 0, value, stage.height()] : [0, value, stage.width(), value];
+        stage.getLayers()[2].add(new Konva.Line({ points, stroke: 'rgba(255, 0, 0, 0.6)', strokeWidth: 1, dash: [4, 6] }));
+    }
 
     // --- 5. Background, Opacity & Orientation ---
     function setBackground(imageSrc, layer, width, height, opacity, isDraggable) {
@@ -224,16 +267,32 @@
         img.onload = () => {
             const konvaImage = new Konva.Image({ image: img, width, height, name: 'background', opacity, draggable: isDraggable });
             layer.add(konvaImage);
-            if (isDraggable) {
-                konvaImage.on('dragend transformend', () => {
-                    // In a real app, you would save background properties here.
-                });
-            }
         };
         img.src = imageSrc;
     }
-    function handleOrientationChange() { /* ... same as before ... */ }
-    function addHoleMark(stageInfo) { /* ... same as before ... */ }
+    function handleOrientationChange() {
+        const isLandscape = document.querySelector('input[name="orientation"]:checked').value === 'landscape';
+        const newSize = { width: isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH, height: isLandscape ? LANDSCAPE_HEIGHT : PORTRAIT_HEIGHT };
+        Object.values(stages).forEach(s => {
+            s.stage.size(newSize);
+            s.stage.findOne('.background')?.size(newSize);
+            const hole = s.stage.findOne('.hole-mark');
+            if(hole) hole.position(isLandscape ? {x: newSize.width - 30, y: newSize.height / 2} : {x: newSize.width / 2, y: 15});
+        });
+        drawRulers();
+    }
+    function addHoleMark(stageInfo) {
+        const { stage } = stageInfo;
+        const isLandscape = stage.width() > stage.height();
+        const hole = new Konva.Ellipse({
+            x: isLandscape ? stage.width() - 30 : stage.width() / 2,
+            y: isLandscape ? stage.height() / 2 : 15,
+            radiusX: 14, radiusY: 3,
+            fill: 'rgba(255,255,255,0.8)', stroke: 'rgba(0,0,0,0.3)', strokeWidth: 1,
+            name: 'hole-mark', visible: document.getElementById('show-hole-mark').checked
+        });
+        stage.getLayers()[2].add(hole);
+    }
     
     // --- 6. Element Creation, Properties Panel & In-place Editing ---
     function addElement(type) {
@@ -259,7 +318,7 @@
     }
 
     function handleDoubleClick(node) {
-        if (node.hasName('text')) {
+        if (node.getClassName() === 'Text') {
             editTextNode(node);
         } else if (node.hasName('photo') || node.hasName('logo')) {
             editImageFill(node);
@@ -341,7 +400,6 @@
             node.draggable(wasDraggable);
             node.fillPatternDraggable(false);
             doneBtn.remove();
-            // Note: History is not saved for this change as it's a fill property, not layout.
         }
         doneBtn.addEventListener('click', endEdit);
     }
@@ -408,11 +466,10 @@
 
     // --- 7. Main Event Listeners Setup ---
     function setupAllEventListeners() {
-        document.getElementById('undo-btn').addEventListener('click', undo);
-        document.getElementById('redo-btn').addEventListener('click', redo);
+        undoBtn.addEventListener('click', undo);
+        redoBtn.addEventListener('click', redo);
         document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', handleOrientationChange));
         
-        // Updated to handle specific buttons
         ['photo', 'employee_name', 'employee_id', 'company_name', 'logo', 'qr'].forEach(type => {
             const btnId = `add-${type.replace(/_/g, '-')}`;
             const button = document.getElementById(btnId);
@@ -423,28 +480,37 @@
 
         document.getElementById('export-json').addEventListener('click', exportJSON);
         
-        // Other listeners
-        document.getElementById('bg-front-upload').addEventListener('change', e => { if(e.target.files[0]) setBackground(URL.createObjectURL(e.target.files[0]), stages.front.stage.getLayers()[0], stages.front.stage.width(), stages.front.stage.height(), document.getElementById('bg-opacity-slider').value, !document.getElementById('lock-background').checked); });
-        document.getElementById('bg-back-upload').addEventListener('change', e => { if(e.target.files[0]) setBackground(URL.createObjectURL(e.target.files[0]), stages.back.stage.getLayers()[0], stages.back.stage.width(), stages.back.stage.height(), 1, false); });
-        document.getElementById('show-rulers').addEventListener('change', e => { document.querySelectorAll('.ruler').forEach(r => r.style.display = e.target.checked ? 'block' : 'none'); if(e.target.checked) drawRulers(); });
-        document.getElementById('show-hole-mark').addEventListener('change', e => { Object.values(stages).forEach(s => addHoleMark(s)); });
-        document.getElementById('lock-background').addEventListener('change', e => { stages.front.stage.getLayers()[0].find('.background').forEach(bg => bg.draggable(!e.target.checked)); });
+        const frontReader = new FileReader();
+        frontReader.onload = e => setBackground(e.target.result, stages.front.stage.getLayers()[0], stages.front.stage.width(), stages.front.stage.height(), document.getElementById('bg-opacity-slider').value, !document.getElementById('lock-background').checked);
+        document.getElementById('bg-front-upload').addEventListener('change', e => e.target.files[0] && frontReader.readAsDataURL(e.target.files[0]));
+
+        const backReader = new FileReader();
+        backReader.onload = e => setBackground(e.target.result, stages.back.stage.getLayers()[0], stages.back.stage.width(), stages.back.stage.height(), 1, false);
+        document.getElementById('bg-back-upload').addEventListener('change', e => e.target.files[0] && backReader.readAsDataURL(e.target.files[0]));
+
+        document.getElementById('show-rulers').addEventListener('change', e => {
+            document.querySelectorAll('.ruler').forEach(r => r.style.display = e.target.checked ? 'block' : 'none');
+            if (e.target.checked) drawRulers();
+        });
+        document.getElementById('show-hole-mark').addEventListener('change', e => {
+            Object.values(stages).forEach(s => {
+                let mark = s.stage.findOne('.hole-mark');
+                if (!mark && e.target.checked) addHoleMark(s);
+                else if (mark) mark.visible(e.target.checked);
+            });
+        });
+
+        document.getElementById('lock-background').addEventListener('change', e => {
+            stages.front.stage.getLayers()[0].find('.background').forEach(bg => bg.draggable(!e.target.checked));
+        });
 
         Object.values(stages).forEach(stageInfo => {
             stageInfo.stage.container().parentElement.addEventListener('click', () => setActiveStage(stageInfo));
             stageInfo.stage.on('click tap', e => {
-                if (e.target === stageInfo.stage) {
-                    stageInfo.transformer.nodes([]);
-                    updatePropertiesPanel();
-                    return;
-                }
-                if (e.target.getParent().className === 'Transformer') return;
-                if (e.target.hasName('background') || e.target.hasName('hole-mark')) {
-                    stageInfo.transformer.nodes([]);
-                    updatePropertiesPanel();
-                    return;
-                }
-                stageInfo.transformer.nodes([e.target]);
+                if (e.target === stageInfo.stage) stageInfo.transformer.nodes([]);
+                else if (e.target.getParent().className === 'Transformer') return;
+                else if (e.target.hasName('background') || e.target.hasName('hole-mark')) stageInfo.transformer.nodes([]);
+                else stageInfo.transformer.nodes([e.target]);
                 updatePropertiesPanel();
             });
         });
@@ -452,12 +518,26 @@
         window.addEventListener('keydown', e => {
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (activeStageInfo && activeStageInfo.transformer.nodes().length > 0) {
+                    e.preventDefault();
                     activeStageInfo.transformer.nodes().forEach(node => node.destroy());
                     activeStageInfo.transformer.nodes([]);
                     saveStateFor(activeStageInfo);
                 }
             }
+            if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+            if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
         });
+        
+        const bgOpacitySlider = document.getElementById('bg-opacity-slider');
+        const bgOpacityInput = document.getElementById('bg-opacity-input');
+        function updateBgOpacity(value) {
+            const bg = stages.front.stage.getLayers()[0].findOne('.background');
+            if (bg) bg.opacity(value);
+            bgOpacitySlider.value = value;
+            bgOpacityInput.value = Math.round(value * 100);
+        }
+        bgOpacitySlider.addEventListener('input', e => updateBgOpacity(parseFloat(e.target.value)));
+        bgOpacityInput.addEventListener('change', e => updateBgOpacity(parseInt(e.target.value, 10) / 100));
     }
     
     // --- 8. Export to JSON ---
@@ -469,21 +549,20 @@
             const { width: stageWidth, height: stageHeight } = stageInfo.stage.size();
 
             stageInfo.stage.getLayers()[1].find('Rect, Text, Circle, Ellipse').forEach(node => {
-                if (node.name() === 'background' || node.name() === 'hole-mark' || !node.name()) return;
+                if (!node.name()) return;
 
-                const box = node.getClientRect({ skipTransform: false });
+                const box = node.getClientRect({ skipTransform: true });
                 const config = {
-                    top: `${((box.y / stageHeight) * 100).toFixed(2)}%`,
-                    left: `${((box.x / stageWidth) * 100).toFixed(2)}%`,
-                    width: `${((box.width / stageWidth) * 100).toFixed(2)}%`,
-                    height: `${((box.height / stageHeight) * 100).toFixed(2)}%`,
+                    left: `${(box.x / stageWidth * 100).toFixed(2)}%`,
+                    top: `${(box.y / stageHeight * 100).toFixed(2)}%`,
+                    width: `${(box.width / stageWidth * 100).toFixed(2)}%`,
+                    height: `${(box.height / stageHeight * 100).toFixed(2)}%`,
                 };
                 if (node.rotation()) config.transform = `rotate(${node.rotation()}deg)`;
                 if (node.hasName('photo')) {
                     config.objectFit = 'cover';
                     if (node.getClassName() === 'Circle') config.borderRadius = '50%';
                 }
-                // Use the node's name directly as the key. This is the fix.
                 layoutConfig[node.name()] = config;
             });
             finalConfig[`${side}Layout`] = layoutConfig;
