@@ -158,7 +158,7 @@ function setBackground(imageSrc, stageInfo, opacity) {
     const isFront = stageInfo.name === 'front';
     const isLocked = isFront ? document.getElementById('lock-background').checked : true;
     
-    layer.find('.background').destroy();
+    layer.find('.background').forEach(n => n.destroy());
     
     const img = new Image();
     img.onload = () => {
@@ -213,11 +213,11 @@ function addElement(type) {
         updatePropertiesPanel();
     }
 }
-
 function handleDoubleClick(node) {
-    if (node.hasName('photo') || node.hasName('logo')) { editImageFill(node); }
+    if (node.hasName('photo') || node.hasName('logo')) {
+        editImageFill(node);
+    }
 }
-
 function editImageFill(node) {
     if (!node.fillPatternImage()) { alert('Please upload an image for this element first.'); return; }
     const wasDraggable = node.draggable();
@@ -230,7 +230,6 @@ function editImageFill(node) {
     function endEdit() { node.draggable(wasDraggable); node.fillPatternDraggable(false); doneBtn.remove(); }
     doneBtn.addEventListener('click', endEdit);
 }
-
 function updatePropertiesPanel() {
     const selectedNodes = activeStageInfo ? activeStageInfo.transformer.nodes() : [];
     const node = selectedNodes[0];
@@ -268,7 +267,7 @@ function handleElementImageUpload(e) {
         img.onload = () => {
             node.fill(null); node.fillPatternImage(img); node.fillPatternRepeat('no-repeat');
             if (node.getClassName() === 'Circle' && node.hasName('photo')) {
-                const radius = node.radius() * node.scaleX(); // Use scaled radius
+                const radius = node.radius() * node.scaleX();
                 const scale = (img.width > img.height) ? (radius * 2) / img.height : (radius * 2) / img.width;
                 node.fillPatternScale({ x: scale, y: scale });
                 node.fillPatternOffset({ x: (img.width * scale) / 2, y: 0 });
@@ -310,7 +309,6 @@ function setupAllEventListeners() {
     undoBtn.addEventListener('click', undo);
     redoBtn.addEventListener('click', redo);
     document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', handleOrientationChange));
-    
     ['photo', 'employee_name', 'employee_id', 'company_name', 'logo', 'qr'].forEach(type => {
         document.getElementById(`add-${type.replace(/_/g, '-')}`)?.addEventListener('click', () => addElement(type));
     });
@@ -324,15 +322,14 @@ function setupAllEventListeners() {
     backReader.onload = e => setBackground(e.target.result, stages.back, 1);
     document.getElementById('bg-back-upload').addEventListener('change', e => e.target.files[0] && backReader.readAsDataURL(e.target.files[0]));
     
-    document.getElementById('remove-bg-front').addEventListener('click', () => { stages.front.stage.getLayers()[0].destroyChildren(); initializeTransformerForLayer(stages.front.stage.getLayers()[0], stages.front); });
-    document.getElementById('remove-bg-back').addEventListener('click', () => { stages.back.stage.getLayers()[0].destroyChildren(); initializeTransformerForLayer(stages.back.stage.getLayers()[0], stages.back); });
+    document.getElementById('remove-bg-front').addEventListener('click', () => { stages.front.stage.getLayers()[0].find('.background').forEach(n=>n.destroy()); stages.front.bgTransformer.nodes([]); });
+    document.getElementById('remove-bg-back').addEventListener('click', () => { stages.back.stage.getLayers()[0].find('.background').forEach(n=>n.destroy()); stages.back.bgTransformer.nodes([]); });
 
     document.getElementById('show-rulers').addEventListener('change', e => {
         document.querySelectorAll('.ruler').forEach(r => r.style.display = e.target.checked ? 'block' : 'none');
         if (e.target.checked) drawRulers();
     });
     document.getElementById('show-hole-mark').addEventListener('change', e => Object.values(stages).forEach(addHoleMark));
-
     document.getElementById('lock-background').addEventListener('change', e => {
         const bg = stages.front.stage.getLayers()[0].findOne('.background');
         if (bg) {
@@ -348,12 +345,13 @@ function setupAllEventListeners() {
             if (e.target === stageInfo.stage) {
                 stageInfo.transformer.nodes([]);
                 stageInfo.bgTransformer.nodes([]);
-            } else if (targetLayer === stageInfo.stage.getLayers()[0]) { // Background Layer
+            } else if (targetLayer === stageInfo.stage.getLayers()[0]) {
                 stageInfo.transformer.nodes([]);
-                if (!document.getElementById('lock-background').checked || stageInfo.name !== 'front') {
+                const isLocked = document.getElementById('lock-background').checked;
+                if (!isLocked || stageInfo.name !== 'front') {
                     stageInfo.bgTransformer.nodes([e.target]);
                 }
-            } else if (targetLayer === stageInfo.stage.getLayers()[1]) { // Elements Layer
+            } else if (targetLayer === stageInfo.stage.getLayers()[1]) {
                 stageInfo.bgTransformer.nodes([]);
                 if (e.target.getParent().className !== 'Transformer') {
                     stageInfo.transformer.nodes([e.target]);
@@ -399,14 +397,34 @@ function exportJSON() {
         const layoutConfig = {};
         const { width: stageWidth, height: stageHeight } = stageInfo.stage.size();
         const bgImage = stageInfo.stage.getLayers()[0].findOne('.background');
-        if(bgImage) { /* ... same as before ... */ }
-        stageInfo.stage.getLayers()[1].find('Rect, Text, Circle, Ellipse').forEach(node => { /* ... same as before ... */ });
+
+        if(bgImage) {
+            const box = bgImage.getClientRect({skipTransform: true});
+            layoutConfig['background'] = {
+                left: `${(box.x / stageWidth * 100).toFixed(2)}%`, top: `${(box.y / stageHeight * 100).toFixed(2)}%`,
+                width: `${(box.width / stageWidth * 100).toFixed(2)}%`, height: `${(box.height / stageHeight * 100).toFixed(2)}%`,
+                rotation: bgImage.rotation()
+            }
+        }
+
+        stageInfo.stage.getLayers()[1].find('Rect, Text, Circle, Ellipse').forEach(node => {
+            if (!node.name()) return;
+            const box = node.getClientRect({ relativeTo: stageInfo.stage });
+            const config = {
+                left: `${(box.x / stageWidth * 100).toFixed(2)}%`, top: `${(box.y / stageHeight * 100).toFixed(2)}%`,
+                width: `${(box.width / stageWidth * 100).toFixed(2)}%`, height: `${(box.height / stageHeight * 100).toFixed(2)}%`,
+            };
+            if (node.rotation()) config.transform = `rotate(${node.rotation()}deg)`;
+            if (node.hasName('photo')) {
+                config.objectFit = 'cover';
+                if (node.getClassName() === 'Circle') config.borderRadius = '50%';
+            }
+            layoutConfig[node.name()] = config;
+        });
         finalConfig[`${side}Layout`] = layoutConfig;
     });
+
     const jsonString = JSON.stringify(finalConfig, null, 2);
     document.getElementById('json-output').value = jsonString;
     navigator.clipboard.writeText(jsonString).then(() => alert('JSON copied to clipboard!'));
 }
-
-// --- Run Application ---
-initialize();
