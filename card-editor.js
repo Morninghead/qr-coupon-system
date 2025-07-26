@@ -218,31 +218,24 @@ function handleDoubleClick(node) {
         editImageFill(node);
     }
 }
-
 function editImageFill(node) {
-    if (!node.fillPatternImage()) {
-        alert('Please upload an image for this element first.');
-        return;
-    }
+    if (!node.fillPatternImage()) { alert('Please upload an image for this element first.'); return; }
+    
     const stage = node.getStage();
     const wasDraggable = node.draggable();
     node.draggable(false);
     activeStageInfo.transformer.nodes([]);
     stage.container().style.cursor = 'grab';
 
-    const overlay = document.createElement('div');
-    Object.assign(overlay.style, {
-        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-        backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 999
-    });
-    document.body.appendChild(overlay);
-
     const doneBtn = document.createElement('button');
-    doneBtn.innerText = "Done Adjusting Image";
-    const nodeBox = node.getClientRect({ relativeTo: stage.container().parentElement });
+    doneBtn.innerText = "Done Adjusting";
+    const nodeBox = node.getClientRect({relativeTo: stage.container().parentElement});
     Object.assign(doneBtn.style, {
-        position: 'absolute', zIndex: 1000, background: '#10B981',
-        top: `${nodeBox.y + nodeBox.height + 10}px`, left: `${nodeBox.x}px`
+        position: 'absolute', zIndex: 1000, background: '#10B981', color: 'white',
+        border: 'none', borderRadius: '5px', padding: '5px 10px',
+        top: `${nodeBox.y + nodeBox.height + 5}px`,
+        left: `${nodeBox.x + (nodeBox.width / 2)}px`,
+        transform: 'translateX(-50%)'
     });
     document.body.appendChild(doneBtn);
     
@@ -251,15 +244,16 @@ function editImageFill(node) {
     const onMouseDown = (e) => {
         if (e.target !== node) return;
         lastPos = stage.getPointerPosition();
-        stage.on('mousemove.fill', onDrag);
-        stage.container().addEventListener('mouseup', onMouseUp, true);
-        stage.container().addEventListener('touchend', onMouseUp, true);
+        window.addEventListener('mousemove', onDrag);
+        window.addEventListener('mouseup', onMouseUp, true);
+        window.addEventListener('touchend', onMouseUp, true);
         stage.container().style.cursor = 'grabbing';
     };
 
-    const onDrag = () => {
+    const onDrag = (e) => {
         if (!lastPos) return;
         const pos = stage.getPointerPosition();
+        if (!pos) return;
         const dx = pos.x - lastPos.x;
         const dy = pos.y - lastPos.y;
         node.fillPatternOffsetX(node.fillPatternOffsetX() - dx);
@@ -269,33 +263,38 @@ function editImageFill(node) {
 
     const onMouseUp = () => {
         lastPos = null;
-        stage.off('mousemove.fill');
-        stage.container().removeEventListener('mouseup', onMouseUp, true);
-        stage.container().removeEventListener('touchend', onMouseUp, true);
+        window.removeEventListener('mousemove', onDrag);
+        window.removeEventListener('mouseup', onMouseUp, true);
+        window.removeEventListener('touchend', onMouseUp, true);
         stage.container().style.cursor = 'grab';
     };
     
-    stage.on('mousedown.fill touchstart.fill', onMouseDown);
+    node.on('mousedown.fill touchstart.fill', onMouseDown);
 
     function onEscapeKey(e) {
         if (e.key === 'Escape') endEdit();
     }
+    
+    const onStageDblClick = (e) => {
+        if (e.target !== node) endEdit();
+    }
 
     function endEdit() {
-        stage.off('mousedown.fill touchstart.fill');
-        onMouseUp(); // Ensure mousemove is off
+        node.off('mousedown.fill touchstart.fill');
+        stage.off('dblclick.fill dbltap.fill');
         window.removeEventListener('keydown', onEscapeKey);
+        window.removeEventListener('mouseup', onMouseUp, true);
+        window.removeEventListener('touchend', onMouseUp, true);
+        window.removeEventListener('mousemove', onDrag);
         node.draggable(wasDraggable);
         document.body.removeChild(doneBtn);
-        document.body.removeChild(overlay);
         stage.container().style.cursor = 'default';
     }
 
     doneBtn.addEventListener('click', endEdit);
-    overlay.addEventListener('click', endEdit);
+    stage.on('dblclick.fill dbltap.fill', onStageDblClick);
     window.addEventListener('keydown', onEscapeKey);
 }
-
 function updatePropertiesPanel() {
     const selectedNodes = activeStageInfo ? activeStageInfo.transformer.nodes() : [];
     const node = selectedNodes[0];
