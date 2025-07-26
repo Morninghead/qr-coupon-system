@@ -218,13 +218,9 @@ function handleDoubleClick(node) {
         editImageFill(node);
     }
 }
-
-// START: Corrected Image Panning Logic
 function editImageFill(node) {
-    if (!node.fillPatternImage()) {
-        alert('Please upload an image for this element first.');
-        return;
-    }
+    if (!node.fillPatternImage()) { alert('Please upload an image for this element first.'); return; }
+    
     const stage = node.getStage();
     const wasDraggable = node.draggable();
     node.draggable(false);
@@ -243,8 +239,11 @@ function editImageFill(node) {
     
     let lastPos = null;
 
+    // Corrected drag logic starts here
     const onMouseDown = (e) => {
-        e.evt.preventDefault();
+        // only start drag if the click is on the shape
+        if (e.target !== node) return;
+        
         lastPos = stage.getPointerPosition();
         stage.on('mousemove.fill', onDrag);
         window.addEventListener('mouseup', onMouseUp, true);
@@ -270,15 +269,16 @@ function editImageFill(node) {
         stage.container().style.cursor = 'grab';
     };
     
-    node.on('mousedown.fill touchstart.fill', onMouseDown);
+    stage.on('mousedown.fill touchstart.fill', onMouseDown); // Listen on stage, but check target inside
 
     function onEscapeKey(e) {
         if (e.key === 'Escape') endEdit();
     }
 
     function endEdit() {
-        stage.off('mousemove.fill mouseup.fill touchend.fill');
-        node.off('mousedown.fill touchstart.fill');
+        stage.off('mousedown.fill touchstart.fill mousemove.fill mouseup.fill touchend.fill');
+        window.removeEventListener('mouseup', onMouseUp, true);
+        window.removeEventListener('touchend', onMouseUp, true);
         window.removeEventListener('keydown', onEscapeKey);
         node.draggable(wasDraggable);
         document.body.removeChild(doneBtn);
@@ -290,8 +290,6 @@ function editImageFill(node) {
     overlay.addEventListener('click', endEdit);
     window.addEventListener('keydown', onEscapeKey);
 }
-// END: Corrected Image Panning Logic
-
 function updatePropertiesPanel() {
     const selectedNodes = activeStageInfo ? activeStageInfo.transformer.nodes() : [];
     const node = selectedNodes[0];
@@ -384,8 +382,8 @@ function setupAllEventListeners() {
     backReader.onload = e => setBackground(e.target.result, stages.back, 1);
     document.getElementById('bg-back-upload').addEventListener('change', e => e.target.files[0] && backReader.readAsDataURL(e.target.files[0]));
     
-    document.getElementById('remove-bg-front').addEventListener('click', () => { stages.front.stage.getLayers()[0].destroyChildren(); initializeTransformerForLayer(stages.front.stage.getLayers()[0], stages.front); });
-    document.getElementById('remove-bg-back').addEventListener('click', () => { stages.back.stage.getLayers()[0].destroyChildren(); initializeTransformerForLayer(stages.back.stage.getLayers()[0], stages.back); });
+    document.getElementById('remove-bg-front').addEventListener('click', () => { stages.front.stage.getLayers()[0].find('.background').forEach(n=>n.destroy()); stages.front.bgTransformer.nodes([]); });
+    document.getElementById('remove-bg-back').addEventListener('click', () => { stages.back.stage.getLayers()[0].find('.background').forEach(n=>n.destroy()); stages.back.bgTransformer.nodes([]); });
 
     document.getElementById('show-rulers').addEventListener('change', e => {
         document.querySelectorAll('.ruler').forEach(r => r.style.display = e.target.checked ? 'block' : 'none');
@@ -407,13 +405,13 @@ function setupAllEventListeners() {
             if (e.target === stageInfo.stage) {
                 stageInfo.transformer.nodes([]);
                 stageInfo.bgTransformer.nodes([]);
-            } else if (targetLayer === stageInfo.stage.getLayers()[0]) { // Background Layer
+            } else if (targetLayer === stageInfo.stage.getLayers()[0]) {
                 stageInfo.transformer.nodes([]);
                 const isLocked = document.getElementById('lock-background').checked;
                 if (!isLocked || stageInfo.name !== 'front') {
                     stageInfo.bgTransformer.nodes([e.target]);
                 }
-            } else if (targetLayer === stageInfo.stage.getLayers()[1]) { // Elements Layer
+            } else if (targetLayer === stageInfo.stage.getLayers()[1]) {
                 stageInfo.bgTransformer.nodes([]);
                 if (e.target.getParent().className !== 'Transformer') {
                     stageInfo.transformer.nodes([e.target]);
