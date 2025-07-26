@@ -77,7 +77,9 @@
             <div class="control-group">
                 <label>Add Elements (to Active Card)</label>
                 <button id="add-photo">Add Employee Photo</button>
-                <button id="add-text">Add Text</button>
+                <button id="add-employee-name">Add Employee Name</button>
+                <button id="add-employee-id">Add Employee ID</button>
+                <button id="add-company-name">Add Company Name</button>
                 <button id="add-logo">Add Company Logo</button>
                 <button id="add-qr">Add QR Code</button>
             </div>
@@ -234,7 +236,9 @@
         const commonProps = { x: 50, y: 50, draggable: true, name: type };
         switch(type) {
             case 'photo': element = new Konva.Circle({ ...commonProps, radius: 75, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, name: 'photo' }); break;
-            case 'text': element = new Konva.Text({ ...commonProps, text: 'Double-click to edit', fontSize: 32, fontFamily: 'Sarabun', fill: 'black', name: 'text' }); break;
+            case 'employee_name': element = new Konva.Text({ ...commonProps, text: 'Employee Name', fontSize: 32, fontFamily: 'Sarabun', fill: 'black', name: 'employee_name' }); break;
+            case 'employee_id': element = new Konva.Text({ ...commonProps, text: 'ID: 12345', fontSize: 24, fontFamily: 'Sarabun', fill: '#424242', name: 'employee_id' }); break;
+            case 'company_name': element = new Konva.Text({ ...commonProps, text: 'Company Name', fontSize: 28, fontFamily: 'Sarabun', fill: 'black', name: 'company_name' }); break;
             case 'logo': element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' }); break;
             case 'qr': element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', name: 'qr_code' }); break;
         }
@@ -397,10 +401,92 @@
 
 
     // --- 7. Main Event Listeners Setup ---
-    function setupAllEventListeners() { /* ... combines all addEventListener calls ... */ }
+    function setupAllEventListeners() {
+        document.getElementById('undo-btn').addEventListener('click', undo);
+        document.getElementById('redo-btn').addEventListener('click', redo);
+        document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', handleOrientationChange));
+        
+        // Updated to handle specific buttons
+        ['photo', 'employee_name', 'employee_id', 'company_name', 'logo', 'qr'].forEach(type => {
+            const btnId = `add-${type.replace(/_/g, '-')}`;
+            const button = document.getElementById(btnId);
+            if (button) {
+                button.addEventListener('click', () => addElement(type));
+            }
+        });
+
+        document.getElementById('export-json').addEventListener('click', exportJSON);
+        
+        // Other listeners
+        document.getElementById('bg-front-upload').addEventListener('change', e => { if(e.target.files[0]) setBackground(URL.createObjectURL(e.target.files[0]), stages.front.stage.getLayers()[0], stages.front.stage.width(), stages.front.stage.height(), document.getElementById('bg-opacity-slider').value, !document.getElementById('lock-background').checked); });
+        document.getElementById('bg-back-upload').addEventListener('change', e => { if(e.target.files[0]) setBackground(URL.createObjectURL(e.target.files[0]), stages.back.stage.getLayers()[0], stages.back.stage.width(), stages.back.stage.height(), 1, false); });
+        document.getElementById('show-rulers').addEventListener('change', e => { document.querySelectorAll('.ruler').forEach(r => r.style.display = e.target.checked ? 'block' : 'none'); if(e.target.checked) drawRulers(); });
+        document.getElementById('show-hole-mark').addEventListener('change', e => { Object.values(stages).forEach(s => addHoleMark(s)); });
+        document.getElementById('lock-background').addEventListener('change', e => { stages.front.stage.getLayers()[0].find('.background').forEach(bg => bg.draggable(!e.target.checked)); });
+
+        Object.values(stages).forEach(stageInfo => {
+            stageInfo.stage.container().parentElement.addEventListener('click', () => setActiveStage(stageInfo));
+            stageInfo.stage.on('click tap', e => {
+                if (e.target === stageInfo.stage) {
+                    stageInfo.transformer.nodes([]);
+                    updatePropertiesPanel();
+                    return;
+                }
+                if (e.target.getParent().className === 'Transformer') return;
+                if (e.target.hasName('background') || e.target.hasName('hole-mark')) {
+                    stageInfo.transformer.nodes([]);
+                    updatePropertiesPanel();
+                    return;
+                }
+                stageInfo.transformer.nodes([e.target]);
+                updatePropertiesPanel();
+            });
+        });
+
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (activeStageInfo && activeStageInfo.transformer.nodes().length > 0) {
+                    activeStageInfo.transformer.nodes().forEach(node => node.destroy());
+                    activeStageInfo.transformer.nodes([]);
+                    saveStateFor(activeStageInfo);
+                }
+            }
+        });
+    }
     
     // --- 8. Export to JSON ---
-    function exportJSON() { /* ... same as before ... */ }
+    function exportJSON() {
+        const finalConfig = {};
+        Object.values(stages).forEach(stageInfo => {
+            const side = stageInfo.name;
+            const layoutConfig = {};
+            const { width: stageWidth, height: stageHeight } = stageInfo.stage.size();
+
+            stageInfo.stage.getLayers()[1].find('Rect, Text, Circle, Ellipse').forEach(node => {
+                if (node.name() === 'background' || node.name() === 'hole-mark' || !node.name()) return;
+
+                const box = node.getClientRect({ skipTransform: false });
+                const config = {
+                    top: `${((box.y / stageHeight) * 100).toFixed(2)}%`,
+                    left: `${((box.x / stageWidth) * 100).toFixed(2)}%`,
+                    width: `${((box.width / stageWidth) * 100).toFixed(2)}%`,
+                    height: `${((box.height / stageHeight) * 100).toFixed(2)}%`,
+                };
+                if (node.rotation()) config.transform = `rotate(${node.rotation()}deg)`;
+                if (node.hasName('photo')) {
+                    config.objectFit = 'cover';
+                    if (node.getClassName() === 'Circle') config.borderRadius = '50%';
+                }
+                // Use the node's name directly as the key. This is the fix.
+                layoutConfig[node.name()] = config;
+            });
+            finalConfig[`${side}Layout`] = layoutConfig;
+        });
+
+        const jsonString = JSON.stringify(finalConfig, null, 2);
+        document.getElementById('json-output').value = jsonString;
+        navigator.clipboard.writeText(jsonString).then(() => alert('JSON copied to clipboard!'));
+    }
 
     // --- Run Application ---
     initialize();
