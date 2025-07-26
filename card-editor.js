@@ -201,7 +201,7 @@ function addElement(type) {
         case 'employee_name': element = new Konva.Text({ ...commonProps, text: '{{employee_name}}', fontSize: 32, fontFamily: 'Sarabun', fill: 'black', name: 'employee_name' }); break;
         case 'employee_id': element = new Konva.Text({ ...commonProps, text: '{{employee_id}}', fontSize: 24, fontFamily: 'Sarabun', fill: '#424242', name: 'employee_id' }); break;
         case 'company_name': element = new Konva.Text({ ...commonProps, text: '{{company_name}}', fontSize: 28, fontFamily: 'Sarabun', fill: 'black', name: 'company_name' }); break;
-        case 'logo': element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' }); break;
+        case 'logo': element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', name: 'logo' }); break;
         case 'qr': element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', name: 'qr_code' }); break;
     }
     if (element) {
@@ -358,10 +358,9 @@ function handlePhotoShapeChange(e) {
     const currentIsCircle = oldShape.getClassName() === 'Circle';
 
     if ((isCircle && currentIsCircle) || (!isCircle && !currentIsCircle)) {
-        return; // No change needed
+        return;
     }
 
-    // Save the state of the shape we are leaving
     const state = {
         fillPatternImage: oldShape.fillPatternImage(),
         fillPatternScaleX: oldShape.fillPatternScaleX(),
@@ -371,47 +370,40 @@ function handlePhotoShapeChange(e) {
     };
     if (currentIsCircle) {
         state.radius = oldShape.radius();
-        oldShape.setAttr('_circleState', state); // Save current circle state
+        oldShape.setAttr('_circleState', state);
     } else {
         state.width = oldShape.width();
         state.height = oldShape.height();
-        oldShape.setAttr('_rectState', state); // Save current rect state
+        oldShape.setAttr('_rectState', state);
     }
 
     const baseConfig = {
         x: oldShape.x(), y: oldShape.y(), scaleX: oldShape.scaleX(), scaleY: oldShape.scaleY(),
         rotation: oldShape.rotation(), draggable: oldShape.draggable(), name: oldShape.name(),
         stroke: oldShape.stroke(), strokeWidth: oldShape.strokeWidth(),
-        // carry over the saved states
         _circleState: oldShape.getAttr('_circleState'),
         _rectState: oldShape.getAttr('_rectState'),
     };
     
     let newShape;
 
-    if (isCircle) { // TO CIRCLE
+    if (isCircle) {
         const prevState = oldShape.getAttr('_circleState');
         if (prevState) {
-            // if we have a saved circle state, use it
             Object.assign(baseConfig, prevState);
         } else {
-            // otherwise, create a circle from the rect's dimensions
             baseConfig.radius = (oldShape.width() * oldShape.scaleX()) / 2;
-            // also copy over the image from the rect
             baseConfig.fillPatternImage = oldShape.fillPatternImage();
         }
         newShape = new Konva.Circle(baseConfig);
-    } else { // TO RECTANGLE
+    } else {
         const prevState = oldShape.getAttr('_rectState');
         if (prevState) {
-            // if we have a saved rect state, use it
             Object.assign(baseConfig, prevState);
         } else {
-            // otherwise, create a rect from the circle's dimensions
             const size = oldShape.radius() * oldShape.scaleX() * 2;
             baseConfig.width = size;
             baseConfig.height = size;
-             // also copy over the image from the circle
             baseConfig.fillPatternImage = oldShape.fillPatternImage();
         }
         newShape = new Konva.Rect(baseConfig);
