@@ -11,13 +11,12 @@
         .controls { padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); width: 300px; height: fit-content; }
         .control-group { margin-bottom: 15px; }
         .control-group label, .control-group h3 { font-weight: 600; display: block; margin-bottom: 12px; color: #333; font-size: 1em; }
-        .control-group button, .control-group input[type=file], .control-group select { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; }
-        .control-group button { background-color: #6366F1; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
+        .control-group button, .control-group input, .control-group select { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc; }
+        .control-group button { background-color: #6366F1; color: white; border: none; cursor: pointer; transition: background-color 0.2s; }
         .control-group button:hover { background-color: #4f46e5; }
         .control-group button:disabled { background-color: #c7d2fe; cursor: not-allowed; }
         .remove-bg-btn { background-color: #EF4444 !important; font-size: 0.8em; padding: 4px; margin-top: -5px; }
-        #export-json { background-color: #10B981; }
-        #export-json:hover { background-color: #059669; }
+        #save-template-btn { background-color: #10B981; } #save-template-btn:hover { background-color: #059669; }
         .history-buttons { display: flex; gap: 10px; }
         textarea { width: 100%; height: 150px; font-family: monospace; font-size: 12px; }
         .canvases { display: flex; gap: 30px; flex-wrap: wrap; }
@@ -29,29 +28,40 @@
         .radio-group label, .checkbox-group label { display: inline-flex; align-items: center; margin-right: 15px; cursor: pointer; font-weight: normal; }
         #properties-panel { border-top: 1px solid #eee; padding-top: 15px; }
         .opacity-control, .font-size-control { display: flex; align-items: center; gap: 10px; }
-        .opacity-control input[type=range] { flex-grow: 1; }
-        .opacity-control input[type=number] { width: 60px; }
-        .font-size-control input[type=number] { flex-grow: 1; }
-        .font-size-control button { width: 40px; padding: 4px; margin: 0; }
+        .opacity-control input[type=range] { flex-grow: 1; } .opacity-control input[type=number] { width: 60px; }
+        .font-size-control input[type=number] { flex-grow: 1; } .font-size-control button { width: 40px; padding: 4px; margin: 0; }
         .ruler { position: absolute; background-color: #f8f8f8; overflow: hidden; display: none; }
         .ruler.horizontal { top: 0; left: 25px; height: 25px; border-bottom: 1px solid #ccc; }
         .ruler.vertical { top: 25px; left: 0; width: 25px; border-right: 1px solid #ccc; }
+        #page-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center; font-size: 1.2em; font-weight: 600; color: var(--dark-gray); }
     </style>
 </head>
 <body>
+    <div id="page-loader">Loading Editor...</div>
     <div class="editor-wrapper">
         <div class="controls">
+            <a href="/manage-card-templates.html" style="text-decoration: none; display: block; margin-bottom: 15px; text-align: center; font-weight: 600; color: #4f46e5;">&laquo; Back to All Templates</a>
             <div class="control-group">
+                <button id="save-template-btn">💾 Save Template</button>
+            </div>
+             <div class="control-group">
                 <h3>History</h3>
                 <div class="history-buttons"><button id="undo-btn">Undo</button><button id="redo-btn">Redo</button></div>
-                <small><i>Tip: Press 'Delete' key to remove item.</i></small>
+            </div>
+            <hr>
+            <div class="control-group">
+                <h3>Template Details</h3>
+                <label for="template-name">Template Name</label>
+                <input type="text" id="template-name" required>
+                <label for="company-name">Company Name</label>
+                <input type="text" id="company-name">
             </div>
             <hr>
             <div class="control-group">
                 <h3>View Options</h3>
                 <div class="checkbox-group">
-                    <label><input type="checkbox" id="show-rulers"> Show Rulers</label>
-                    <label><input type="checkbox" id="show-hole-mark"> Show Hole Mark</label>
+                    <label><input type="checkbox" id="show-rulers"> Rulers</label>
+                    <label><input type="checkbox" id="show-hole-mark"> Hole Mark</label>
                 </div>
             </div>
             <hr>
@@ -84,12 +94,6 @@
                 <button id="add-qr">Add QR Code</button>
             </div>
             <div id="properties-panel" class="control-group" style="display: none;"></div>
-            <hr>
-            <div class="control-group">
-                <label>Export Layout</label>
-                <button id="export-json">Export Layout as JSON</button>
-                <textarea id="json-output" readonly placeholder="JSON output will appear here..."></textarea>
-            </div>
         </div>
         <div class="canvases">
             <div class="canvas-container-wrapper" id="front-container">
