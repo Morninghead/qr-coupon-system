@@ -410,6 +410,3 @@ function exportJSON() {
 
 // --- Run Application ---
 initialize();
-</script>
-</body>
-</html>
