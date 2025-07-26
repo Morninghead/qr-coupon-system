@@ -2,18 +2,16 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Card Template Editor with Konva.js</title>
+    <title>Advanced Card Template Editor</title>
     <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"></script>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0; padding: 20px; background-color: #f0f2f5; display: flex; gap: 30px; flex-wrap: wrap;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; display: flex; gap: 30px; flex-wrap: wrap; }
         .editor-wrapper { display: flex; gap: 30px; width: 100%; }
         .controls { padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); width: 300px; height: fit-content; }
-        .control-group { margin-bottom: 20px; }
-        .control-group label, .control-group h3 { font-weight: 600; display: block; margin-bottom: 12px; color: #333; }
-        .control-group button, .control-group input { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; }
+        .control-group { margin-bottom: 15px; }
+        .control-group label, .control-group h3 { font-weight: 600; display: block; margin-bottom: 12px; color: #333; font-size: 1em; }
+        .control-group button, .control-group input[type=file], .control-group select { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; }
         .control-group button { background-color: #6366F1; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
         .control-group button:hover { background-color: #4f46e5; }
         .control-group button:disabled { background-color: #c7d2fe; cursor: not-allowed; }
@@ -21,28 +19,42 @@
         #export-json:hover { background-color: #059669; }
         .history-buttons { display: flex; gap: 10px; }
         textarea { width: 100%; height: 150px; font-family: monospace; font-size: 12px; }
-        .canvases { display: flex; gap: 30px; }
+        .canvases { display: flex; gap: 30px; flex-wrap: wrap; }
+        .stage-wrapper { position: relative; }
         .canvas-container { padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .canvas-container.active { box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5), 0 0 0 2px #6366F1; }
         .canvas-container h2 { margin-top: 0; font-size: 1.2em; color: #444; text-align: center; }
-        #stage-container-front, #stage-container-back { border: 1px dashed #ccc; background-color: #fafafa; }
-        .radio-group label { display: inline-flex; align-items: center; margin-right: 15px; cursor: pointer; }
+        .konvajs-content { border: 1px dashed #ccc; background-color: #fafafa; }
+        .radio-group label, .checkbox-group label { display: inline-flex; align-items: center; margin-right: 15px; cursor: pointer; font-weight: normal; }
         #properties-panel { border-top: 1px solid #eee; padding-top: 15px; }
-        .opacity-control { display: flex; align-items: center; gap: 10px; }
+        .opacity-control, .font-size-control { display: flex; align-items: center; gap: 10px; }
         .opacity-control input[type=range] { flex-grow: 1; }
         .opacity-control input[type=number] { width: 60px; }
+        .font-size-control input[type=number] { flex-grow: 1; }
+        .font-size-control button { width: 40px; padding: 4px; margin: 0; }
+        .ruler { position: absolute; background-color: #fdfdfd; overflow: hidden; }
+        .ruler.horizontal { top: -25px; left: 0; height: 25px; }
+        .ruler.vertical { top: 0; left: -25px; width: 25px; }
     </style>
 </head>
 <body>
-
     <div class="editor-wrapper">
         <div class="controls">
-             <div class="control-group">
+            <div class="control-group">
                 <h3>History</h3>
                 <div class="history-buttons">
                     <button id="undo-btn">Undo</button>
                     <button id="redo-btn">Redo</button>
                 </div>
-                <small><i>Tip: Press 'Delete' key to remove selected item.</i></small>
+                <small><i>Tip: Press 'Delete' to remove item.</i></small>
+            </div>
+            <hr>
+            <div class="control-group">
+                <h3>View Options</h3>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" id="show-rulers" checked> Show Rulers</label>
+                    <label><input type="checkbox" id="show-hole-mark"> Show Hole Mark</label>
+                </div>
             </div>
             <hr>
             <div class="control-group">
@@ -54,40 +66,30 @@
             </div>
             <hr>
             <div class="control-group">
-                <label for="bg-front-upload">Upload Front Background</label>
+                <label for="bg-front-upload">Front Background</label>
                 <input type="file" id="bg-front-upload" accept="image/*">
                 <div class="opacity-control">
                     <input type="range" id="bg-opacity-slider" min="0" max="1" step="0.01" value="1">
                     <input type="number" id="bg-opacity-input" min="0" max="100" value="100"> %
                 </div>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" id="lock-background"> Lock Background</label>
+                </div>
             </div>
             <div class="control-group">
-                <label for="bg-back-upload">Upload Back Background</label>
+                <label for="bg-back-upload">Back Background</label>
                 <input type="file" id="bg-back-upload" accept="image/*">
             </div>
             <hr>
             <div class="control-group">
-                <label>Add Elements (to Front)</label>
+                <label>Add Elements (to Active Card)</label>
                 <button id="add-photo">Add Employee Photo</button>
                 <button id="add-name">Add Employee Name</button>
                 <button id="add-id">Add Employee ID</button>
                 <button id="add-logo">Add Company Logo</button>
                 <button id="add-qr">Add QR Code</button>
             </div>
-            <div id="properties-panel" class="control-group" style="display: none;">
-                <h3 id="properties-title">Element Properties</h3>
-                <div id="photo-shape-options" style="display: none;">
-                    <label>Photo Shape</label>
-                    <div class="radio-group">
-                        <label><input type="radio" name="photoShape" value="circle" checked> Circle</label>
-                        <label><input type="radio" name="photoShape" value="rect"> Rectangle</label>
-                    </div>
-                </div>
-                <div id="image-upload-option" style="display: none;">
-                    <label id="image-upload-label" for="element-image-upload">Upload Image</label>
-                    <input type="file" id="element-image-upload" accept="image/*">
-                </div>
-            </div>
+            <div id="properties-panel" class="control-group" style="display: none;"></div>
             <hr>
             <div class="control-group">
                 <label>Export Layout</label>
@@ -95,301 +97,522 @@
                 <textarea id="json-output" readonly placeholder="JSON output will appear here..."></textarea>
             </div>
         </div>
-
         <div class="canvases">
-            <div class="canvas-container">
-                <h2>Front</h2>
-                <div id="stage-container-front"></div>
+            <div class="stage-wrapper">
+                <canvas id="ruler-vertical" class="ruler vertical"></canvas>
+                <canvas id="ruler-horizontal" class="ruler horizontal"></canvas>
+                <div class="canvas-container active" id="front-container">
+                    <h2>Front</h2>
+                    <div id="stage-container-front"></div>
+                </div>
             </div>
-            <div class="canvas-container">
-                <h2>Back</h2>
-                <div id="stage-container-back"></div>
+            <div class="stage-wrapper">
+                 <div class="canvas-container" id="back-container">
+                    <h2>Back</h2>
+                    <div id="stage-container-back"></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // --- 1. Constants and Initial Variables ---
-        const STANDARD_RATIO = 85.6 / 54.0;
-        const LANDSCAPE_WIDTH = 800;
-        const LANDSCAPE_HEIGHT = LANDSCAPE_WIDTH / STANDARD_RATIO;
-        const PORTRAIT_WIDTH = 500;
-        const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
-        const HISTORY_LIMIT = 11;
-        const SNAP_DISTANCE = 10;
+<script>
+// --- 1. Constants & Initial Variables ---
+const STANDARD_RATIO = 85.6 / 54.0;
+const LANDSCAPE_WIDTH = 600;
+const LANDSCAPE_HEIGHT = LANDSCAPE_WIDTH / STANDARD_RATIO;
+const PORTRAIT_WIDTH = 400;
+const PORTRAIT_HEIGHT = PORTRAIT_WIDTH * STANDARD_RATIO;
+const HISTORY_LIMIT = 11;
+const SNAP_DISTANCE = 10;
+const FONT_FAMILIES = [
+    'Arial', 'Calibri', 'Times New Roman', // System
+    'Sarabun', 'Kanit', 'Mitr', // Thai (Google Fonts)
+    'Noto Sans JP', // Japanese (Google Fonts)
+    'Noto Sans KR', // Korean (Google Fonts)
+    'Noto Sans SC' // Chinese Simplified (Google Fonts)
+];
 
-        // --- 2. Konva Stage and Layer Setup ---
-        function createStage(containerId, width, height) {
-            const stage = new Konva.Stage({ container: containerId, width, height });
-            stage.add(new Konva.Layer()); stage.add(new Konva.Layer()); stage.add(new Konva.Layer());
-            return stage;
-        }
+let activeStage = null;
+const stages = {};
 
-        let stageFront = createStage('stage-container-front', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
-        const stageBack = createStage('stage-container-back', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
-        
-        let bgLayerFront = stageFront.getLayers()[0];
-        let elementsLayer = stageFront.getLayers()[1];
-        let guidesLayer = stageFront.getLayers()[2];
-        const bgLayerBack = stageBack.getLayers()[0];
-        let transformer;
+// --- 2. Initial Setup ---
+function initialize() {
+    WebFont.load({
+        google: { families: ['Sarabun', 'Kanit', 'Mitr', 'Noto Sans JP', 'Noto Sans KR', 'Noto Sans SC'] }
+    });
+    
+    stages.front = setupNewStage('stage-container-front', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
+    stages.back = setupNewStage('stage-container-back', LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT);
+    
+    setActiveStage(stages.front);
+    setupRulers();
+    
+    document.getElementById('front-container').addEventListener('click', () => setActiveStage(stages.front));
+    document.getElementById('back-container').addEventListener('click', () => setActiveStage(stages.back));
 
-        function initializeTransformer() {
-            transformer = new Konva.Transformer({
-                nodes: [],
-                borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
-                // START: Lock aspect ratio logic
-                boundBoxFunc: (oldBox, newBox) => {
-                    const node = transformer.nodes()[0];
-                    if (node && (node.hasName('photo') || node.hasName('logo'))) {
-                        const ratio = oldBox.width / oldBox.height;
-                        if (newBox.height * ratio > newBox.width) {
-                            newBox.width = newBox.height * ratio;
-                        } else {
-                            newBox.height = newBox.width / ratio;
-                        }
-                    }
-                    return newBox;
-                }
-                // END: Lock aspect ratio logic
-            });
-            elementsLayer.add(transformer);
-            transformer.on('transformend', saveState);
-        }
-        initializeTransformer();
+    setupAllEventListeners();
+    saveAllHistories();
+}
 
-        // --- 3. History (Undo/Redo) Management ---
-        let history = []; let historyStep = -1;
-        const undoBtn = document.getElementById('undo-btn');
-        const redoBtn = document.getElementById('redo-btn');
-        function updateHistoryButtons() { undoBtn.disabled = historyStep <= 0; redoBtn.disabled = historyStep >= history.length - 1; }
-        function saveState() {
-            if (historyStep < history.length - 1) history = history.slice(0, historyStep + 1);
-            history.push(elementsLayer.toJSON());
-            if (history.length > HISTORY_LIMIT) history.shift();
-            historyStep = history.length - 1;
-            updateHistoryButtons();
-        }
-        function loadState(stateJSON) {
-            transformer.nodes([]);
-            elementsLayer.destroy();
-            elementsLayer = Konva.Node.create(stateJSON);
-            stageFront.add(elementsLayer);
-            initializeTransformer();
-            elementsLayer.find('Rect, Text, Circle').forEach(node => {
-                node.on('dragend', saveState);
-                node.on('dragmove', handleDragMove);
-            });
-        }
-        function undo() { if (historyStep > 0) { historyStep--; loadState(history[historyStep]); updateHistoryButtons(); } }
-        function redo() { if (historyStep < history.length - 1) { historyStep++; loadState(history[historyStep]); updateHistoryButtons(); } }
-        undoBtn.addEventListener('click', undo);
-        redoBtn.addEventListener('click', redo);
-        saveState();
+function setupNewStage(containerId, width, height) {
+    const stage = new Konva.Stage({ container: containerId, width, height });
+    stage.container().style.cursor = 'default';
+    stage.add(new Konva.Layer()); // Background Layer [0]
+    stage.add(new Konva.Layer()); // Elements Layer [1]
+    stage.add(new Konva.Layer()); // Guides Layer [2]
 
-        // --- 4. Snapping and Guide Lines ---
-        function getSnapLines() {
-            const { width, height } = stageFront.size();
-            return { vertical: [{ guide: width / 2, snap: 'center' }], horizontal: [{ guide: height / 2, snap: 'center' }]};
-        }
-        function getObjectSnappingEdges(node) {
-            const box = node.getClientRect({ relativeTo: stageFront });
-            return {
-                vertical: [{ edge: box.x, snap: 'start' }, { edge: box.x + box.width / 2, snap: 'center' }, { edge: box.x + box.width, snap: 'end' }],
-                horizontal: [{ edge: box.y, snap: 'start' }, { edge: box.y + box.height / 2, snap: 'center' }, { edge: box.y + box.height, snap: 'end' }]
-            };
-        }
-        function handleDragMove(e) {
-            const target = e.target;
-            guidesLayer.destroyChildren();
-            getSnapLines().vertical.forEach(l => getObjectSnappingEdges(target).vertical.forEach(e => {
-                if (Math.abs(e.edge - l.guide) < SNAP_DISTANCE) { target.x(target.x() - (e.edge - l.guide)); drawGuide(l.guide, 'vertical'); }
-            }));
-            getSnapLines().horizontal.forEach(l => getObjectSnappingEdges(target).horizontal.forEach(e => {
-                if (Math.abs(e.edge - l.guide) < SNAP_DISTANCE) { target.y(target.y() - (e.edge - l.guide)); drawGuide(l.guide, 'horizontal'); }
-            }));
-        }
-        function drawGuide(value, orientation) {
-            const points = orientation === 'vertical' ? [value, 0, value, stageFront.height()] : [0, value, stageFront.width(), value];
-            guidesLayer.add(new Konva.Line({ points, stroke: 'red', strokeWidth: 1, dash: [4, 6] }));
-        }
-        elementsLayer.on('dragstart', () => guidesLayer.show());
-        elementsLayer.on('dragend', () => { guidesLayer.hide(); saveState(); });
-
-        // --- 5. Background, Opacity & Orientation ---
-        function setBackground(imageSrc, layer, width, height) {
-            layer.destroyChildren();
-            const img = new Image();
-            img.onload = () => layer.add(new Konva.Image({ image: img, width, height, name: 'background', opacity: layer === bgLayerFront ? parseFloat(document.getElementById('bg-opacity-slider').value) : 1 }));
-            img.src = imageSrc;
-        }
-        const frontReader = new FileReader();
-        frontReader.onload = e => setBackground(e.target.result, bgLayerFront, stageFront.width(), stageFront.height());
-        document.getElementById('bg-front-upload').addEventListener('change', e => e.target.files[0] && frontReader.readAsDataURL(e.target.files[0]));
-        const backReader = new FileReader();
-        backReader.onload = e => setBackground(e.target.result, bgLayerBack, stageBack.width(), stageBack.height());
-        document.getElementById('bg-back-upload').addEventListener('change', e => e.target.files[0] && backReader.readAsDataURL(e.target.files[0]));
-        
-        const bgOpacitySlider = document.getElementById('bg-opacity-slider');
-        const bgOpacityInput = document.getElementById('bg-opacity-input');
-        function updateBgOpacity(value) {
-            const bg = bgLayerFront.findOne('.background');
-            if (bg) bg.opacity(value);
-            bgOpacitySlider.value = value;
-            bgOpacityInput.value = Math.round(value * 100);
-        }
-        bgOpacitySlider.addEventListener('input', e => updateBgOpacity(parseFloat(e.target.value)));
-        bgOpacityInput.addEventListener('change', e => updateBgOpacity(parseInt(e.target.value) / 100));
-
-        document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', e => {
-            const isLandscape = e.target.value === 'landscape';
-            const newSize = { width: isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH, height: isLandscape ? LANDSCAPE_HEIGHT : PORTRAIT_HEIGHT };
-            stageFront.size(newSize); stageBack.size(newSize);
-            bgLayerFront.findOne('.background')?.size(newSize);
-            bgLayerBack.findOne('.background')?.size(newSize);
-        }));
-
-        // --- 6. Element Creation, Properties Panel & Event Handling ---
-        const propertiesPanel = document.getElementById('properties-panel');
-        const photoShapeOptions = document.getElementById('photo-shape-options');
-        const imageUploadOption = document.getElementById('image-upload-option');
-
-        function updatePropertiesPanel() {
-            const selectedNodes = transformer.nodes();
-            const node = selectedNodes[0];
-            propertiesPanel.style.display = selectedNodes.length === 1 ? 'block' : 'none';
-            if (!node) return;
-
-            photoShapeOptions.style.display = node.hasName('photo') ? 'block' : 'none';
-            imageUploadOption.style.display = (node.hasName('photo') || node.hasName('logo')) ? 'block' : 'none';
-            if(node.hasName('photo')) document.getElementById('image-upload-label').innerText = 'Upload Photo';
-            if(node.hasName('logo')) document.getElementById('image-upload-label').innerText = 'Upload Logo';
-        }
-
-        // START: Resize shape on image upload to keep proportion
-        document.getElementById('element-image-upload').addEventListener('change', e => {
+    const transformer = new Konva.Transformer({
+        borderStroke: '#6366F1', anchorStroke: '#6366F1', anchorFill: 'white',
+        boundBoxFunc: (oldBox, newBox) => {
             const node = transformer.nodes()[0];
-            if (!node || !e.target.files[0]) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const img = new Image();
-                img.onload = () => {
-                    const currentWidth = node.width();
-                    const ratio = img.width / img.height;
-                    const newHeight = currentWidth / ratio;
-
-                    node.size({ width: currentWidth, height: newHeight });
-
-                    node.fill(null);
-                    node.fillPatternImage(img);
-                    node.fillPatternRepeat('no-repeat');
-                    node.fillPatternScale({ x: currentWidth / img.width, y: newHeight / img.height });
-
-                    saveState();
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(e.target.files[0]);
-            e.target.value = '';
-        });
-        // END: Resize shape on image upload
-
-        document.querySelectorAll('input[name="photoShape"]').forEach(radio => radio.addEventListener('change', e => {
-            const oldShape = transformer.nodes()[0];
-            if (!oldShape || !oldShape.hasName('photo')) return;
-
-            const isCircle = e.target.value === 'circle';
-            const newShapeConfig = {
-                x: oldShape.x(), y: oldShape.y(), width: oldShape.width(), height: oldShape.height(),
-                scaleX: oldShape.scaleX(), scaleY: oldShape.scaleY(), rotation: oldShape.rotation(),
-                draggable: true, name: 'photo',
-                fillPatternImage: oldShape.fillPatternImage(), fillPatternRepeat: 'no-repeat',
-                fill: oldShape.fillPatternImage() ? null : '#e0e0e0',
-                stroke: '#bdbdbd', strokeWidth: 2,
-            };
-
-            const newShape = isCircle ? new Konva.Circle(newShapeConfig) : new Konva.Rect(newShapeConfig);
-            if (isCircle) newShape.radius(oldShape.width() / 2);
-
-            oldShape.destroy();
-            elementsLayer.add(newShape);
-            newShape.on('dragmove', handleDragMove);
-            transformer.nodes([newShape]);
-            saveState();
-        }));
-
-        function addElement(type) {
-            let element;
-            const commonProps = { x: 50, y: 50, draggable: true, name: type };
-            switch(type) {
-                case 'photo': element = new Konva.Circle({ ...commonProps, radius: 75, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, name: 'photo' }); break;
-                case 'name': element = new Konva.Text({ ...commonProps, text: 'สมชาย ใจดี', fontSize: 32, fontFamily: 'sans-serif', fill: 'black', name: 'employee_name' }); break;
-                case 'id': element = new Konva.Text({ ...commonProps, text: 'ID: 12345', fontSize: 24, fontFamily: 'sans-serif', fill: '#424242', name: 'employee_id' }); break;
-                case 'logo': element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' }); break;
-                case 'qr': element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', stroke: 'black', strokeWidth: 2, name: 'qr_code' }); break;
+            if (node && (node.hasName('photo') || node.hasName('logo'))) {
+                const ratio = oldBox.width / oldBox.height;
+                newBox.width = Math.max(20, newBox.width); // min width 20px
+                newBox.height = newBox.width / ratio;
             }
-            if (element) {
-                element.on('dragmove', handleDragMove);
-                elementsLayer.add(element);
-                transformer.nodes([element]);
-                saveState();
-                updatePropertiesPanel();
-            }
+            return newBox;
         }
-        
-        ['photo', 'name', 'id', 'logo', 'qr'].forEach(type => document.getElementById(`add-${type}`).addEventListener('click', () => addElement(type)));
+    });
+    
+    stage.getLayers()[1].add(transformer);
+    stage.history = [];
+    stage.historyStep = -1;
+    
+    transformer.on('transformend', () => saveStateFor(stage));
+    
+    return { stage, transformer };
+}
 
-        stageFront.on('click tap', e => {
-            if (e.target === stageFront || e.target.hasName('background')) {
-                transformer.nodes([]);
-            } else if (e.target.getParent() === elementsLayer && e.target !== transformer) {
-                 transformer.nodes([e.target]);
+function setActiveStage(stageInfo) {
+    if (activeStage === stageInfo) return;
+    activeStage = stageInfo;
+    document.getElementById('front-container').classList.toggle('active', activeStage === stages.front);
+    document.getElementById('back-container').classList.toggle('active', activeStage === stages.back);
+    updatePropertiesPanel();
+}
+
+// --- 3. History (Undo/Redo) Management ---
+function saveStateFor(stageInfo) {
+    let { history, historyStep } = stageInfo;
+    if (historyStep < history.length - 1) history.splice(historyStep + 1);
+    history.push(stageInfo.stage.getLayers()[1].toJSON());
+    if (history.length > HISTORY_LIMIT) history.shift();
+    stageInfo.historyStep = history.length - 1;
+    updateHistoryButtons();
+}
+
+function saveAllHistories() {
+    saveStateFor(stages.front);
+    saveStateFor(stages.back);
+}
+
+function loadStateFor(stageInfo, stateJSON) {
+    stageInfo.transformer.nodes([]);
+    stageInfo.stage.getLayers()[1].destroy();
+    const newLayer = Konva.Node.create(stateJSON);
+    stageInfo.stage.add(newLayer);
+    
+    // Add transformer back and re-attach listeners
+    newLayer.add(stageInfo.transformer);
+    newLayer.find('Rect, Text, Circle, Ellipse').forEach(node => {
+        node.on('dragend', () => saveStateFor(stageInfo));
+        node.on('dragmove', e => handleDragMove(e, stageInfo));
+    });
+}
+
+function undo() {
+    if (activeStage.historyStep > 0) {
+        activeStage.historyStep--;
+        loadStateFor(activeStage, activeStage.history[activeStage.historyStep]);
+        updateHistoryButtons();
+    }
+}
+function redo() {
+    if (activeStage.historyStep < activeStage.history.length - 1) {
+        activeStage.historyStep++;
+        loadStateFor(activeStage, activeStage.history[activeStage.historyStep]);
+        updateHistoryButtons();
+    }
+}
+function updateHistoryButtons() {
+    undoBtn.disabled = activeStage.historyStep <= 0;
+    redoBtn.disabled = activeStage.historyStep >= activeStage.history.length - 1;
+}
+
+// --- 4. Rulers & Guides ---
+const rulerH = document.getElementById('ruler-horizontal');
+const rulerV = document.getElementById('ruler-vertical');
+const rulerCtxH = rulerH.getContext('2d');
+const rulerCtxV = rulerV.getContext('2d');
+
+function setupRulers() {
+    const stage = stages.front.stage;
+    rulerH.width = stage.width();
+    rulerH.height = 25;
+    rulerV.width = 25;
+    rulerV.height = stage.height();
+    drawRulers();
+}
+
+function drawRulers() {
+    const stage = stages.front.stage;
+    const { width, height } = stage.size();
+    
+    rulerH.width = width;
+    rulerV.height = height;
+    rulerCtxH.clearRect(0, 0, rulerH.width, rulerH.height);
+    rulerCtxV.clearRect(0, 0, rulerV.width, rulerV.height);
+
+    rulerCtxH.strokeStyle = rulerCtxV.strokeStyle = '#ccc';
+    rulerCtxH.fillStyle = rulerCtxV.fillStyle = '#666';
+    rulerCtxH.font = rulerCtxV.font = '10px sans-serif';
+
+    // Horizontal Ruler
+    for (let i = 0; i <= width; i += 10) {
+        const tickHeight = (i % 50 === 0) ? 10 : 5;
+        rulerCtxH.beginPath();
+        rulerCtxH.moveTo(i, 25);
+        rulerCtxH.lineTo(i, 25 - tickHeight);
+        rulerCtxH.stroke();
+        if (i % 50 === 0 && i > 0) {
+            rulerCtxH.fillText(i, i + 2, 12);
+        }
+    }
+    // Vertical Ruler
+    for (let i = 0; i <= height; i += 10) {
+        const tickWidth = (i % 50 === 0) ? 10 : 5;
+        rulerCtxV.beginPath();
+        rulerCtxV.moveTo(25, i);
+        rulerCtxV.lineTo(25 - tickWidth, i);
+        rulerCtxV.stroke();
+        if (i % 50 === 0 && i > 0) {
+            rulerCtxV.save();
+            rulerCtxV.translate(12, i + 2);
+            rulerCtxV.rotate(-Math.PI / 2);
+            rulerCtxV.fillText(i, 0, 0);
+            rulerCtxV.restore();
+        }
+    }
+}
+
+// --- 5. Snapping Logic ---
+function getSnapLines(stageInfo) {
+    const { width, height } = stageInfo.stage.size();
+    const lines = {
+        vertical: [ { guide: width / 2, snap: 'center' } ],
+        horizontal: [ { guide: height / 2, snap: 'center' } ]
+    };
+    stageInfo.stage.getLayers()[1].children.forEach(node => {
+        if (node === stageInfo.transformer || !node.isVisible() || transformer.nodes().includes(node)) return;
+        const box = node.getClientRect({ relativeTo: stageInfo.stage });
+        lines.vertical.push({ guide: box.x, snap: 'start' }, { guide: box.x + box.width, snap: 'end' });
+        lines.horizontal.push({ guide: box.y, snap: 'start' }, { guide: box.y + box.height, snap: 'end' });
+    });
+    return lines;
+}
+function getObjectSnappingEdges(node, stageInfo) {
+    const box = node.getClientRect({ relativeTo: stageInfo.stage });
+    return {
+        vertical: [{ edge: box.x, snap: 'start' }, { edge: box.x + box.width / 2, snap: 'center' }, { edge: box.x + box.width, snap: 'end' }],
+        horizontal: [{ edge: box.y, snap: 'start' }, { edge: box.y + box.height / 2, snap: 'center' }, { edge: box.y + box.height, snap: 'end' }]
+    };
+}
+function handleDragMove(e, stageInfo) {
+    const target = e.target;
+    const guidesLayer = stageInfo.stage.getLayers()[2];
+    guidesLayer.destroyChildren();
+
+    const lines = getSnapLines(stageInfo);
+    const edges = getObjectSnappingEdges(target, stageInfo);
+    
+    lines.vertical.forEach(l => edges.vertical.forEach(e => {
+        if (Math.abs(e.edge - l.guide) < SNAP_DISTANCE) {
+            target.x(target.x() - (e.edge - l.guide));
+            drawGuide(l.guide, 'vertical', stageInfo);
+        }
+    }));
+    lines.horizontal.forEach(l => edges.horizontal.forEach(e => {
+        if (Math.abs(e.edge - l.guide) < SNAP_DISTANCE) {
+            target.y(target.y() - (e.edge - l.guide));
+            drawGuide(l.guide, 'horizontal', stageInfo);
+        }
+    }));
+}
+function drawGuide(value, orientation, stageInfo) {
+    const stage = stageInfo.stage;
+    const points = orientation === 'vertical' ? [value, 0, value, stage.height()] : [0, value, stage.width(), value];
+    stage.getLayers()[2].add(new Konva.Line({ points, stroke: 'rgba(255, 0, 0, 0.6)', strokeWidth: 1, dash: [4, 6] }));
+}
+
+// --- 6. Element & Property Management ---
+const propertiesPanel = document.getElementById('properties-panel');
+function addElement(type) {
+    let element;
+    const {stage, transformer} = activeStage;
+    const commonProps = { x: 50, y: 50, draggable: true, name: type };
+    switch(type) {
+        case 'photo': element = new Konva.Circle({ ...commonProps, radius: 75, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 2, name: 'photo' }); break;
+        case 'name': element = new Konva.Text({ ...commonProps, text: 'Employee Name', fontSize: 32, fontFamily: 'Sarabun', fill: 'black', name: 'employee_name' }); break;
+        case 'id': element = new Konva.Text({ ...commonProps, text: '12345', fontSize: 24, fontFamily: 'Sarabun', fill: '#424242', name: 'employee_id' }); break;
+        case 'logo': element = new Konva.Rect({ ...commonProps, width: 100, height: 50, fill: '#e0e0e0', stroke: '#bdbdbd', strokeWidth: 1, name: 'logo' }); break;
+        case 'qr': element = new Konva.Rect({ ...commonProps, width: 120, height: 120, fill: '#e0e0e0', name: 'qr_code' }); break;
+    }
+    if (element) {
+        element.on('dragmove', e => handleDragMove(e, activeStage));
+        stage.getLayers()[1].add(element);
+        transformer.nodes([element]);
+        saveStateFor(activeStage);
+        updatePropertiesPanel();
+    }
+}
+function updatePropertiesPanel() {
+    const selectedNodes = activeStage.transformer.nodes();
+    const node = selectedNodes[0];
+    propertiesPanel.style.display = 'none';
+    propertiesPanel.innerHTML = '';
+    if (selectedNodes.length !== 1) return;
+    
+    propertiesPanel.style.display = 'block';
+    let content = `<h3>${node.name()} Properties</h3>`;
+    
+    if (node.hasName('photo') || node.hasName('logo')) {
+        content += `<label>Upload Image</label><input type="file" class="element-image-upload" accept="image/*">`;
+    }
+    if (node.hasName('photo')) {
+        content += `
+            <label>Photo Shape</label>
+            <div class="radio-group">
+                <label><input type="radio" name="photoShape" value="circle" ${node.getClassName() === 'Circle' ? 'checked' : ''}> Circle</label>
+                <label><input type="radio" name="photoShape" value="rect" ${node.getClassName() === 'Rect' ? 'checked' : ''}> Rectangle</label>
+            </div>`;
+    }
+    if (node.getClassName() === 'Text') {
+        content += `
+            <label>Font Family</label>
+            <select class="font-family-select">
+                ${FONT_FAMILIES.map(f => `<option value="${f}" ${node.fontFamily() === f ? 'selected' : ''}>${f}</option>`).join('')}
+            </select>
+            <label>Font Size</label>
+            <div class="font-size-control">
+                <button class="font-size-dec">-</button>
+                <input type="number" class="font-size-input" value="${node.fontSize()}">
+                <button class="font-size-inc">+</button>
+            </div>
+        `;
+    }
+    propertiesPanel.innerHTML = content;
+    attachPropertiesListeners();
+}
+function attachPropertiesListeners() {
+    const imageUpload = propertiesPanel.querySelector('.element-image-upload');
+    if (imageUpload) imageUpload.addEventListener('change', handleElementImageUpload);
+
+    propertiesPanel.querySelectorAll('input[name="photoShape"]').forEach(radio => {
+        radio.addEventListener('change', handlePhotoShapeChange);
+    });
+
+    const fontFamilySelect = propertiesPanel.querySelector('.font-family-select');
+    if (fontFamilySelect) fontFamilySelect.addEventListener('change', handleFontChange);
+
+    const fontSizeInput = propertiesPanel.querySelector('.font-size-input');
+    if (fontSizeInput) {
+        fontSizeInput.addEventListener('change', handleFontChange);
+        propertiesPanel.querySelector('.font-size-dec').addEventListener('click', () => { fontSizeInput.value = parseInt(fontSizeInput.value) - 1; handleFontChange(); });
+        propertiesPanel.querySelector('.font-size-inc').addEventListener('click', () => { fontSizeInput.value = parseInt(fontSizeInput.value) + 1; handleFontChange(); });
+    }
+}
+function handleElementImageUpload(e) {
+    const node = activeStage.transformer.nodes()[0];
+    if (!node || !e.target.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+            const currentWidth = node.width() * node.scaleX();
+            const ratio = img.width / img.height;
+            const newHeight = currentWidth / ratio;
+            
+            node.size({ width: currentWidth, height: newHeight });
+            node.scale({x: 1, y: 1}); // reset scale after resizing
+
+            node.fill(null);
+            node.fillPatternImage(img);
+            node.fillPatternRepeat('no-repeat');
+            node.fillPatternScale({ x: currentWidth / img.width, y: newHeight / img.height });
+            
+            saveStateFor(activeStage);
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(e.target.files[0]);
+}
+function handlePhotoShapeChange(e) {
+    const oldShape = activeStage.transformer.nodes()[0];
+    if (!oldShape) return;
+    const isCircle = e.target.value === 'circle';
+    const newShape = isCircle ? new Konva.Circle({}) : new Konva.Rect({});
+    
+    newShape.setAttrs({
+        ...oldShape.getAttrs(),
+        cornerRadius: isCircle ? undefined : 0,
+        radius: isCircle ? (oldShape.width() * oldShape.scaleX()) / 2 : undefined
+    });
+    if(isCircle) newShape.size({}); // let radius control size
+
+    oldShape.destroy();
+    activeStage.stage.getLayers()[1].add(newShape);
+    newShape.on('dragmove', ev => handleDragMove(ev, activeStage));
+    activeStage.transformer.nodes([newShape]);
+    saveStateFor(activeStage);
+}
+function handleFontChange() {
+    const node = activeStage.transformer.nodes()[0];
+    if (!node) return;
+    const newSize = parseInt(propertiesPanel.querySelector('.font-size-input').value);
+    const newFamily = propertiesPanel.querySelector('.font-family-select').value;
+    node.fontSize(newSize);
+    node.fontFamily(newFamily);
+    saveStateFor(activeStage);
+}
+
+// --- 7. Main Event Listeners ---
+function setupAllEventListeners() {
+    // History
+    undoBtn.addEventListener('click', undo);
+    redoBtn.addEventListener('click', redo);
+
+    // View Options
+    document.getElementById('show-rulers').addEventListener('change', e => {
+        const display = e.target.checked ? 'block' : 'none';
+        rulerH.style.display = rulerV.style.display = display;
+    });
+    document.getElementById('show-hole-mark').addEventListener('change', e => {
+        [stages.front, stages.back].forEach(s => {
+            const guideLayer = s.stage.getLayers()[2];
+            const mark = guideLayer.findOne('.hole-mark');
+            if (mark) {
+                mark.visible(e.target.checked);
+            } else if(e.target.checked) {
+                addHoleMark(s);
+            }
+        });
+    });
+
+    // Orientation
+    document.querySelectorAll('input[name="orientation"]').forEach(radio => radio.addEventListener('change', handleOrientationChange));
+
+    // Element Buttons
+    ['photo', 'name', 'id', 'logo', 'qr'].forEach(type => document.getElementById(`add-${type}`).addEventListener('click', () => addElement(type)));
+
+    // Stage Selection
+    [stages.front, stages.back].forEach(stageInfo => {
+        stageInfo.stage.on('click tap', e => {
+            setActiveStage(stageInfo);
+            if (e.target === stageInfo.stage || e.target.hasName('background')) {
+                stageInfo.transformer.nodes([]);
+            } else if (e.target.getParent() === stageInfo.stage.getLayers()[1] && e.target !== stageInfo.transformer) {
+                 stageInfo.transformer.nodes([e.target]);
             }
             updatePropertiesPanel();
         });
-
-        // --- 7. Delete and Keyboard Shortcuts ---
-        window.addEventListener('keydown', e => {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                const selectedNodes = transformer.nodes();
-                if (selectedNodes.length > 0) {
-                    e.preventDefault();
-                    selectedNodes.forEach(node => node.destroy());
-                    transformer.nodes([]);
-                    saveState();
-                    updatePropertiesPanel();
-                }
+    });
+    
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', e => {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            const selectedNodes = activeStage.transformer.nodes();
+            if (selectedNodes.length > 0) {
+                e.preventDefault();
+                selectedNodes.forEach(node => node.destroy());
+                activeStage.transformer.nodes([]);
+                saveStateFor(activeStage);
+                updatePropertiesPanel();
             }
-            if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
-            if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
-        });
+        }
+        if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+        if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
+    });
+
+    // Background Controls
+    document.getElementById('lock-background').addEventListener('change', e => {
+        const bg = bgLayerFront.findOne('.background');
+        if (bg) {
+            bg.draggable(!e.target.checked);
+            // In a real app, you might add a transformer for the bg too
+        }
+    });
+    
+    // Export
+    document.getElementById('export-json').addEventListener('click', exportJSON);
+}
+
+function handleOrientationChange(e) {
+    const isLandscape = e.target.value === 'landscape';
+    const newSize = { width: isLandscape ? LANDSCAPE_WIDTH : PORTRAIT_WIDTH, height: isLandscape ? LANDSCAPE_HEIGHT : PORTRAIT_HEIGHT };
+    
+    Object.values(stages).forEach(s => {
+        s.stage.size(newSize);
+        s.stage.findOne('.background')?.size(newSize);
+        const hole = s.stage.findOne('.hole-mark');
+        if(hole) {
+           hole.position(isLandscape ? {x: newSize.width / 2, y: 15} : {x: 15, y: newSize.height / 2});
+        }
+    });
+    drawRulers();
+}
+
+function addHoleMark(stageInfo) {
+    const { stage } = stageInfo;
+    const isLandscape = stage.width() > stage.height();
+    const hole = new Konva.Ellipse({
+        x: isLandscape ? stage.width() / 2 : 15,
+        y: isLandscape ? 15 : stage.height() / 2,
+        radiusX: isLandscape ? 14 / (85.6 / stage.width()) * 1.5 : 3 / (54 / stage.width()) * 1.5,
+        radiusY: isLandscape ? 3 / (54 / stage.height()) * 1.5 : 14 / (85.6 / stage.height()) * 1.5,
+        fill: 'rgba(0,0,0,0.3)',
+        name: 'hole-mark',
+        visible: document.getElementById('show-hole-mark').checked
+    });
+    stage.getLayers()[2].add(hole);
+}
+
+// --- 8. Export to JSON ---
+function exportJSON() {
+    const finalConfig = {};
+    ['front', 'back'].forEach(side => {
+        const stageInfo = stages[side];
+        const layoutConfig = {};
+        const { width: cardWidth, height: cardHeight } = stageInfo.stage.size();
         
-        // --- 8. Export to JSON ---
-        document.getElementById('export-json').addEventListener('click', () => {
-            const layoutConfig = {};
-            const { width: cardWidth, height: cardHeight } = stageFront.size();
-            elementsLayer.children.forEach(node => {
-                if (node === transformer || !node.name()) return;
-                const scaleX = node.scaleX(), scaleY = node.scaleY();
-                let width = node.width(), height = node.height();
-                if(node.getClassName() === 'Circle') { width = height = node.radius() * 2; }
-                
-                const config = {
-                    left: `${(node.x() / cardWidth * 100).toFixed(2)}%`,
-                    top: `${(node.y() / cardHeight * 100).toFixed(2)}%`,
-                    width: `${(width * scaleX / cardWidth * 100).toFixed(2)}%`,
-                    height: `${(height * scaleY / cardHeight * 100).toFixed(2)}%`
-                };
-                if (node.rotation()) config.transform = `rotate(${node.rotation().toFixed(2)}deg)`;
-                if (node.hasName('photo')) {
-                    config.objectFit = 'cover';
-                    if (node.getClassName() === 'Circle') config.borderRadius = '50%';
-                }
-                layoutConfig[node.name().replace(/_[0-9]+$/, '')] = config;
-            });
-            document.getElementById('json-output').value = JSON.stringify(layoutConfig, null, 2);
-            alert('Layout JSON has been generated!');
+        stageInfo.stage.getLayers()[1].children.forEach(node => {
+            if (node === stageInfo.transformer || !node.name()) return;
+            const scaleX = node.scaleX(), scaleY = node.scaleY();
+            let width = node.width(), height = node.height();
+            if(node.getClassName() === 'Circle') width = height = node.radius() * 2;
+            
+            const config = {
+                left: `${(node.x() / cardWidth * 100).toFixed(2)}%`,
+                top: `${(node.y() / cardHeight * 100).toFixed(2)}%`,
+                width: `${(width * scaleX / cardWidth * 100).toFixed(2)}%`,
+                height: `${(height * scaleY / cardHeight * 100).toFixed(2)}%`
+            };
+            if (node.rotation()) config.transform = `rotate(${node.rotation().toFixed(2)}deg)`;
+            if (node.hasName('photo')) {
+                config.objectFit = 'cover';
+                if (node.getClassName() === 'Circle') config.borderRadius = '50%';
+            }
+            layoutConfig[node.name().replace(/_[0-9]+$/, '')] = config;
         });
-    </script>
+        finalConfig[`${side}Layout`] = layoutConfig;
+    });
+
+    document.getElementById('json-output').value = JSON.stringify(finalConfig, null, 2);
+    alert('Layout JSON has been generated!');
+}
+
+// --- Run Application ---
+initialize();
+
+</script>
 </body>
 </html>
