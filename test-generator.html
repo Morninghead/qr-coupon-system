@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulk Card Generator (Test)</title>
+    <title>Bulk Card Generator (Preview)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -250,7 +250,7 @@
         async function loadEmployees() {
             if (!supabaseClient) throw new Error('Supabase client not initialized.');
             try {
-                // FIX: Changed select query to join department name
+                // This query now correctly joins the department name.
                 const { data, error } = await supabaseClient
                     .from('employees')
                     .select('id, employee_id, name, departments(name)')
@@ -289,7 +289,6 @@
                 return;
             }
             employees.forEach(employee => {
-                // FIX: Access department name from the joined 'departments' object
                 const departmentName = employee.departments?.name || 'No Department';
                 const item = document.createElement('div');
                 item.className = 'employee-item';
@@ -303,7 +302,6 @@
         }
 
         function populateDepartmentFilter() {
-            // FIX: Access department name from the joined 'departments' object
             const depts = [...new Set(employees.map(emp => emp.departments?.name).filter(Boolean))].sort();
             const select = document.getElementById('department-filter');
             select.innerHTML = '<option value="">-- Select a Department --</option>';
@@ -358,7 +356,6 @@
             checkboxes.forEach(cb => {
                 const employeeId = cb.dataset.employeeId;
                 const employee = employees.find(emp => emp.id === employeeId);
-                // FIX: Access department name from the joined 'departments' object
                 cb.checked = employee && employee.departments?.name === selectedDept;
             });
             updateSelectionSummary();
