@@ -4,7 +4,7 @@ exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS'
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -68,6 +68,8 @@ exports.handler = async (event, context) => {
     const requestBody = JSON.parse(event.body || '{}');
     const { name, template_data, description, id } = requestBody;
 
+    console.log('Saving template:', { name, id, elementsCount: template_data?.elements?.length });
+
     // Validation
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return {
@@ -125,7 +127,7 @@ exports.handler = async (event, context) => {
       // Type-specific validation
       switch (element.type) {
         case 'Text':
-          if (!element.text && element.text !== '') {
+          if (element.text === undefined || element.text === null) {
             return {
               statusCode: 400,
               headers,
@@ -135,11 +137,12 @@ exports.handler = async (event, context) => {
           break;
           
         case 'Rect':
-          if (typeof element.width !== 'number' || typeof element.height !== 'number') {
+          if (typeof element.width !== 'number' || typeof element.height !== 'number' || 
+              element.width <= 0 || element.height <= 0) {
             return {
               statusCode: 400,
               headers,
-              body: JSON.stringify({ error: `Element ${i + 1}: width and height are required for Rect elements` })
+              body: JSON.stringify({ error: `Element ${i + 1}: valid width and height are required for Rect elements` })
             };
           }
           break;
@@ -160,6 +163,8 @@ exports.handler = async (event, context) => {
     
     if (id) {
       // Update existing template
+      console.log('Updating existing template:', id);
+      
       const { data, error } = await supabase
         .from('card_templates')
         .update({
@@ -173,11 +178,14 @@ exports.handler = async (event, context) => {
         .single();
 
       if (error) {
+        console.error('Update error:', error);
         throw error;
       }
       result = data;
     } else {
       // Create new template
+      console.log('Creating new template');
+      
       const { data, error } = await supabase
         .from('card_templates')
         .insert({
@@ -192,10 +200,13 @@ exports.handler = async (event, context) => {
         .single();
 
       if (error) {
+        console.error('Insert error:', error);
         throw error;
       }
       result = data;
     }
+
+    console.log('Template saved successfully:', result.id);
 
     return {
       statusCode: 200,
