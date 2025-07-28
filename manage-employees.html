@@ -116,6 +116,7 @@
             <h2>แก้ไขข้อมูลพนักงาน</h2>
             <form id="editEmployeeForm">
                 <input type="hidden" id="edit-employee-id">
+                <input type="hidden" id="edit-employee-type">
                 <div class="modal-form-group">
                     <label for="edit-employee-id-display">รหัสพนักงาน</label>
                     <input type="text" id="edit-employee-id-display" disabled>
@@ -162,6 +163,7 @@
         const modalCancelButton = editEmployeeModal.querySelector('.modal-cancel-btn');
         const editEmployeeForm = document.getElementById('editEmployeeForm');
         const editEmployeeIdInput = document.getElementById('edit-employee-id');
+        const editEmployeeTypeInput = document.getElementById('edit-employee-type');
         const editEmployeeIdDisplay = document.getElementById('edit-employee-id-display');
         const editNameInput = document.getElementById('edit-name');
         const editDepartmentSelect = document.getElementById('edit-department');
@@ -270,7 +272,6 @@
 
             employees.forEach(emp => {
                 const row = document.createElement('tr');
-                // Use a more reliable placeholder and handle potential errors
                 const photoUrl = emp.photo_url || `https://placehold.co/40x40/EFEFEF/AAAAAA?text=No+Img`;
                 row.innerHTML = `
                     <td><img src="${photoUrl}" alt="${emp.name}" class="employee-photo"></td>
@@ -279,10 +280,10 @@
                     <td>${emp.department_name || 'N/A'}</td>
                     <td><span class="${emp.is_active ? 'status-active' : 'status-inactive'}">${emp.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>
                     <td>
-                        <button class="action-btn edit-btn" data-id="${emp.id}">แก้ไข</button>
+                        <button class="action-btn edit-btn" data-id="${emp.id}" data-type="${emp.employee_type}">แก้ไข</button>
                         ${currentUserRole === 'superuser' ? 
                             `<button class="action-btn toggle-active-btn" data-id="${emp.id}" data-current-status="${emp.is_active}">${emp.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</button>
-                             <button class="action-btn delete-btn" data-id="${emp.id}">ลบ</button>` : ''}
+                             <button class="action-btn delete-btn" data-id="${emp.id}" data-type="${emp.employee_type}">ลบ</button>` : ''}
                     </td>
                 `;
                 employeeTableBody.appendChild(row);
@@ -290,11 +291,11 @@
 
             // ## FIX: Add event listeners after the table rows are created ##
             document.querySelectorAll('.edit-btn').forEach(button => {
-                button.addEventListener('click', (e) => openEditModal(e.target.dataset.id));
+                button.addEventListener('click', (e) => openEditModal(e.target.dataset.id, e.target.dataset.type));
             });
 
             document.querySelectorAll('.delete-btn').forEach(button => {
-                button.addEventListener('click', (e) => handleDeleteEmployee(e.target.dataset.id));
+                button.addEventListener('click', (e) => handleDeleteEmployee(e.target.dataset.id, e.target.dataset.type));
             });
 
             document.querySelectorAll('.toggle-active-btn').forEach(button => {
@@ -354,7 +355,7 @@
             }
         }
         
-        async function openEditModal(id) {
+        async function openEditModal(id, type) {
             const employee = currentEmployeeData.find(e => e.id === id);
             if (!employee) {
                 showMessage('ไม่พบข้อมูลพนักงาน', 'error');
@@ -362,6 +363,7 @@
             }
             
             editEmployeeIdInput.value = employee.id;
+            editEmployeeTypeInput.value = type;
             editEmployeeIdDisplay.value = employee.employee_id;
             editNameInput.value = employee.name;
             editDepartmentSelect.value = employee.department_id;
@@ -372,11 +374,12 @@
         async function handleEditFormSubmit(event) {
             event.preventDefault();
             const id = editEmployeeIdInput.value;
+            const type = editEmployeeTypeInput.value; // Get the type from the hidden input
             const name = editNameInput.value.trim();
             const department_id = editDepartmentSelect.value;
             
-            if (!name || !department_id) {
-                return alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+            if (!name) {
+                return alert('กรุณากรอกชื่อ-สกุล');
             }
             
             const saveBtn = editEmployeeForm.querySelector('.modal-save-btn');
@@ -387,7 +390,8 @@
                 const response = await fetch(`${baseUrl}/.netlify/functions/update-employees`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-                    body: JSON.stringify({ id, name, department_id })
+                    // FIX: Include the 'type' field in the body
+                    body: JSON.stringify({ id, type, name, department_id })
                 });
 
                 if (!response.ok) throw new Error((await response.json()).message || 'Failed to update.');
@@ -402,10 +406,11 @@
             }
         }
 
-        async function handleDeleteEmployee(id) {
+        async function handleDeleteEmployee(id, type) {
             const employee = currentEmployeeData.find(e => e.id === id);
             if (!employee) return;
             
+            // FIX: Improved confirmation message
             if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบพนักงานคนนี้?\n\nรหัส: ${employee.employee_id}\nชื่อ: ${employee.name}`)) {
                 return;
             }
@@ -415,7 +420,7 @@
                 const response = await fetch(`${baseUrl}/.netlify/functions/delete-employee`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-                    body: JSON.stringify({ id })
+                    body: JSON.stringify({ id, type }) // Send type along with ID
                 });
 
                 if (!response.ok) throw new Error((await response.json()).message || 'Failed to delete.');
@@ -441,7 +446,7 @@
                 const response = await fetch(`${baseUrl}/.netlify/functions/update-employees`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-                    body: JSON.stringify({ id, is_active: newStatus })
+                    body: JSON.stringify({ id, type: 'regular', is_active: newStatus })
                 });
 
                 if (!response.ok) throw new Error((await response.json()).message || 'Failed to update status.');
