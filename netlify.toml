@@ -1,20 +1,10 @@
-# netlify.toml
+# netlify.toml (Simplified for testing)
 
 [build]
   publish = "."
   functions = "netlify/functions"
 
-[build.environment]
-  NODE_VERSION = "20"
-
-# General settings for all functions
-[functions]
-  node_bundler = "esbuild"
-
-# FIX: Specific settings ONLY for the generate-bulk-cards function
+# Specific settings ONLY for the generate-bulk-cards function
 [functions."generate-bulk-cards"]
-  # Tell Netlify to include the chromium binary files ONLY for this function
+  # We still need to tell Netlify to include the browser files.
   included_files = ["node_modules/@sparticuz/chromium/bin/**"]
-
-[images]
-  build_image_selection = "jammy"
