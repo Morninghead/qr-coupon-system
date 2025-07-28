@@ -249,7 +249,7 @@
                 if (!response.ok) throw new Error((await response.json()).message || 'Failed to fetch data.');
 
                 const data = await response.json();
-                currentEmployeeData = data.employees; // Store current page's data
+                currentEmployeeData = data.employees;
                 renderEmployeeTable(data.employees);
                 renderPagination(data.currentPage, data.totalPages);
                 showMessage('โหลดข้อมูลพนักงานสำเร็จ', 'success');
@@ -270,7 +270,8 @@
 
             employees.forEach(emp => {
                 const row = document.createElement('tr');
-                const photoUrl = emp.photo_url || `https://via.placeholder.com/40`;
+                // Use a more reliable placeholder and handle potential errors
+                const photoUrl = emp.photo_url || `https://placehold.co/40x40/EFEFEF/AAAAAA?text=No+Img`;
                 row.innerHTML = `
                     <td><img src="${photoUrl}" alt="${emp.name}" class="employee-photo"></td>
                     <td>${emp.employee_id}</td>
@@ -287,7 +288,7 @@
                 employeeTableBody.appendChild(row);
             });
 
-            // ## FIX: Add event listeners for the new buttons ##
+            // ## FIX: Add event listeners after the table rows are created ##
             document.querySelectorAll('.edit-btn').forEach(button => {
                 button.addEventListener('click', (e) => openEditModal(e.target.dataset.id));
             });
