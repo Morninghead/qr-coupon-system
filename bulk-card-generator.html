@@ -3,211 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulk Card Generator - Employee Card System</title>
-    <link rel="stylesheet" href="/styles.css">
+    <title>Bulk Card Generator</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <style>
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
+        :root {
+            --primary-color: #6366F1;
+            --secondary-color: #10B981;
+            --light-gray: #f0f2f5;
+            --text-color: #333;
+            --border-color: #e0e0e0;
         }
-        
-        .form-group {
-            margin-bottom: 20px;
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: var(--light-gray); 
         }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
         }
-        
-        .form-group select,
-        .form-group input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
+        .section { 
+            margin-bottom: 30px; 
+            padding: 20px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
         }
-        
-        .form-row {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 20px;
+        .section h2 { 
+            margin-top: 0; 
+            color: var(--text-color); 
         }
-        
-        .form-row .form-group {
-            flex: 1;
+        select, input, button { 
+            padding: 10px; 
+            margin: 5px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-size: 1em;
         }
-        
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 20px;
+        button { 
+            background-color: var(--primary-color); 
+            color: white; 
+            cursor: pointer; 
+            border: none; 
+            transition: background-color 0.2s;
         }
-        
-        .checkbox-group input[type="checkbox"] {
-            width: auto;
+        button:hover { 
+            background-color: #4f46e5; 
         }
-        
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 30px;
+        button:disabled { 
+            background-color: #c7d2fe; 
+            cursor: not-allowed; 
         }
-        
-        .btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
+        .employee-list { 
+            max-height: 300px; 
+            overflow-y: auto; 
+            border: 1px solid #ddd; 
+            padding: 10px; 
         }
-        
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
+        .employee-item { 
+            display: flex; 
+            align-items: center; 
+            padding: 5px; 
         }
-        
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
+        .progress-bar { 
+            width: 100%; 
+            height: 20px; 
+            background-color: #f0f0f0; 
+            border-radius: 10px; 
+            overflow: hidden; 
         }
-        
-        .btn:hover {
-            opacity: 0.8;
+        .progress-fill { 
+            height: 100%; 
+            background-color: var(--secondary-color); 
+            width: 0%; 
+            transition: width 0.3s; 
         }
-        
-        .btn:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
+        .breadcrumb { 
+            margin-bottom: 20px; 
         }
-        
-        .loading {
-            display: none;
+        .breadcrumb a { 
+            color: var(--primary-color); 
+            text-decoration: none; 
+            font-weight: 600; 
+        }
+        .breadcrumb a:hover { 
+            text-decoration: underline; 
+        }
+        .loading-container {
             text-align: center;
-            margin: 20px 0;
+            padding: 40px;
         }
-        
-        .preview-section {
-            margin-top: 30px;
-            border-top: 1px solid #ddd;
-            padding-top: 20px;
+        .loading-spinner { 
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid var(--primary-color); 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin: 20px auto; 
         }
-        
-        .employee-count {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        
-        .error-message {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            display: none;
-        }
-        
-        .success-message {
-            background-color: #d4edda;
-            color: #155724;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            display: none;
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Bulk Card Generator</h1>
-        <p>สร้างบัตรพนักงานแบบกลุ่มตามเงื่อนไขที่กำหนด</p>
+        <div class="breadcrumb">
+            <a href="menu.html">&laquo; กลับสู่เมนูหลัก</a>
+        </div>
         
-        <div id="errorMessage" class="error-message"></div>
-        <div id="successMessage" class="success-message"></div>
-        
-        <form id="bulkGeneratorForm">
-            <!-- Template Selection -->
-            <div class="form-group">
-                <label for="templateSelect">เลือก Template บัตร *</label>
-                <select id="templateSelect" required>
-                    <option value="">กรุณาเลือก Template</option>
+        <h1>🎨 Bulk Card Generator</h1>
+
+        <div id="main-content">
+            <div class="section">
+                <h2>1. เลือก Template</h2>
+                <select id="template-select">
+                    <option value="">กำลังโหลด templates...</option>
                 </select>
+                <div id="template-preview" style="margin-top: 15px; display: none;">
+                    <h4>Template Preview:</h4>
+                    <div id="template-details"></div>
+                </div>
             </div>
-            
-            <!-- Filter Criteria -->
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="departmentFilter">แผนก</label>
-                    <select id="departmentFilter">
-                        <option value="all">ทุกแผนก</option>
+
+            <div class="section">
+                <h2>2. เลือกพนักงาน</h2>
+                <div style="margin-bottom: 15px;">
+                    <button id="select-all-btn">เลือก/ไม่เลือกทั้งหมด</button>
+                    <button id="select-by-dept-btn">เลือกตามแผนก</button>
+                    <select id="department-filter" style="display: none;">
+                        <option value="">เลือกแผนก...</option>
                     </select>
                 </div>
-                
-                <div class="form-group">
-                    <label for="positionFilter">ตำแหน่ง</label>
-                    <select id="positionFilter">
-                        <option value="all">ทุกตำแหน่ง</option>
-                    </select>
+                <div id="employee-list" class="employee-list">
+                    <div class="loading-container">
+                        <div class="loading-spinner"></div>
+                        <p>กำลังโหลดรายชื่อพนักงาน...</p>
+                    </div>
+                </div>
+                <div id="selection-summary" style="margin-top: 10px; font-weight: bold;">
+                    เลือกแล้ว: 0 คน
                 </div>
             </div>
-            
-            <!-- Employee Type Filter -->
-            <div class="checkbox-group">
-                <input type="checkbox" id="tempEmployeeFilter">
-                <label for="tempEmployeeFilter">พนักงานชั่วคราวเท่านั้น</label>
+
+            <div class="section">
+                <h2>3. ตั้งค่าการพิมพ์</h2>
+                <label>
+                    <input type="radio" name="print-layout" value="A4-8cards" checked> 
+                    A4 (8 บัตรต่อหน้า)
+                </label><br>
+                <label>
+                    <input type="radio" name="print-layout" value="A3-16cards"> 
+                    A3 (16 บัตรต่อหน้า)
+                </label><br>
+                <label>
+                    <input type="checkbox" id="include-cropmarks" checked> 
+                    ใส่เส้นตัด (Crop marks)
+                </label><br>
+                <label>
+                    <input type="checkbox" id="double-sided"> 
+                    พิมพ์ 2 หน้า (หน้า-หลัง)
+                </label>
             </div>
-            
-            <div class="checkbox-group">
-                <input type="checkbox" id="permanentEmployeeFilter">
-                <label for="permanentEmployeeFilter">พนักงานประจำเท่านั้น</label>
-            </div>
-            
-            <!-- Date Range Filter -->
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="startDate">วันที่เริ่มต้น (วันที่สร้างพนักงาน)</label>
-                    <input type="date" id="startDate">
-                </div>
-                
-                <div class="form-group">
-                    <label for="endDate">วันที่สิ้นสุด</label>
-                    <input type="date" id="endDate">
-                </div>
-            </div>
-            
-            <!-- Preview Section -->
-            <div class="preview-section">
-                <div class="button-group">
-                    <button type="button" id="previewButton" class="btn btn-secondary">
-                        ดูตัวอย่างข้อมูลพนักงาน
-                    </button>
-                    <button type="submit" id="generateButton" class="btn btn-primary" disabled>
-                        สร้างบัตรพนักงาน
-                    </button>
-                </div>
-                
-                <div id="employeeCount" class="employee-count" style="display: none;">
-                    <strong>จำนวนพนักงานที่พบ: <span id="countText">0</span> คน</strong>
-                    <div id="employeePreview"></div>
+
+            <div class="section">
+                <h2>4. สร้างบัตร</h2>
+                <button id="generate-cards-btn" disabled>🚀 สร้างบัตรพนักงาน</button>
+                <div id="progress-section" style="display: none; margin-top: 20px;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div id="progress-text" style="text-align: center; margin-top: 10px;">กำลังประมวลผล...</div>
                 </div>
             </div>
-        </form>
-        
-        <div id="loadingIndicator" class="loading">
-            <p>กำลังสร้างบัตร กรุณารอสักครู่...</p>
+
+            <div id="download-section" class="section" style="display: none;">
+                <h2>5. ดาวน์โหลดผลลัพธ์</h2>
+                <div id="download-links"></div>
+            </div>
         </div>
     </div>
 
-    <!-- Include Supabase and other dependencies -->
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-    <script src="/bulk-card-generator.js"></script>
+    <script src="bulk-card-generator.js" defer></script>
 </body>
 </html>

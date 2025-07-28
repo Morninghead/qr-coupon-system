@@ -1,31 +1,14 @@
 {
-  "name": "employee-card-system",
+  "name": "netlify-functions",
   "version": "1.0.0",
-  "description": "Employee Card and Coupon Management System",
-  "main": "index.js",
-  "scripts": {
-    "dev": "netlify dev",
-    "build": "echo 'No build step required'",
-    "deploy": "netlify deploy --prod",
-    "test": "echo 'No tests specified'"
-  },
+  "license": "ISC",
   "dependencies": {
-    "@supabase/supabase-js": "^2.38.0",
-    "playwright-core": "^1.40.1",
-    "playwright-aws-lambda": "^0.10.0"
-  },
-  "devDependencies": {
-    "netlify-cli": "^17.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "keywords": [
-    "employee-cards",
-    "pdf-generation",
-    "netlify-functions",
-    "playwright"
-  ],
-  "author": "",
-  "license": "MIT"
+    "@sparticuz/chromium": "^126.0.0",
+    "@supabase/supabase-js": "^2.52.0",
+    "html2canvas": "^1.4.1",
+    "jsdom": "^24.1.0",
+    "jspdf": "^2.5.1",
+    "puppeteer-core": "^22.13.0",
+    "qrcode": "^1.5.3"
+  }
 }

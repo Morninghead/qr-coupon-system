@@ -1,40 +1,12 @@
+# netlify.toml
+
 [build]
   publish = "."
-  command = "echo 'No build step required'"
-  
+  functions = "netlify/functions"
+
 [build.environment]
-  NODE_VERSION = "18"
-  NPM_FLAGS = "--production=false"
-  
-[functions]
-  directory = "netlify/functions"
-  external_node_modules = ["playwright-core", "playwright-aws-lambda"]
-  
-  [functions."generate-print-pdf"]
-    included_files = [
-      "node_modules/playwright-aws-lambda/**/*",
-      "node_modules/playwright-core/**/*"
-    ]
-  
-  [functions."generate-bulk-cards"]
-    included_files = [
-      "node_modules/playwright-aws-lambda/**/*",
-      "node_modules/playwright-core/**/*"
-    ]
+  NODE_VERSION = "20"
 
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-[context.production.environment]
-  NODE_ENV = "production"
-
-[context.development.environment]
-  NODE_ENV = "development"
-  NETLIFY_DEV = "true"
+[functions."generate-bulk-cards"]
+  # This line is still needed to include the browser files
+  included_files = ["node_modules/@sparticuz/chromium/bin/**"]
