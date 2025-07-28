@@ -4,16 +4,23 @@
   
 [build.environment]
   NODE_VERSION = "18"
+  NPM_FLAGS = "--production=false"
   
 [functions]
   directory = "netlify/functions"
+  external_node_modules = ["playwright-core", "playwright-aws-lambda"]
   
-  # กำหนด included_files สำหรับ chromium binary
   [functions."generate-print-pdf"]
-    included_files = ["node_modules/@sparticuz/chromium/bin/**"]
+    included_files = [
+      "node_modules/playwright-aws-lambda/**/*",
+      "node_modules/playwright-core/**/*"
+    ]
   
   [functions."generate-bulk-cards"]
-    included_files = ["node_modules/@sparticuz/chromium/bin/**"]
+    included_files = [
+      "node_modules/playwright-aws-lambda/**/*",
+      "node_modules/playwright-core/**/*"
+    ]
 
 [[redirects]]
   from = "/api/*"
@@ -30,3 +37,4 @@
 
 [context.development.environment]
   NODE_ENV = "development"
+  NETLIFY_DEV = "true"

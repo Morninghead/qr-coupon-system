@@ -6,17 +6,26 @@
   "scripts": {
     "dev": "netlify dev",
     "build": "echo 'No build step required'",
-    "deploy": "netlify deploy --prod"
+    "deploy": "netlify deploy --prod",
+    "test": "echo 'No tests specified'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
-    "puppeteer-core": "^21.11.0",
-    "@sparticuz/chromium": "^119.0.0"
+    "playwright-core": "^1.40.1",
+    "playwright-aws-lambda": "^0.10.0"
   },
   "devDependencies": {
     "netlify-cli": "^17.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "keywords": [
+    "employee-cards",
+    "pdf-generation",
+    "netlify-functions",
+    "playwright"
+  ],
+  "author": "",
+  "license": "MIT"
 }
