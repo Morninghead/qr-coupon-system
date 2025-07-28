@@ -7,12 +7,14 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Settings for serverless functions
+# General settings for all functions
 [functions]
   node_bundler = "esbuild"
-  # FIX: Tell Netlify to include the chromium binary files in the function bundle
+
+# FIX: Specific settings ONLY for the generate-bulk-cards function
+[functions."generate-bulk-cards"]
+  # Tell Netlify to include the chromium binary files ONLY for this function
   included_files = ["node_modules/@sparticuz/chromium/bin/**"]
 
 [images]
-  # Use the "jammy" build image (Ubuntu 22.04)
   build_image_selection = "jammy"
