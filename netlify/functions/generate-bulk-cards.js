@@ -109,19 +109,16 @@ async function addCardsToPdf(doc, employees, template) {
 async function renderCardToCanvas(employee, template, cardWidthMm, cardHeightMm) {
     const dom = new JSDOM(`<!DOCTYPE html><body><div id="card-container"></div></body>`);
     
-    // **FIX**: Manually expose JSDOM globals and mock missing browser functions.
     global.window = dom.window;
     global.document = dom.window.document;
     global.Node = dom.window.Node;
     global.HTMLCanvasElement = dom.window.HTMLCanvasElement;
     global.HTMLImageElement = dom.window.HTMLImageElement;
 
-    // Create dummy functions for getComputedStyle and scrollTo to prevent html2canvas from crashing.
     const mockGetComputedStyle = () => ({ getPropertyValue: () => '' });
     global.getComputedStyle = mockGetComputedStyle;
     dom.window.getComputedStyle = mockGetComputedStyle;
     dom.window.scrollTo = () => {};
-    // **End of FIX**
 
     const document = dom.window.document;
     const cardContainer = document.getElementById('card-container');
@@ -150,13 +147,16 @@ async function generateCardHtml(employee, template) {
     const qrDataUrl = await QRCode.toDataURL(qrCodeData, { errorCorrectionLevel: 'H', width: 200 });
     let elementsHtml = '';
     
+    // **นี่คือส่วนที่แก้ไขปัญหา layout**
     let layout;
     if (template.layout_config && template.layout_config.frontLayout) {
+      // รูปแบบจาก Advanced Editor
       layout = template.layout_config.frontLayout;
     } else {
+      // รูปแบบาก Simple Editor
       layout = template.layout_config;
     }
-    layout = layout || {};
+    layout = layout || {}; // ป้องกันกรณี layout_config เป็น null
 
     for (const key in layout) {
         const style = layout[key];
