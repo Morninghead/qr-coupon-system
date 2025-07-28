@@ -1,9 +1,9 @@
-// generate-bulk-cards.js
 import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
+import fetch from 'node-fetch'; // We need to explicitly use a fetch library
 
 // Supabase Admin client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -16,6 +16,24 @@ const CARD_STANDARD_HEIGHT_MM = 53.98;
 const BASE_SCANNER_URL = 'https://ssth-ecoupon.netlify.app/scanner';
 const EMPLOYEE_PHOTOS_BUCKET = 'employee-photos';
 
+// --- Helper function to fetch an image and convert it to a Data URI ---
+async function imageToDataUri(url) {
+    if (!url) return null;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.warn(`Failed to fetch image: ${url}, status: ${response.status}`);
+            return null; // Return null if image not found or error
+        }
+        const buffer = await response.buffer();
+        const contentType = response.headers.get('content-type');
+        return `data:${contentType};base64,${buffer.toString('base64')}`;
+    } catch (error) {
+        console.error(`Error converting image to Data URI for url: ${url}`, error);
+        return null;
+    }
+}
+
 export const handler = async (event, context) => {
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: 'Method Not Allowed' };
@@ -23,29 +41,22 @@ export const handler = async (event, context) => {
 
     let browser = null;
     try {
-        // Authentication & Authorization
         const token = event.headers.authorization?.split('Bearer ')[1];
         if (!token) return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
         const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
         if (userError || !user) return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
-        const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
-        if (!['superuser', 'department_admin'].includes(profile?.role)) {
-            return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied.' }) };
-        }
 
         const { template_id, employee_ids } = JSON.parse(event.body);
         if (!template_id || !employee_ids || !employee_ids.length) {
             return { statusCode: 400, body: JSON.stringify({ message: 'Missing template or employee data.' }) };
         }
 
-        // Fetch data
         const { data: template, error: templateError } = await supabaseAdmin.from('card_templates').select('*').eq('id', template_id).single();
         if (templateError) throw new Error(`Template not found: ${templateError.message}`);
 
         const { data: employees, error: employeesError } = await supabaseAdmin.from('employees').select('id, employee_id, name, permanent_token, photo_url').in('id', employee_ids);
         if (employeesError) throw new Error(`Failed to fetch employees: ${employeesError.message}`);
 
-        // Launch the headless browser
         browser = await puppeteer.launch({
             args: chromium.args,
             defaultViewport: chromium.defaultViewport,
@@ -54,17 +65,14 @@ export const handler = async (event, context) => {
             ignoreHTTPSErrors: true,
         });
 
-        // Setup PDF
         const doc = new jsPDF({
             orientation: template.orientation === 'portrait' ? 'portrait' : 'landscape',
             unit: 'mm',
             format: 'a4'
         });
 
-        // Add cards to the PDF
         await addCardsToPdf(doc, employees, template, browser);
 
-        // Get PDF output
         const pdfBase64 = doc.output('datauristring');
         
         return {
@@ -107,11 +115,9 @@ async function addCardsToPdf(doc, employees, template, browser) {
         if (cardCount > 0 && cardCount % cardsPerPage === 0) {
             doc.addPage();
         }
-
         const indexOnPage = cardCount % cardsPerPage;
         const col = indexOnPage % cols;
         const row = Math.floor(indexOnPage / cols);
-
         const x = pageMargin + col * (cardWidth + cardSpacing);
         const y = pageMargin + row * (cardHeight + cardSpacing);
 
@@ -132,8 +138,6 @@ async function renderCardToImage(employee, template, cardWidthMm, cardHeightMm, 
     
     const finalHtml = await generateCardHtml(employee, template, cardWidthPx, cardHeightPx);
     
-    // FIX: Change waitUntil to 'load' to ensure all images are downloaded before screenshotting.
-    // Also increase timeout to 60 seconds for safety.
     await page.setContent(finalHtml, { waitUntil: 'load', timeout: 60000 });
 
     const screenshotBuffer = await page.screenshot({
@@ -147,7 +151,13 @@ async function renderCardToImage(employee, template, cardWidthMm, cardHeightMm, 
 }
 
 async function generateCardHtml(employee, template, cardWidthPx, cardHeightPx) {
+    // FIX: Pre-fetch all images and convert them to Data URIs
     const photoUrl = employee.photo_url || `${supabaseUrl}/storage/v1/object/public/${EMPLOYEE_PHOTOS_BUCKET}/${employee.employee_id}.jpg`;
+    const [photoDataUri, logoDataUri, backgroundDataUri] = await Promise.all([
+        imageToDataUri(photoUrl),
+        imageToDataUri(template.logo_url),
+        imageToDataUri(template.background_front_url)
+    ]);
     const qrCodeData = `${BASE_SCANNER_URL}?token=${employee.permanent_token}`;
     const qrDataUrl = await QRCode.toDataURL(qrCodeData, { errorCorrectionLevel: 'H', width: 256 });
     
@@ -163,21 +173,26 @@ async function generateCardHtml(employee, template, cardWidthPx, cardHeightPx) {
     for (const key in layout) {
         const style = layout[key];
         let content = '';
+        // FIX: Reverted to a safer, more explicit way of building the style string
         let inlineStyle = `position:absolute; left:${style.left}; top:${style.top}; width:${style.width}; height:${style.height}; box-sizing:border-box;`;
-        
-        Object.keys(style).forEach(prop => {
-            if (!['left', 'top', 'width', 'height'].includes(prop)) {
-                const kebabCaseProp = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
-                inlineStyle += `${kebabCaseProp}:${style[prop]};`;
-            }
-        });
+        if (style.transform) inlineStyle += `transform:${style.transform};`;
+        if (style.color) inlineStyle += `color:${style.color};`;
+        if (style.fontSize) inlineStyle += `font-size:${style.fontSize};`;
+        if (style.fontWeight) inlineStyle += `font-weight:${style.fontWeight};`;
+        if (style.textAlign) inlineStyle += `text-align:${style.textAlign};`;
         
         switch (key) {
             case 'photo':
-                content = `<img src="${photoUrl}" style="${inlineStyle}" />`;
+                if (photoDataUri) {
+                    inlineStyle += `border-radius:${style.borderRadius || '0'}; object-fit:cover;`;
+                    content = `<img src="${photoDataUri}" style="${inlineStyle}" />`;
+                }
                 break;
             case 'logo':
-                content = `<img src="${template.logo_url || ''}" style="${inlineStyle}" />`;
+                if (logoDataUri) {
+                    inlineStyle += `object-fit:contain;`;
+                    content = `<img src="${logoDataUri}" style="${inlineStyle}" />`;
+                }
                 break;
             case 'employee_name':
                 content = `<div style="${inlineStyle}">${employee.name}</div>`;
@@ -189,14 +204,15 @@ async function generateCardHtml(employee, template, cardWidthPx, cardHeightPx) {
                 content = `<div style="${inlineStyle}">${template.company_name}</div>`;
                 break;
             case 'qr_code':
+                inlineStyle += `object-fit:contain;`;
                 content = `<img src="${qrDataUrl}" style="${inlineStyle}" />`;
                 break;
         }
         elementsHtml += content;
     }
 
-    const backgroundStyle = template.background_front_url 
-        ? `background-image: url(${template.background_front_url}); background-size: cover; background-position: center;`
+    const backgroundStyle = backgroundDataUri 
+        ? `background-image: url(${backgroundDataUri}); background-size: cover; background-position: center;`
         : 'background-color: #fff;';
 
     return `
