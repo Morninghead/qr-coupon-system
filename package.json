@@ -10,9 +10,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
-    "puppeteer": "^21.0.0",
-    "puppeteer-core": "^21.0.0",
-    "chrome-aws-lambda": "^10.1.0"
+    "puppeteer-core": "^21.11.0",
+    "@sparticuz/chromium": "^119.0.0"
   },
   "devDependencies": {
     "netlify-cli": "^17.0.0"
