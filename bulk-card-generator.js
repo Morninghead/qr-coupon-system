@@ -1,5 +1,4 @@
 // --- 1. Global Variables ---
-// ตัวแปรสำหรับเก็บค่าต่างๆ ที่ใช้ร่วมกันในหน้านี้
 let supabaseClient = null;
 let templates = [];
 let employees = [];
@@ -7,16 +6,17 @@ let departments = [];
 let selectedEmployeeIds = [];
 
 // --- 2. Main Initialization ---
-// รอให้ HTML โหลดเสร็จก่อน แล้วค่อยเริ่มทำงาน
+// 🚨 จุดสำคัญ: บรรทัดนี้จะสั่งให้โค้ดรอจนกว่า HTML ทั้งหมดจะพร้อมใช้งาน
+// จากนั้นจึงจะเรียกฟังก์ชัน initializeApp เพื่อเริ่มการทำงาน
+// ซึ่งจะช่วยแก้ปัญหา "Cannot read properties of null" ได้อย่างแน่นอน
 document.addEventListener('DOMContentLoaded', initializeApp);
 
 /**
  * ฟังก์ชันหลักสำหรับเริ่มต้นการทำงานของหน้าเว็บ
- * - เชื่อมต่อ Supabase
- * - โหลดข้อมูล Template และ พนักงาน
- * - ตั้งค่า Event Listener ให้กับปุ่มและเมนูต่างๆ
  */
 async function initializeApp() {
+    // ตอนนี้โค้ดในฟังก์ชันนี้จะทำงานหลังจาก HTML พร้อมแล้วเท่านั้น
+    // ทำให้สามารถหา main-content และ loading-section เจอแน่นอน
     const mainContent = document.getElementById('main-content');
     const loadingSection = document.getElementById('loading-section');
     mainContent.style.display = 'none';
@@ -25,7 +25,6 @@ async function initializeApp() {
     try {
         await initializeSupabase();
         
-        // โหลดข้อมูล templates และ employees พร้อมกันเพื่อความรวดเร็ว
         await Promise.all([
             loadTemplates(),
             loadEmployees()
@@ -33,14 +32,12 @@ async function initializeApp() {
         
         setupEventListeners();
 
-        // เมื่อทุกอย่างพร้อมแล้ว ซ่อน loading และแสดงเนื้อหาหลัก
         mainContent.style.display = 'block';
         loadingSection.style.display = 'none';
         console.log('Bulk Card Generator initialized successfully.');
 
     } catch (error) {
         console.error('Initialization failed:', error);
-        // แสดงข้อความ Error บนหน้าจอหากการเริ่มต้นล้มเหลว
         mainContent.innerHTML = `<div style="color: red; text-align: center; padding: 40px;"><h3>⚠️ ไม่สามารถเริ่มต้นระบบได้</h3><p>${error.message}</p></div>`;
         mainContent.style.display = 'block';
         loadingSection.style.display = 'none';
@@ -62,13 +59,12 @@ async function initializeSupabase() {
             throw new Error('Invalid Supabase configuration received.');
         }
         
-        // ใช้ Supabase global object ที่ถูกโหลดในไฟล์ HTML
         supabaseClient = supabase.createClient(config.supabaseUrl, config.supabaseKey);
         console.log('Supabase client initialized.');
 
     } catch (error) {
         console.error('Failed to initialize Supabase:', error);
-        throw error; // ส่ง error ต่อเพื่อให้ initializeApp จัดการ
+        throw error;
     }
 }
 
@@ -103,7 +99,7 @@ async function loadEmployees() {
     try {
         const { data, error } = await supabaseClient
             .from('employees')
-            .select('id, employee_id, name, department_name') // ดึง department_name มาด้วย
+            .select('id, employee_id, name, department_name')
             .order('name', { ascending: true });
 
         if (error) throw error;
@@ -119,9 +115,6 @@ async function loadEmployees() {
 
 // --- 4. UI Population Functions ---
 
-/**
- * นำข้อมูล Templates ไปใส่ใน Dropdown
- */
 function populateTemplateSelect() {
     const select = document.getElementById('template-select');
     if (templates.length === 0) {
@@ -137,9 +130,6 @@ function populateTemplateSelect() {
     });
 }
 
-/**
- * นำข้อมูลพนักงานไปแสดงเป็นรายการพร้อม Checkbox
- */
 function populateEmployeeList() {
     const listEl = document.getElementById('employee-list');
     listEl.innerHTML = '';
@@ -162,12 +152,9 @@ function populateEmployeeList() {
     });
 }
 
-/**
- * สร้างตัวกรองแผนกจากข้อมูลพนักงาน
- */
 function populateDepartmentFilter() {
     const depts = [...new Set(employees.map(emp => emp.department_name).filter(Boolean))];
-    depts.sort(); // เรียงตามตัวอักษร
+    depts.sort();
     const select = document.getElementById('department-filter');
     select.innerHTML = '<option value="">-- เลือกแผนก --</option>';
     depts.forEach(dept => {
@@ -180,9 +167,6 @@ function populateDepartmentFilter() {
 
 // --- 5. Event Handling ---
 
-/**
- * ตั้งค่า Event Listener ให้กับ Element ต่างๆ บนหน้าเว็บ
- */
 function setupEventListeners() {
     document.getElementById('template-select').addEventListener('change', handleTemplateChange);
     document.getElementById('select-all-btn').addEventListener('click', selectAllEmployees);
@@ -212,9 +196,7 @@ function handleTemplateChange(e) {
 
 function selectAllEmployees() {
     const checkboxes = document.querySelectorAll('.employee-checkbox');
-    // ตรวจสอบว่ามีช่องไหนที่ยังไม่ได้เลือกหรือไม่
     const isAnyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
-    // ถ้ามีช่องที่ยังไม่ได้เลือก ให้เลือกทั้งหมด, ถ้าทุกช่องถูกเลือกแล้ว ให้เอาออกทั้งหมด
     checkboxes.forEach(cb => cb.checked = isAnyUnchecked);
     updateSelectionSummary();
 }
@@ -259,9 +241,6 @@ function updateGenerateButton() {
 
 // --- 6. Core Logic ---
 
-/**
- * รวบรวมข้อมูลทั้งหมดและส่งไปให้ Netlify Function เพื่อสร้าง PDF
- */
 async function generateCards() {
     const templateId = document.getElementById('template-select').value;
     if (!templateId) {
@@ -273,14 +252,12 @@ async function generateCards() {
         return;
     }
 
-    // รวบรวมค่า Settings
     const printSettings = {
         layout: document.querySelector('input[name="print-layout"]:checked').value,
         include_cropmarks: document.getElementById('include-cropmarks').checked,
         double_sided: document.getElementById('double-sided').checked
     };
 
-    // แสดง Progress bar
     const btn = document.getElementById('generate-cards-btn');
     const progressSection = document.getElementById('progress-section');
     const progressFill = document.getElementById('progress-fill');
@@ -342,9 +319,6 @@ async function generateCards() {
     }
 }
 
-/**
- * แสดง Link สำหรับดาวน์โหลด PDF
- */
 function showDownloadLink(result) {
     const section = document.getElementById('download-section');
     const linksEl = document.getElementById('download-links');
