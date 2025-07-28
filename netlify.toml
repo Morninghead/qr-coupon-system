@@ -1,12 +1,32 @@
-# netlify.toml
-
 [build]
   publish = "."
-  functions = "netlify/functions"
-
+  command = "echo 'No build step required'"
+  
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "18"
+  
+[functions]
+  directory = "netlify/functions"
+  
+  # กำหนด included_files สำหรับ chromium binary
+  [functions."generate-print-pdf"]
+    included_files = ["node_modules/@sparticuz/chromium/bin/**"]
+  
+  [functions."generate-bulk-cards"]
+    included_files = ["node_modules/@sparticuz/chromium/bin/**"]
 
-[functions."generate-bulk-cards"]
-  # This line is still needed to include the browser files
-  included_files = ["node_modules/@sparticuz/chromium/bin/**"]
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[context.production.environment]
+  NODE_ENV = "production"
+
+[context.development.environment]
+  NODE_ENV = "development"
