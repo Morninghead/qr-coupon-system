@@ -1,30 +1,32 @@
 // --- 1. Global Variables ---
+// These variables store data that is used across the page.
 let supabaseClient = null;
 let templates = [];
 let employees = [];
-let departments = [];
 let selectedEmployeeIds = [];
 
-// --- 2. Main Initialization ---
-// 🚨 จุดสำคัญ: บรรทัดนี้จะสั่งให้โค้ดรอจนกว่า HTML ทั้งหมดจะพร้อมใช้งาน
-// จากนั้นจึงจะเรียกฟังก์ชัน initializeApp เพื่อเริ่มการทำงาน
-// ซึ่งจะช่วยแก้ปัญหา "Cannot read properties of null" ได้อย่างแน่นอน
+// --- 2. Main Initialization Trigger ---
+// This is the key fix: It tells the browser to wait until the entire HTML document is ready
+// before running the 'initializeApp' function. This prevents errors where the script
+// tries to find HTML elements that haven't been created yet.
 document.addEventListener('DOMContentLoaded', initializeApp);
 
 /**
- * ฟังก์ชันหลักสำหรับเริ่มต้นการทำงานของหน้าเว็บ
+ * This is the main function that starts everything. It connects to Supabase,
+ * loads the necessary data, and sets up all the interactive elements on the page.
  */
 async function initializeApp() {
-    // ตอนนี้โค้ดในฟังก์ชันนี้จะทำงานหลังจาก HTML พร้อมแล้วเท่านั้น
-    // ทำให้สามารถหา main-content และ loading-section เจอแน่นอน
     const mainContent = document.getElementById('main-content');
     const loadingSection = document.getElementById('loading-section');
+    
+    // Hide the main content and show the loading spinner initially.
     mainContent.style.display = 'none';
     loadingSection.style.display = 'block';
 
     try {
         await initializeSupabase();
         
+        // Load templates and employees at the same time for faster loading.
         await Promise.all([
             loadTemplates(),
             loadEmployees()
@@ -32,13 +34,15 @@ async function initializeApp() {
         
         setupEventListeners();
 
+        // Once everything is loaded, show the main content.
         mainContent.style.display = 'block';
         loadingSection.style.display = 'none';
         console.log('Bulk Card Generator initialized successfully.');
 
     } catch (error) {
         console.error('Initialization failed:', error);
-        mainContent.innerHTML = `<div style="color: red; text-align: center; padding: 40px;"><h3>⚠️ ไม่สามารถเริ่มต้นระบบได้</h3><p>${error.message}</p></div>`;
+        // If something goes wrong, display an error message on the page.
+        mainContent.innerHTML = `<div style="color: red; text-align: center; padding: 40px;"><h3>⚠️ Could not initialize the system.</h3><p>${error.message}</p></div>`;
         mainContent.style.display = 'block';
         loadingSection.style.display = 'none';
     }
@@ -47,7 +51,7 @@ async function initializeApp() {
 // --- 3. Supabase & Data Loading Functions ---
 
 /**
- * ดึงค่า Config และเชื่อมต่อกับ Supabase
+ * Gets the configuration from a Netlify function and initializes the Supabase client.
  */
 async function initializeSupabase() {
     try {
@@ -59,17 +63,18 @@ async function initializeSupabase() {
             throw new Error('Invalid Supabase configuration received.');
         }
         
+        // Create the Supabase client using the global 'supabase' object loaded in the HTML.
         supabaseClient = supabase.createClient(config.supabaseUrl, config.supabaseKey);
         console.log('Supabase client initialized.');
 
     } catch (error) {
         console.error('Failed to initialize Supabase:', error);
-        throw error;
+        throw error; // Pass the error up to the initializeApp function to handle.
     }
 }
 
 /**
- * โหลดข้อมูล Card Templates ทั้งหมดจาก Supabase
+ * Fetches all card templates from the Supabase database.
  */
 async function loadTemplates() {
     if (!supabaseClient) throw new Error('Supabase client not initialized.');
@@ -86,12 +91,12 @@ async function loadTemplates() {
         console.log(`Loaded ${templates.length} templates.`);
     } catch (error) {
         console.error('Failed to load templates:', error);
-        document.getElementById('template-select').innerHTML = '<option value="">ไม่สามารถโหลด Templates ได้</option>';
+        document.getElementById('template-select').innerHTML = '<option value="">Error loading templates</option>';
     }
 }
 
 /**
- * โหลดข้อมูลพนักงานทั้งหมดจาก Supabase
+ * Fetches all employees from the Supabase database.
  */
 async function loadEmployees() {
     if (!supabaseClient) throw new Error('Supabase client not initialized.');
@@ -109,19 +114,22 @@ async function loadEmployees() {
         console.log(`Loaded ${employees.length} employees.`);
     } catch (error) {
         console.error('Failed to load employees:', error);
-        document.getElementById('employee-list').innerHTML = '<p style="color: red;">ไม่สามารถโหลดรายชื่อพนักงานได้</p>';
+        document.getElementById('employee-list').innerHTML = '<p style="color: red;">Could not load employee list.</p>';
     }
 }
 
 // --- 4. UI Population Functions ---
 
+/**
+ * Adds the loaded templates to the template selection dropdown menu.
+ */
 function populateTemplateSelect() {
     const select = document.getElementById('template-select');
     if (templates.length === 0) {
-        select.innerHTML = '<option value="">ไม่พบ Templates</option>';
+        select.innerHTML = '<option value="">No templates found</option>';
         return;
     }
-    select.innerHTML = '<option value="">-- กรุณาเลือก Template --</option>';
+    select.innerHTML = '<option value="">-- Select a Template --</option>';
     templates.forEach(template => {
         const option = document.createElement('option');
         option.value = template.id;
@@ -130,12 +138,15 @@ function populateTemplateSelect() {
     });
 }
 
+/**
+ * Displays the list of employees with a checkbox for each.
+ */
 function populateEmployeeList() {
     const listEl = document.getElementById('employee-list');
     listEl.innerHTML = '';
 
     if (employees.length === 0) {
-        listEl.innerHTML = '<p>ไม่พบข้อมูลพนักงาน</p>';
+        listEl.innerHTML = '<p>No employee data found.</p>';
         return;
     }
 
@@ -145,18 +156,21 @@ function populateEmployeeList() {
         item.innerHTML = `
             <input type="checkbox" id="emp-${employee.id}" data-employee-id="${employee.id}" class="employee-checkbox">
             <label for="emp-${employee.id}" style="margin-left: 8px; cursor: pointer;">
-                ${employee.name} (${employee.employee_id}) - ${employee.department_name || 'ไม่ระบุแผนก'}
+                ${employee.name} (${employee.employee_id}) - ${employee.department_name || 'No Department'}
             </label>
         `;
         listEl.appendChild(item);
     });
 }
 
+/**
+ * Creates the department filter dropdown based on the loaded employee data.
+ */
 function populateDepartmentFilter() {
     const depts = [...new Set(employees.map(emp => emp.department_name).filter(Boolean))];
     depts.sort();
     const select = document.getElementById('department-filter');
-    select.innerHTML = '<option value="">-- เลือกแผนก --</option>';
+    select.innerHTML = '<option value="">-- Select a Department --</option>';
     depts.forEach(dept => {
         const option = document.createElement('option');
         option.value = dept;
@@ -167,6 +181,9 @@ function populateDepartmentFilter() {
 
 // --- 5. Event Handling ---
 
+/**
+ * Sets up all the click and change event listeners for the page's interactive elements.
+ */
 function setupEventListeners() {
     document.getElementById('template-select').addEventListener('change', handleTemplateChange);
     document.getElementById('select-all-btn').addEventListener('click', selectAllEmployees);
@@ -176,6 +193,9 @@ function setupEventListeners() {
     document.getElementById('generate-cards-btn').addEventListener('click', generateCards);
 }
 
+/**
+ * Handles what happens when a user selects a template from the dropdown.
+ */
 function handleTemplateChange(e) {
     const templateId = e.target.value;
     const template = templates.find(t => t.id === templateId);
@@ -184,8 +204,8 @@ function handleTemplateChange(e) {
 
     if (template) {
         detailsEl.innerHTML = `
-            <p><strong>ชื่อบริษัท:</strong> ${template.company_name || 'ไม่ระบุ'}</p>
-            <p><strong>การวาง:</strong> ${template.orientation}</p>
+            <p><strong>Company:</strong> ${template.company_name || 'Not specified'}</p>
+            <p><strong>Orientation:</strong> ${template.orientation}</p>
         `;
         previewEl.style.display = 'block';
     } else {
@@ -194,6 +214,9 @@ function handleTemplateChange(e) {
     updateGenerateButton();
 }
 
+/**
+ * Toggles all employee checkboxes between selected and deselected.
+ */
 function selectAllEmployees() {
     const checkboxes = document.querySelectorAll('.employee-checkbox');
     const isAnyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
@@ -201,11 +224,17 @@ function selectAllEmployees() {
     updateSelectionSummary();
 }
 
+/**
+ * Shows or hides the department filter dropdown.
+ */
 function toggleDepartmentFilter() {
     const filter = document.getElementById('department-filter');
     filter.style.display = filter.style.display === 'none' ? 'inline-block' : 'none';
 }
 
+/**
+ * Selects all employees belonging to the chosen department.
+ */
 function selectByDepartment(e) {
     const selectedDept = e.target.value;
     if (!selectedDept) return;
@@ -219,14 +248,20 @@ function selectByDepartment(e) {
     updateSelectionSummary();
 }
 
+/**
+ * Updates the "Selected: X people" text and checks if the generate button should be enabled.
+ */
 function updateSelectionSummary() {
     const checkedBoxes = document.querySelectorAll('.employee-checkbox:checked');
     selectedEmployeeIds = Array.from(checkedBoxes).map(cb => cb.dataset.employeeId);
     
-    document.getElementById('selection-summary').textContent = `เลือกแล้ว: ${selectedEmployeeIds.length} คน`;
+    document.getElementById('selection-summary').textContent = `Selected: ${selectedEmployeeIds.length} people`;
     updateGenerateButton();
 }
 
+/**
+ * Enables or disables the "Generate Cards" button based on user selections.
+ */
 function updateGenerateButton() {
     const btn = document.getElementById('generate-cards-btn');
     const hasTemplate = !!document.getElementById('template-select').value;
@@ -234,30 +269,35 @@ function updateGenerateButton() {
     
     btn.disabled = !hasTemplate || !hasEmployees;
     btn.textContent = hasEmployees 
-        ? `🚀 สร้างบัตรพนักงาน (${selectedEmployeeIds.length} คน)` 
-        : '🚀 สร้างบัตรพนักงาน';
+        ? `🚀 Generate Cards (${selectedEmployeeIds.length})` 
+        : '🚀 Generate Cards';
 }
 
 
 // --- 6. Core Logic ---
 
+/**
+ * Gathers all selected data and sends it to the Netlify function to generate the PDF.
+ */
 async function generateCards() {
     const templateId = document.getElementById('template-select').value;
     if (!templateId) {
-        alert('กรุณาเลือก Template');
+        alert('Please select a template.');
         return;
     }
     if (selectedEmployeeIds.length === 0) {
-        alert('กรุณาเลือกพนักงานอย่างน้อย 1 คน');
+        alert('Please select at least one employee.');
         return;
     }
 
+    // Collect print settings
     const printSettings = {
         layout: document.querySelector('input[name="print-layout"]:checked').value,
         include_cropmarks: document.getElementById('include-cropmarks').checked,
         double_sided: document.getElementById('double-sided').checked
     };
 
+    // UI updates for loading state
     const btn = document.getElementById('generate-cards-btn');
     const progressSection = document.getElementById('progress-section');
     const progressFill = document.getElementById('progress-fill');
@@ -268,14 +308,14 @@ async function generateCards() {
     progressSection.style.display = 'block';
     downloadSection.style.display = 'none';
     progressFill.style.width = '0%';
-    progressText.textContent = 'กำลังเตรียมข้อมูล...';
+    progressText.textContent = 'Preparing data...';
 
     try {
         const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-        if (sessionError || !session) throw new Error('ไม่สามารถยืนยันตัวตนได้ กรุณาล็อกอินใหม่');
+        if (sessionError || !session) throw new Error('Could not get user session. Please log in again.');
 
         progressFill.style.width = '20%';
-        progressText.textContent = 'กำลังสร้างไฟล์ PDF บน Server... (ขั้นตอนนี้อาจใช้เวลาสักครู่)';
+        progressText.textContent = 'Generating PDF on the server... (this may take a moment)';
         
         const response = await fetch('/.netlify/functions/generate-bulk-cards', {
             method: 'POST',
@@ -291,24 +331,24 @@ async function generateCards() {
         });
         
         progressFill.style.width = '80%';
-        progressText.textContent = 'กำลังรับไฟล์...';
+        progressText.textContent = 'Receiving file...';
 
         const result = await response.json();
 
         if (!response.ok) {
-            throw new Error(result.message || 'เกิดข้อผิดพลาดในการสร้างไฟล์ PDF');
+            throw new Error(result.message || 'An error occurred while generating the PDF.');
         }
 
         progressFill.style.width = '100%';
-        progressText.textContent = 'สร้างไฟล์สำเร็จ!';
+        progressText.textContent = 'File created successfully!';
         
         showDownloadLink(result);
 
     } catch (error) {
         console.error('Generate cards error:', error);
-        progressText.textContent = `เกิดข้อผิดพลาด: ${error.message}`;
+        progressText.textContent = `Error: ${error.message}`;
         progressFill.style.backgroundColor = '#dc2626'; // Red
-        alert(`เกิดข้อผิดพลาด: ${error.message}`);
+        alert(`An error occurred: ${error.message}`);
     } finally {
         setTimeout(() => {
             btn.disabled = false;
@@ -319,18 +359,21 @@ async function generateCards() {
     }
 }
 
+/**
+ * Displays the download link section after the PDF is successfully generated.
+ */
 function showDownloadLink(result) {
     const section = document.getElementById('download-section');
     const linksEl = document.getElementById('download-links');
     
     linksEl.innerHTML = `
         <div style="text-align: center; padding: 20px; border: 2px dashed var(--secondary-color); border-radius: 8px;">
-            <h3>✅ สร้างไฟล์ PDF สำเร็จ!</h3>
-            <p>จำนวนบัตร: <strong>${result.cards_generated || 0}</strong> ใบ</p>
+            <h3>✅ PDF Created!</h3>
+            <p>Cards generated: <strong>${result.cards_generated || 0}</strong></p>
             <a href="${result.pdfData}" download="employee-cards.pdf" 
                style="display: inline-block; background: var(--secondary-color); color: white; padding: 15px 30px; 
                       text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px;">
-                📥 ดาวน์โหลด PDF
+                📥 Download PDF
             </a>
         </div>
     `;
