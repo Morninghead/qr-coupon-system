@@ -150,8 +150,7 @@
                         <option value="">Select Department...</option>
                     </select>
                 </div>
-                <div id="employee-list" class="employee-list">
-                    </div>
+                <div id="employee-list" class="employee-list"></div>
                 <div id="selection-summary" style="margin-top: 10px; font-weight: bold;">
                     Selected: 0 people
                 </div>
@@ -191,7 +190,6 @@
         let selectedEmployeeIds = [];
 
         // --- 2. Main Initialization Trigger ---
-        // This makes the script wait for the HTML to be fully ready.
         document.addEventListener('DOMContentLoaded', initializeApp);
 
         async function initializeApp() {
@@ -252,9 +250,10 @@
         async function loadEmployees() {
             if (!supabaseClient) throw new Error('Supabase client not initialized.');
             try {
+                // FIX: Changed select query to join department name
                 const { data, error } = await supabaseClient
                     .from('employees')
-                    .select('id, employee_id, name, department_name')
+                    .select('id, employee_id, name, departments(name)')
                     .order('name', { ascending: true });
                 if (error) throw error;
                 employees = data || [];
@@ -262,7 +261,7 @@
                 populateDepartmentFilter();
             } catch (error) {
                 console.error('Failed to load employees:', error);
-                document.getElementById('employee-list').innerHTML = '<p style="color: red;">Could not load employee list.</p>';
+                document.getElementById('employee-list').innerHTML = `<p style="color: red;">Could not load employee list: ${error.message}</p>`;
             }
         }
 
@@ -290,19 +289,22 @@
                 return;
             }
             employees.forEach(employee => {
+                // FIX: Access department name from the joined 'departments' object
+                const departmentName = employee.departments?.name || 'No Department';
                 const item = document.createElement('div');
                 item.className = 'employee-item';
                 item.innerHTML = `
                     <input type="checkbox" id="emp-${employee.id}" data-employee-id="${employee.id}" class="employee-checkbox">
                     <label for="emp-${employee.id}" style="margin-left: 8px; cursor: pointer;">
-                        ${employee.name} (${employee.employee_id}) - ${employee.department_name || 'No Department'}
+                        ${employee.name} (${employee.employee_id}) - ${departmentName}
                     </label>`;
                 listEl.appendChild(item);
             });
         }
 
         function populateDepartmentFilter() {
-            const depts = [...new Set(employees.map(emp => emp.department_name).filter(Boolean))].sort();
+            // FIX: Access department name from the joined 'departments' object
+            const depts = [...new Set(employees.map(emp => emp.departments?.name).filter(Boolean))].sort();
             const select = document.getElementById('department-filter');
             select.innerHTML = '<option value="">-- Select a Department --</option>';
             depts.forEach(dept => {
@@ -356,7 +358,8 @@
             checkboxes.forEach(cb => {
                 const employeeId = cb.dataset.employeeId;
                 const employee = employees.find(emp => emp.id === employeeId);
-                cb.checked = employee && employee.department_name === selectedDept;
+                // FIX: Access department name from the joined 'departments' object
+                cb.checked = employee && employee.departments?.name === selectedDept;
             });
             updateSelectionSummary();
         }
