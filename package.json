@@ -1,14 +1,23 @@
 {
-  "name": "netlify-functions",
+  "name": "employee-card-system",
   "version": "1.0.0",
-  "license": "ISC",
+  "description": "Employee Card and Coupon Management System",
+  "main": "index.js",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'No build step required'",
+    "deploy": "netlify deploy --prod"
+  },
   "dependencies": {
-    "@sparticuz/chromium": "^126.0.0",
-    "@supabase/supabase-js": "^2.52.0",
-    "html2canvas": "^1.4.1",
-    "jsdom": "^24.1.0",
-    "jspdf": "^2.5.1",
-    "puppeteer-core": "^22.13.0",
-    "qrcode": "^1.5.3"
+    "@supabase/supabase-js": "^2.38.0",
+    "puppeteer": "^21.0.0",
+    "puppeteer-core": "^21.0.0",
+    "chrome-aws-lambda": "^10.1.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
