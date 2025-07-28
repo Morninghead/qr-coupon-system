@@ -1,7 +1,7 @@
+// generate-bulk-cards.js
 import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
-// FIX: Import the new, modern chromium package
 import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 
@@ -45,11 +45,11 @@ export const handler = async (event, context) => {
         const { data: employees, error: employeesError } = await supabaseAdmin.from('employees').select('id, employee_id, name, permanent_token, photo_url').in('id', employee_ids);
         if (employeesError) throw new Error(`Failed to fetch employees: ${employeesError.message}`);
 
-        // FIX: Launch the browser using the new chromium package
+        // Launch the headless browser
         browser = await puppeteer.launch({
             args: chromium.args,
             defaultViewport: chromium.defaultViewport,
-            executablePath: await chromium.executablePath(), // Use executablePath() function
+            executablePath: await chromium.executablePath(),
             headless: chromium.headless,
             ignoreHTTPSErrors: true,
         });
@@ -90,7 +90,6 @@ export const handler = async (event, context) => {
     }
 };
 
-// The rest of the file (addCardsToPdf, renderCardToImage, generateCardHtml) remains the same.
 async function addCardsToPdf(doc, employees, template, browser) {
     const isLandscape = template.orientation === 'landscape';
     const cardWidth = isLandscape ? CARD_STANDARD_WIDTH_MM : CARD_STANDARD_HEIGHT_MM;
@@ -132,7 +131,10 @@ async function renderCardToImage(employee, template, cardWidthMm, cardHeightMm, 
     await page.setViewport({ width: cardWidthPx, height: cardHeightPx });
     
     const finalHtml = await generateCardHtml(employee, template, cardWidthPx, cardHeightPx);
-    await page.setContent(finalHtml, { waitUntil: 'networkidle0' });
+    
+    // FIX: Change waitUntil to 'load' to ensure all images are downloaded before screenshotting.
+    // Also increase timeout to 60 seconds for safety.
+    await page.setContent(finalHtml, { waitUntil: 'load', timeout: 60000 });
 
     const screenshotBuffer = await page.screenshot({
         type: 'jpeg',
