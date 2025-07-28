@@ -1,14 +1,22 @@
-# Netlify Build & Deploy Settings
+# netlify.toml
 
+# Base build settings
 [build]
-  # Directory to publish (root of the project)
   publish = "."
-  
-  # Directory where our serverless functions live
   functions = "netlify/functions"
 
-# Add this section to specify the build image
+# Environment settings for the build
+[build.environment]
+  # Specify a stable Node.js version
+  NODE_VERSION = "20"
+
+# Settings for serverless functions
+[functions]
+  # Use the modern 'esbuild' bundler for better performance
+  node_bundler = "esbuild"
+
+# This section is the most important part for fixing the error
 [images]
-  # Use the "jammy" build image (Ubuntu 22.04)
-  # This is the crucial fix for the missing library error
+  # Tell Netlify to use the "jammy" build image (Ubuntu 22.04)
+  # This version is compatible with the PDF generation libraries.
   build_image_selection = "jammy"
