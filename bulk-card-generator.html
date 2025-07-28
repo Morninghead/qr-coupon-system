@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulk Card Generator</title>
+    <title>Bulk Card Generator (Preview)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -117,16 +118,23 @@
 <body>
     <div class="container">
         <div class="breadcrumb">
-            <a href="menu.html">&laquo; กลับสู่เมนูหลัก</a>
+            <a href='/menu'>&laquo; Back to Menu</a>
         </div>
         
         <h1>🎨 Bulk Card Generator</h1>
 
-        <div id="main-content">
+        <div id="loading-section" style="display: block;">
+             <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <p>Initializing System...</p>
+            </div>
+        </div>
+
+        <div id="main-content" style="display: none;">
             <div class="section">
-                <h2>1. เลือก Template</h2>
+                <h2>1. Select Template</h2>
                 <select id="template-select">
-                    <option value="">กำลังโหลด templates...</option>
+                    <option value="">Loading templates...</option>
                 </select>
                 <div id="template-preview" style="margin-top: 15px; display: none;">
                     <h4>Template Preview:</h4>
@@ -135,63 +143,316 @@
             </div>
 
             <div class="section">
-                <h2>2. เลือกพนักงาน</h2>
+                <h2>2. Select Employees</h2>
                 <div style="margin-bottom: 15px;">
-                    <button id="select-all-btn">เลือก/ไม่เลือกทั้งหมด</button>
-                    <button id="select-by-dept-btn">เลือกตามแผนก</button>
+                    <button id="select-all-btn">Select/Deselect All</button>
+                    <button id="select-by-dept-btn">Select by Department</button>
                     <select id="department-filter" style="display: none;">
-                        <option value="">เลือกแผนก...</option>
+                        <option value="">Select Department...</option>
                     </select>
                 </div>
-                <div id="employee-list" class="employee-list">
-                    <div class="loading-container">
-                        <div class="loading-spinner"></div>
-                        <p>กำลังโหลดรายชื่อพนักงาน...</p>
-                    </div>
-                </div>
+                <div id="employee-list" class="employee-list"></div>
                 <div id="selection-summary" style="margin-top: 10px; font-weight: bold;">
-                    เลือกแล้ว: 0 คน
+                    Selected: 0 people
                 </div>
             </div>
 
             <div class="section">
-                <h2>3. ตั้งค่าการพิมพ์</h2>
-                <label>
-                    <input type="radio" name="print-layout" value="A4-8cards" checked> 
-                    A4 (8 บัตรต่อหน้า)
-                </label><br>
-                <label>
-                    <input type="radio" name="print-layout" value="A3-16cards"> 
-                    A3 (16 บัตรต่อหน้า)
-                </label><br>
-                <label>
-                    <input type="checkbox" id="include-cropmarks" checked> 
-                    ใส่เส้นตัด (Crop marks)
-                </label><br>
-                <label>
-                    <input type="checkbox" id="double-sided"> 
-                    พิมพ์ 2 หน้า (หน้า-หลัง)
-                </label>
+                <h2>3. Print Settings</h2>
+                <label><input type="radio" name="print-layout" value="A4-8cards" checked> A4 (8 cards per page)</label><br>
+                <label><input type="radio" name="print-layout" value="A3-16cards"> A3 (16 cards per page)</label><br>
+                <label><input type="checkbox" id="include-cropmarks" checked> Include Crop Marks</label><br>
+                <label><input type="checkbox" id="double-sided"> Double-sided printing</label>
             </div>
 
             <div class="section">
-                <h2>4. สร้างบัตร</h2>
-                <button id="generate-cards-btn" disabled>🚀 สร้างบัตรพนักงาน</button>
+                <h2>4. Generate</h2>
+                <button id="generate-cards-btn" disabled>🚀 Generate Cards</button>
                 <div id="progress-section" style="display: none; margin-top: 20px;">
                     <div class="progress-bar">
                         <div class="progress-fill" id="progress-fill"></div>
                     </div>
-                    <div id="progress-text" style="text-align: center; margin-top: 10px;">กำลังประมวลผล...</div>
+                    <div id="progress-text" style="text-align: center; margin-top: 10px;">Processing...</div>
                 </div>
             </div>
 
             <div id="download-section" class="section" style="display: none;">
-                <h2>5. ดาวน์โหลดผลลัพธ์</h2>
+                <h2>5. Download Result</h2>
                 <div id="download-links"></div>
             </div>
         </div>
     </div>
 
-    <script src="bulk-card-generator.js" defer></script>
+    <script>
+        // --- 1. Global Variables ---
+        let supabaseClient = null;
+        let templates = [];
+        let employees = [];
+        let selectedEmployeeIds = [];
+
+        // --- 2. Main Initialization Trigger ---
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+        async function initializeApp() {
+            const mainContent = document.getElementById('main-content');
+            const loadingSection = document.getElementById('loading-section');
+            
+            try {
+                await initializeSupabase();
+                await Promise.all([loadTemplates(), loadEmployees()]);
+                setupEventListeners();
+
+                mainContent.style.display = 'block';
+                loadingSection.style.display = 'none';
+                console.log('Bulk Card Generator initialized successfully.');
+
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                const errorContainer = document.getElementById('main-content') || document.body;
+                errorContainer.innerHTML = `<div style="color: red; text-align: center; padding: 40px;"><h3>⚠️ Could not initialize the system.</h3><p>${error.message}</p></div>`;
+                errorContainer.style.display = 'block';
+                loadingSection.style.display = 'none';
+            }
+        }
+
+        // --- 3. Supabase & Data Loading Functions ---
+        async function initializeSupabase() {
+            try {
+                const response = await fetch('/.netlify/functions/get-config');
+                if (!response.ok) throw new Error(`Cannot get Supabase config: ${response.statusText}`);
+                
+                const config = await response.json();
+                if (!config.supabaseUrl || !config.supabaseKey) throw new Error('Invalid Supabase configuration received.');
+                
+                supabaseClient = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+                console.log('Supabase client initialized.');
+            } catch (error) {
+                console.error('Failed to initialize Supabase:', error);
+                throw error;
+            }
+        }
+
+        async function loadTemplates() {
+            if (!supabaseClient) throw new Error('Supabase client not initialized.');
+            try {
+                const { data, error } = await supabaseClient
+                    .from('card_templates')
+                    .select('*')
+                    .order('template_name', { ascending: true });
+                if (error) throw error;
+                templates = data || [];
+                populateTemplateSelect();
+            } catch (error) {
+                console.error('Failed to load templates:', error);
+                document.getElementById('template-select').innerHTML = '<option value="">Error loading templates</option>';
+            }
+        }
+
+        async function loadEmployees() {
+            if (!supabaseClient) throw new Error('Supabase client not initialized.');
+            try {
+                // This query now correctly joins the department name.
+                const { data, error } = await supabaseClient
+                    .from('employees')
+                    .select('id, employee_id, name, departments(name)')
+                    .order('name', { ascending: true });
+                if (error) throw error;
+                employees = data || [];
+                populateEmployeeList();
+                populateDepartmentFilter();
+            } catch (error) {
+                console.error('Failed to load employees:', error);
+                document.getElementById('employee-list').innerHTML = `<p style="color: red;">Could not load employee list: ${error.message}</p>`;
+            }
+        }
+
+        // --- 4. UI Population Functions ---
+        function populateTemplateSelect() {
+            const select = document.getElementById('template-select');
+            if (templates.length === 0) {
+                select.innerHTML = '<option value="">No templates found</option>';
+                return;
+            }
+            select.innerHTML = '<option value="">-- Select a Template --</option>';
+            templates.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = `${template.template_name} (${template.company_name || 'N/A'})`;
+                select.appendChild(option);
+            });
+        }
+
+        function populateEmployeeList() {
+            const listEl = document.getElementById('employee-list');
+            listEl.innerHTML = '';
+            if (employees.length === 0) {
+                listEl.innerHTML = '<p>No employee data found.</p>';
+                return;
+            }
+            employees.forEach(employee => {
+                const departmentName = employee.departments?.name || 'No Department';
+                const item = document.createElement('div');
+                item.className = 'employee-item';
+                item.innerHTML = `
+                    <input type="checkbox" id="emp-${employee.id}" data-employee-id="${employee.id}" class="employee-checkbox">
+                    <label for="emp-${employee.id}" style="margin-left: 8px; cursor: pointer;">
+                        ${employee.name} (${employee.employee_id}) - ${departmentName}
+                    </label>`;
+                listEl.appendChild(item);
+            });
+        }
+
+        function populateDepartmentFilter() {
+            const depts = [...new Set(employees.map(emp => emp.departments?.name).filter(Boolean))].sort();
+            const select = document.getElementById('department-filter');
+            select.innerHTML = '<option value="">-- Select a Department --</option>';
+            depts.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept;
+                option.textContent = dept;
+                select.appendChild(option);
+            });
+        }
+
+        // --- 5. Event Handling ---
+        function setupEventListeners() {
+            document.getElementById('template-select').addEventListener('change', handleTemplateChange);
+            document.getElementById('select-all-btn').addEventListener('click', selectAllEmployees);
+            document.getElementById('select-by-dept-btn').addEventListener('click', toggleDepartmentFilter);
+            document.getElementById('department-filter').addEventListener('change', selectByDepartment);
+            document.getElementById('employee-list').addEventListener('change', updateSelectionSummary);
+            document.getElementById('generate-cards-btn').addEventListener('click', generateCards);
+        }
+
+        function handleTemplateChange(e) {
+            const templateId = e.target.value;
+            const template = templates.find(t => t.id === templateId);
+            const previewEl = document.getElementById('template-preview');
+            const detailsEl = document.getElementById('template-details');
+            if (template) {
+                detailsEl.innerHTML = `<p><strong>Company:</strong> ${template.company_name || 'Not specified'}</p><p><strong>Orientation:</strong> ${template.orientation}</p>`;
+                previewEl.style.display = 'block';
+            } else {
+                previewEl.style.display = 'none';
+            }
+            updateGenerateButton();
+        }
+
+        function selectAllEmployees() {
+            const checkboxes = document.querySelectorAll('.employee-checkbox');
+            const isAnyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
+            checkboxes.forEach(cb => cb.checked = isAnyUnchecked);
+            updateSelectionSummary();
+        }
+
+        function toggleDepartmentFilter() {
+            const filter = document.getElementById('department-filter');
+            filter.style.display = filter.style.display === 'none' ? 'inline-block' : 'none';
+        }
+
+        function selectByDepartment(e) {
+            const selectedDept = e.target.value;
+            if (!selectedDept) return;
+            const checkboxes = document.querySelectorAll('.employee-checkbox');
+            checkboxes.forEach(cb => {
+                const employeeId = cb.dataset.employeeId;
+                const employee = employees.find(emp => emp.id === employeeId);
+                cb.checked = employee && employee.departments?.name === selectedDept;
+            });
+            updateSelectionSummary();
+        }
+
+        function updateSelectionSummary() {
+            const checkedBoxes = document.querySelectorAll('.employee-checkbox:checked');
+            selectedEmployeeIds = Array.from(checkedBoxes).map(cb => cb.dataset.employeeId);
+            document.getElementById('selection-summary').textContent = `Selected: ${selectedEmployeeIds.length} people`;
+            updateGenerateButton();
+        }
+
+        function updateGenerateButton() {
+            const btn = document.getElementById('generate-cards-btn');
+            const hasTemplate = !!document.getElementById('template-select').value;
+            const hasEmployees = selectedEmployeeIds.length > 0;
+            btn.disabled = !hasTemplate || !hasEmployees;
+            btn.textContent = hasEmployees ? `🚀 Generate Cards (${selectedEmployeeIds.length})` : '🚀 Generate Cards';
+        }
+
+        // --- 6. Core Logic ---
+        async function generateCards() {
+            const templateId = document.getElementById('template-select').value;
+            if (!templateId) return alert('Please select a template.');
+            if (selectedEmployeeIds.length === 0) return alert('Please select at least one employee.');
+
+            const printSettings = {
+                layout: document.querySelector('input[name="print-layout"]:checked').value,
+                include_cropmarks: document.getElementById('include-cropmarks').checked,
+                double_sided: document.getElementById('double-sided').checked
+            };
+
+            const btn = document.getElementById('generate-cards-btn');
+            const progressSection = document.getElementById('progress-section');
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            const downloadSection = document.getElementById('download-section');
+            
+            btn.disabled = true;
+            progressSection.style.display = 'block';
+            downloadSection.style.display = 'none';
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Preparing data...';
+
+            try {
+                const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+                if (sessionError || !session) throw new Error('Could not get user session. Please log in again.');
+
+                progressFill.style.width = '20%';
+                progressText.textContent = 'Generating PDF on the server... (this may take a moment)';
+                
+                const response = await fetch('/.netlify/functions/generate-bulk-cards', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ template_id: templateId, employee_ids: selectedEmployeeIds, print_settings: printSettings })
+                });
+                
+                progressFill.style.width = '80%';
+                progressText.textContent = 'Receiving file...';
+                
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || 'An error occurred while generating the PDF.');
+
+                progressFill.style.width = '100%';
+                progressText.textContent = 'File created successfully!';
+                
+                showDownloadLink(result);
+            } catch (error) {
+                console.error('Generate cards error:', error);
+                progressText.textContent = `Error: ${error.message}`;
+                progressFill.style.backgroundColor = '#dc2626';
+                alert(`An error occurred: ${error.message}`);
+            } finally {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    progressSection.style.display = 'none';
+                    progressFill.style.width = '0%';
+                    progressFill.style.backgroundColor = 'var(--secondary-color)';
+                }, 3000);
+            }
+        }
+
+        function showDownloadLink(result) {
+            const section = document.getElementById('download-section');
+            const linksEl = document.getElementById('download-links');
+            linksEl.innerHTML = `
+                <div style="text-align: center; padding: 20px; border: 2px dashed var(--secondary-color); border-radius: 8px;">
+                    <h3>✅ PDF Created!</h3>
+                    <p>Cards generated: <strong>${result.cards_generated || 0}</strong></p>
+                    <a href="${result.pdfData}" download="employee-cards.pdf" 
+                       style="display: inline-block; background: var(--secondary-color); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px;">
+                        📥 Download PDF
+                    </a>
+                </div>`;
+            section.style.display = 'block';
+        }
+    </script>
 </body>
 </html>
