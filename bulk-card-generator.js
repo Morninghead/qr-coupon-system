@@ -191,19 +191,27 @@ async function initializeApp() {
         showLoading(false);
         hideError();
         
-        // Validate user has proper access token
-        if (!currentUser || (!currentUser.token?.access_token && !currentUser.access_token)) {
-            console.warn('No valid access token found, but continuing...');
-        }
-
         console.log('Initializing app for user:', currentUser.email || currentUser.user?.email);
         
-        // Load data
-        await Promise.all([
+        // Load data with individual error handling
+        const results = await Promise.allSettled([
             loadTemplates(),
             loadDepartments(),
             loadPositions()
         ]);
+
+        // Check results and log detailed information
+        const functionNames = ['loadTemplates', 'loadDepartments', 'loadPositions'];
+        let criticalFailures = 0;
+        
+        results.forEach((result, index) => {
+            if (result.status === 'rejected') {
+                console.warn(`${functionNames[index]} failed:`, result.reason);
+                if (index === 0) criticalFailures++; // Templates are critical
+            } else {
+                console.log(`${functionNames[index]} succeeded`);
+            }
+        });
         
         // Setup event listeners
         setupEventListeners();
@@ -211,10 +219,15 @@ async function initializeApp() {
         // Hide login message and show main content
         const container = document.querySelector('.container');
         if (container && container.innerHTML.includes('กรุณาเข้าสู่ระบบ')) {
-            location.reload(); // Reload to show proper content
+            location.reload();
         }
         
         console.log('Bulk Card Generator initialized successfully.');
+        
+        // Show warning if critical functions failed
+        if (criticalFailures > 0) {
+            showError('⚠️ ไม่สามารถโหลด Templates ได้ กรุณาตรวจสอบการตั้งค่าหรือสิทธิ์การเข้าถึง');
+        }
         
     } catch (error) {
         console.error('App initialization error:', error);
@@ -275,13 +288,11 @@ function setupEventListeners() {
     });
 }
 
-// Enhanced loadTemplates with better token handling
+// Enhanced loadTemplates with comprehensive debugging
 async function loadTemplates() {
     try {
         const accessToken = getAccessToken();
-        if (!accessToken) {
-            console.warn('No access token for loadTemplates, attempting anyway...');
-        }
+        console.log('Loading templates with token:', accessToken ? 'Token found' : 'No token');
 
         const response = await fetch('/.netlify/functions/get-card-templates', {
             headers: {
@@ -290,43 +301,85 @@ async function loadTemplates() {
             }
         });
 
+        console.log('Templates response status:', response.status);
+        console.log('Templates response headers:', Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Templates response error text:', errorText);
+            
             if (response.status === 401) {
                 throw new Error('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่');
+            } else if (response.status === 404) {
+                throw new Error('ไม่พบ get-card-templates function กรุณาตรวจสอบการ deploy');
+            } else if (response.status === 500) {
+                throw new Error('เซิร์ฟเวอร์ Error: ' + errorText);
             }
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
 
-        const result = await response.json();
+        const responseText = await response.text();
+        console.log('Templates raw response:', responseText);
+
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            throw new Error('Invalid JSON response from server');
+        }
+
+        console.log('Templates parsed result:', result);
         
         if (result.success && result.templates) {
             const templateSelect = document.getElementById('templateSelect');
             if (templateSelect) {
                 templateSelect.innerHTML = '<option value="">กรุณาเลือก Template</option>';
                 
-                result.templates.forEach(template => {
-                    const option = document.createElement('option');
-                    option.value = template.id;
-                    option.textContent = template.name;
-                    templateSelect.appendChild(option);
-                });
-                
-                console.log(`Loaded ${result.templates.length} templates`);
+                if (Array.isArray(result.templates) && result.templates.length > 0) {
+                    result.templates.forEach(template => {
+                        const option = document.createElement('option');
+                        option.value = template.id;
+                        option.textContent = template.name || `Template ${template.id}`;
+                        templateSelect.appendChild(option);
+                    });
+                    
+                    console.log(`Successfully loaded ${result.templates.length} templates`);
+                } else {
+                    templateSelect.innerHTML += '<option value="" disabled>ไม่มี Templates ในระบบ</option>';
+                    console.warn('No templates found in database');
+                }
+            } else {
+                console.error('templateSelect element not found in DOM');
+                throw new Error('Template select element not found');
             }
         } else {
-            throw new Error(result.error || 'ไม่สามารถโหลด templates ได้');
+            console.error('Templates result structure:', result);
+            throw new Error(result.error || 'Invalid response structure - missing success or templates');
         }
     } catch (error) {
         console.error('Error loading templates:', error);
-        if (error.message.includes('Session หมดอายุ')) {
-            showLoginRequired();
-        } else {
-            showError('ไม่สามารถโหลด templates ได้: ' + error.message);
+        
+        // Handle different error types
+        const templateSelect = document.getElementById('templateSelect');
+        if (templateSelect) {
+            if (error.message.includes('Session หมดอายุ')) {
+                templateSelect.innerHTML = '<option value="">Session หมดอายุ - กรุณา Login ใหม่</option>';
+                showLoginRequired();
+                return;
+            } else if (error.message.includes('ไม่พบ get-card-templates function')) {
+                templateSelect.innerHTML = '<option value="">Function ไม่พร้อมใช้งาน</option>';
+            } else {
+                templateSelect.innerHTML = '<option value="">เกิดข้อผิดพลาดในการโหลด Templates</option>';
+            }
         }
+        
+        // Re-throw error for Promise.allSettled to catch
+        throw error;
     }
 }
 
-// Load departments
+// Load departments with enhanced error handling
 async function loadDepartments() {
     try {
         const accessToken = getAccessToken();
@@ -352,14 +405,16 @@ async function loadDepartments() {
                     console.log(`Loaded ${result.departments.length} departments`);
                 }
             }
+        } else {
+            console.warn('Departments API not available or returned error');
         }
     } catch (error) {
         console.error('Error loading departments:', error);
-        // Don't show error for departments as it's not critical
+        // Don't throw error for departments as it's not critical
     }
 }
 
-// Load positions
+// Load positions with enhanced error handling
 async function loadPositions() {
     try {
         const accessToken = getAccessToken();
@@ -388,10 +443,12 @@ async function loadPositions() {
                     console.log(`Loaded ${positions.length} positions`);
                 }
             }
+        } else {
+            console.warn('Employees API not available or returned error');
         }
     } catch (error) {
         console.error('Error loading positions:', error);
-        // Don't show error for positions as it's not critical
+        // Don't throw error for positions as it's not critical
     }
 }
 
