@@ -18,9 +18,13 @@ const EMPLOYEE_PHOTOS_BUCKET = 'employee-photos';
 
 // --- Main Handler ---
 export const handler = async (event, context) => {
+    // DEBUG LOG: Let's confirm this version of the code is running.
+    console.log('--- RUNNING PDF GENERATOR V4 ---'); 
+
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
+
     try {
         const token = event.headers.authorization?.split('Bearer ')[1];
         if (!token) return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
@@ -92,13 +96,11 @@ async function addCardsToPdf(doc, employees, template) {
 
 async function renderCardToCanvas(employee, template, cardWidthMm, cardHeightMm) {
     const dom = new JSDOM(`<!DOCTYPE html><body><div id="card-container"></div></body>`);
-    
     global.window = dom.window;
     global.document = dom.window.document;
     global.Node = dom.window.Node;
     global.HTMLCanvasElement = dom.window.HTMLCanvasElement;
     global.HTMLImageElement = dom.window.HTMLImageElement;
-
     const mockGetComputedStyle = () => ({
         getPropertyValue: (prop) => (prop === 'background-color' ? 'transparent' : '')
     });
@@ -119,7 +121,6 @@ async function renderCardToCanvas(employee, template, cardWidthMm, cardHeightMm)
     return await html2canvas(cardContainer, { 
         scale: 1,
         logging: false,
-        // FIX: Changed 'null' to the string 'transparent'
         backgroundColor: 'transparent',
         width: cardWidthMm * scale,
         height: cardHeightMm * scale,
