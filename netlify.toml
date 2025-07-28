@@ -1,14 +1,12 @@
-# netlify.toml (Final Version)
+# netlify.toml
 
 [build]
   publish = "."
   functions = "netlify/functions"
 
-# Specific settings ONLY for the generate-bulk-cards function
-[functions."generate-bulk-cards"]
-  # Include the browser files with this function
-  included_files = ["node_modules/@sparticuz/chromium/bin/**"]
+[build.environment]
+  NODE_VERSION = "20"
 
-# Add this section back to use a compatible server environment
-[images]
-  build_image_selection = "jammy"
+[functions."generate-bulk-cards"]
+  # This line is still needed to include the browser files
+  included_files = ["node_modules/@sparticuz/chromium/bin/**"]

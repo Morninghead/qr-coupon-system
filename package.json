@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "license": "ISC",
   "dependencies": {
-    "@sparticuz/chromium": "^123.0.0",
+    "@sparticuz/chromium": "^126.0.0",
     "@supabase/supabase-js": "^2.52.0",
     "html2canvas": "^1.4.1",
     "jsdom": "^24.1.0",
     "jspdf": "^2.5.1",
-    "puppeteer-core": "^22.12.1",
+    "puppeteer-core": "^22.13.0",
     "qrcode": "^1.5.3"
   }
 }
