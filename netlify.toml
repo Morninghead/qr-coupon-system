@@ -1,4 +1,4 @@
-# netlify.toml (Simplified for testing)
+# netlify.toml (Final Version)
 
 [build]
   publish = "."
@@ -6,5 +6,9 @@
 
 # Specific settings ONLY for the generate-bulk-cards function
 [functions."generate-bulk-cards"]
-  # We still need to tell Netlify to include the browser files.
+  # Include the browser files with this function
   included_files = ["node_modules/@sparticuz/chromium/bin/**"]
+
+# Add this section back to use a compatible server environment
+[images]
+  build_image_selection = "jammy"
