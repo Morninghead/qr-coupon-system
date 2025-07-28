@@ -1,381 +1,585 @@
-// --- 1. Global Variables ---
-// These variables store data that is used across the page.
-let supabaseClient = null;
-let templates = [];
-let employees = [];
-let selectedEmployeeIds = [];
+// Global variables
+let supabase;
+let currentUser = null;
+let previewedEmployees = [];
 
-// --- 2. Main Initialization Trigger ---
-// This is the key fix: It tells the browser to wait until the entire HTML document is ready
-// before running the 'initializeApp' function. This prevents errors where the script
-// tries to find HTML elements that haven't been created yet.
-document.addEventListener('DOMContentLoaded', initializeApp);
-
-/**
- * This is the main function that starts everything. It connects to Supabase,
- * loads the necessary data, and sets up all the interactive elements on the page.
- */
-async function initializeApp() {
-    const mainContent = document.getElementById('main-content');
-    const loadingSection = document.getElementById('loading-section');
+// Initialize the application
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('Bulk Card Generator initializing...');
     
-    // Hide the main content and show the loading spinner initially.
-    mainContent.style.display = 'none';
-    loadingSection.style.display = 'block';
-
     try {
-        await initializeSupabase();
+        // Initialize Supabase
+        const config = await getSupabaseConfig();
+        supabase = window.supabase.createClient(config.url, config.key);
+        console.log('Supabase client initialized.');
         
-        // Load templates and employees at the same time for faster loading.
-        await Promise.all([
-            loadTemplates(),
-            loadEmployees()
-        ]);
-        
-        setupEventListeners();
-
-        // Once everything is loaded, show the main content.
-        mainContent.style.display = 'block';
-        loadingSection.style.display = 'none';
-        console.log('Bulk Card Generator initialized successfully.');
-
-    } catch (error) {
-        console.error('Initialization failed:', error);
-        // If something goes wrong, display an error message on the page.
-        mainContent.innerHTML = `<div style="color: red; text-align: center; padding: 40px;"><h3>⚠️ Could not initialize the system.</h3><p>${error.message}</p></div>`;
-        mainContent.style.display = 'block';
-        loadingSection.style.display = 'none';
-    }
-}
-
-// --- 3. Supabase & Data Loading Functions ---
-
-/**
- * Gets the configuration from a Netlify function and initializes the Supabase client.
- */
-async function initializeSupabase() {
-    try {
-        const response = await fetch('/.netlify/functions/get-config');
-        if (!response.ok) throw new Error(`Cannot get Supabase config: ${response.statusText}`);
-        
-        const config = await response.json();
-        if (!config.supabaseUrl || !config.supabaseKey) {
-            throw new Error('Invalid Supabase configuration received.');
+        // Initialize Netlify Identity
+        if (typeof netlifyIdentity !== 'undefined') {
+            netlifyIdentity.init();
+            
+            // Check current user
+            currentUser = netlifyIdentity.currentUser();
+            if (currentUser) {
+                console.log('User already logged in:', currentUser.email);
+                await initializeApp();
+            } else {
+                showLoginRequired();
+            }
+            
+            // Handle login events
+            netlifyIdentity.on('login', async (user) => {
+                currentUser = user;
+                console.log('User logged in:', user.email);
+                await initializeApp();
+            });
+            
+            netlifyIdentity.on('logout', () => {
+                currentUser = null;
+                console.log('User logged out');
+                showLoginRequired();
+            });
+        } else {
+            console.error('Netlify Identity not loaded');
+            showError('ระบบ authentication ไม่พร้อมใช้งาน');
         }
         
-        // Create the Supabase client using the global 'supabase' object loaded in the HTML.
-        supabaseClient = supabase.createClient(config.supabaseUrl, config.supabaseKey);
-        console.log('Supabase client initialized.');
-
     } catch (error) {
-        console.error('Failed to initialize Supabase:', error);
-        throw error; // Pass the error up to the initializeApp function to handle.
+        console.error('Initialization error:', error);
+        showError('เกิดข้อผิดพลาดในการเริ่มต้นระบบ: ' + error.message);
     }
-}
+});
 
-/**
- * Fetches all card templates from the Supabase database.
- */
-async function loadTemplates() {
-    if (!supabaseClient) throw new Error('Supabase client not initialized.');
-
+// Get Supabase configuration
+async function getSupabaseConfig() {
     try {
-        const { data, error } = await supabaseClient
-            .from('card_templates')
-            .select('*')
-            .order('template_name', { ascending: true });
-
-        if (error) throw error;
-        templates = data || [];
-        populateTemplateSelect();
-        console.log(`Loaded ${templates.length} templates.`);
+        const response = await fetch('/.netlify/functions/get-config');
+        const config = await response.json();
+        
+        if (!config.url || !config.key) {
+            throw new Error('Invalid Supabase configuration');
+        }
+        
+        return config;
     } catch (error) {
-        console.error('Failed to load templates:', error);
-        document.getElementById('template-select').innerHTML = '<option value="">Error loading templates</option>';
+        console.error('Failed to get Supabase config:', error);
+        throw new Error('ไม่สามารถเชื่อมต่อกับฐานข้อมูลได้');
     }
 }
 
-/**
- * Fetches all employees from the Supabase database.
- */
-async function loadEmployees() {
-    if (!supabaseClient) throw new Error('Supabase client not initialized.');
-
+// Initialize application after login
+async function initializeApp() {
     try {
-        const { data, error } = await supabaseClient
-            .from('employees')
-            .select('id, employee_id, name, department_name')
-            .order('name', { ascending: true });
-
-        if (error) throw error;
-        employees = data || [];
-        populateEmployeeList();
-        populateDepartmentFilter();
-        console.log(`Loaded ${employees.length} employees.`);
+        showLoading(false);
+        hideError();
+        
+        // Load data
+        await Promise.all([
+            loadTemplates(),
+            loadDepartments(),
+            loadPositions()
+        ]);
+        
+        // Setup event listeners
+        setupEventListeners();
+        
+        console.log('Bulk Card Generator initialized successfully.');
+        
     } catch (error) {
-        console.error('Failed to load employees:', error);
-        document.getElementById('employee-list').innerHTML = '<p style="color: red;">Could not load employee list.</p>';
+        console.error('App initialization error:', error);
+        showError('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + error.message);
     }
 }
 
-// --- 4. UI Population Functions ---
-
-/**
- * Adds the loaded templates to the template selection dropdown menu.
- */
-function populateTemplateSelect() {
-    const select = document.getElementById('template-select');
-    if (templates.length === 0) {
-        select.innerHTML = '<option value="">No templates found</option>';
-        return;
-    }
-    select.innerHTML = '<option value="">-- Select a Template --</option>';
-    templates.forEach(template => {
-        const option = document.createElement('option');
-        option.value = template.id;
-        option.textContent = `${template.template_name} (${template.company_name || 'N/A'})`;
-        select.appendChild(option);
-    });
-}
-
-/**
- * Displays the list of employees with a checkbox for each.
- */
-function populateEmployeeList() {
-    const listEl = document.getElementById('employee-list');
-    listEl.innerHTML = '';
-
-    if (employees.length === 0) {
-        listEl.innerHTML = '<p>No employee data found.</p>';
-        return;
-    }
-
-    employees.forEach(employee => {
-        const item = document.createElement('div');
-        item.className = 'employee-item';
-        item.innerHTML = `
-            <input type="checkbox" id="emp-${employee.id}" data-employee-id="${employee.id}" class="employee-checkbox">
-            <label for="emp-${employee.id}" style="margin-left: 8px; cursor: pointer;">
-                ${employee.name} (${employee.employee_id}) - ${employee.department_name || 'No Department'}
-            </label>
-        `;
-        listEl.appendChild(item);
-    });
-}
-
-/**
- * Creates the department filter dropdown based on the loaded employee data.
- */
-function populateDepartmentFilter() {
-    const depts = [...new Set(employees.map(emp => emp.department_name).filter(Boolean))];
-    depts.sort();
-    const select = document.getElementById('department-filter');
-    select.innerHTML = '<option value="">-- Select a Department --</option>';
-    depts.forEach(dept => {
-        const option = document.createElement('option');
-        option.value = dept;
-        option.textContent = dept;
-        select.appendChild(option);
-    });
-}
-
-// --- 5. Event Handling ---
-
-/**
- * Sets up all the click and change event listeners for the page's interactive elements.
- */
+// Setup event listeners
 function setupEventListeners() {
-    document.getElementById('template-select').addEventListener('change', handleTemplateChange);
-    document.getElementById('select-all-btn').addEventListener('click', selectAllEmployees);
-    document.getElementById('select-by-dept-btn').addEventListener('click', toggleDepartmentFilter);
-    document.getElementById('department-filter').addEventListener('change', selectByDepartment);
-    document.getElementById('employee-list').addEventListener('change', updateSelectionSummary);
-    document.getElementById('generate-cards-btn').addEventListener('click', generateCards);
-}
-
-/**
- * Handles what happens when a user selects a template from the dropdown.
- */
-function handleTemplateChange(e) {
-    const templateId = e.target.value;
-    const template = templates.find(t => t.id === templateId);
-    const previewEl = document.getElementById('template-preview');
-    const detailsEl = document.getElementById('template-details');
-
-    if (template) {
-        detailsEl.innerHTML = `
-            <p><strong>Company:</strong> ${template.company_name || 'Not specified'}</p>
-            <p><strong>Orientation:</strong> ${template.orientation}</p>
-        `;
-        previewEl.style.display = 'block';
-    } else {
-        previewEl.style.display = 'none';
-    }
-    updateGenerateButton();
-}
-
-/**
- * Toggles all employee checkboxes between selected and deselected.
- */
-function selectAllEmployees() {
-    const checkboxes = document.querySelectorAll('.employee-checkbox');
-    const isAnyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
-    checkboxes.forEach(cb => cb.checked = isAnyUnchecked);
-    updateSelectionSummary();
-}
-
-/**
- * Shows or hides the department filter dropdown.
- */
-function toggleDepartmentFilter() {
-    const filter = document.getElementById('department-filter');
-    filter.style.display = filter.style.display === 'none' ? 'inline-block' : 'none';
-}
-
-/**
- * Selects all employees belonging to the chosen department.
- */
-function selectByDepartment(e) {
-    const selectedDept = e.target.value;
-    if (!selectedDept) return;
-
-    const checkboxes = document.querySelectorAll('.employee-checkbox');
-    checkboxes.forEach(cb => {
-        const employeeId = cb.dataset.employeeId;
-        const employee = employees.find(emp => emp.id === employeeId);
-        cb.checked = employee && employee.department_name === selectedDept;
+    const previewButton = document.getElementById('previewButton');
+    const generateButton = document.getElementById('generateButton');
+    const form = document.getElementById('bulkGeneratorForm');
+    const tempEmployeeFilter = document.getElementById('tempEmployeeFilter');
+    const permanentEmployeeFilter = document.getElementById('permanentEmployeeFilter');
+    
+    // Preview button
+    previewButton.addEventListener('click', previewEmployees);
+    
+    // Form submission
+    form.addEventListener('submit', generateCards);
+    
+    // Template selection change
+    document.getElementById('templateSelect').addEventListener('change', (e) => {
+        const generateBtn = document.getElementById('generateButton');
+        generateBtn.disabled = !e.target.value;
     });
-    updateSelectionSummary();
+    
+    // Checkbox mutual exclusion
+    tempEmployeeFilter.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            permanentEmployeeFilter.checked = false;
+        }
+    });
+    
+    permanentEmployeeFilter.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            tempEmployeeFilter.checked = false;
+        }
+    });
+    
+    // Filter change events
+    ['departmentFilter', 'positionFilter', 'tempEmployeeFilter', 'permanentEmployeeFilter', 'startDate', 'endDate'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            // Reset preview when filters change
+            hideEmployeeCount();
+            document.getElementById('generateButton').disabled = !document.getElementById('templateSelect').value;
+        });
+    });
 }
 
-/**
- * Updates the "Selected: X people" text and checks if the generate button should be enabled.
- */
-function updateSelectionSummary() {
-    const checkedBoxes = document.querySelectorAll('.employee-checkbox:checked');
-    selectedEmployeeIds = Array.from(checkedBoxes).map(cb => cb.dataset.employeeId);
-    
-    document.getElementById('selection-summary').textContent = `Selected: ${selectedEmployeeIds.length} people`;
-    updateGenerateButton();
-}
-
-/**
- * Enables or disables the "Generate Cards" button based on user selections.
- */
-function updateGenerateButton() {
-    const btn = document.getElementById('generate-cards-btn');
-    const hasTemplate = !!document.getElementById('template-select').value;
-    const hasEmployees = selectedEmployeeIds.length > 0;
-    
-    btn.disabled = !hasTemplate || !hasEmployees;
-    btn.textContent = hasEmployees 
-        ? `🚀 Generate Cards (${selectedEmployeeIds.length})` 
-        : '🚀 Generate Cards';
-}
-
-
-// --- 6. Core Logic ---
-
-/**
- * Gathers all selected data and sends it to the Netlify function to generate the PDF.
- */
-async function generateCards() {
-    const templateId = document.getElementById('template-select').value;
-    if (!templateId) {
-        alert('Please select a template.');
-        return;
-    }
-    if (selectedEmployeeIds.length === 0) {
-        alert('Please select at least one employee.');
-        return;
-    }
-
-    // Collect print settings
-    const printSettings = {
-        layout: document.querySelector('input[name="print-layout"]:checked').value,
-        include_cropmarks: document.getElementById('include-cropmarks').checked,
-        double_sided: document.getElementById('double-sided').checked
-    };
-
-    // UI updates for loading state
-    const btn = document.getElementById('generate-cards-btn');
-    const progressSection = document.getElementById('progress-section');
-    const progressFill = document.getElementById('progress-fill');
-    const progressText = document.getElementById('progress-text');
-    const downloadSection = document.getElementById('download-section');
-    
-    btn.disabled = true;
-    progressSection.style.display = 'block';
-    downloadSection.style.display = 'none';
-    progressFill.style.width = '0%';
-    progressText.textContent = 'Preparing data...';
-
+// Load templates
+async function loadTemplates() {
     try {
-        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-        if (sessionError || !session) throw new Error('Could not get user session. Please log in again.');
+        const response = await fetch('/.netlify/functions/get-card-templates', {
+            headers: {
+                'Authorization': `Bearer ${currentUser.token.access_token}`
+            }
+        });
 
-        progressFill.style.width = '20%';
-        progressText.textContent = 'Generating PDF on the server... (this may take a moment)';
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success && result.templates) {
+            const templateSelect = document.getElementById('templateSelect');
+            templateSelect.innerHTML = '<option value="">กรุณาเลือก Template</option>';
+            
+            result.templates.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = template.name;
+                templateSelect.appendChild(option);
+            });
+            
+            console.log(`Loaded ${result.templates.length} templates`);
+        } else {
+            throw new Error(result.error || 'ไม่สามารถโหลด templates ได้');
+        }
+    } catch (error) {
+        console.error('Error loading templates:', error);
+        showError('ไม่สามารถโหลด templates ได้: ' + error.message);
+    }
+}
+
+// Load departments
+async function loadDepartments() {
+    try {
+        const response = await fetch('/.netlify/functions/get-departments', {
+            headers: {
+                'Authorization': `Bearer ${currentUser.token.access_token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success && result.departments) {
+            const departmentSelect = document.getElementById('departmentFilter');
+            
+            result.departments.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept;
+                option.textContent = dept;
+                departmentSelect.appendChild(option);
+            });
+            
+            console.log(`Loaded ${result.departments.length} departments`);
+        }
+    } catch (error) {
+        console.error('Error loading departments:', error);
+        // Don't show error for departments as it's not critical
+    }
+}
+
+// Load positions
+async function loadPositions() {
+    try {
+        const response = await fetch('/.netlify/functions/get-employees', {
+            headers: {
+                'Authorization': `Bearer ${currentUser.token.access_token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success && result.employees) {
+            // Extract unique positions
+            const positions = [...new Set(result.employees.map(emp => emp.position).filter(Boolean))];
+            const positionSelect = document.getElementById('positionFilter');
+            
+            positions.forEach(position => {
+                const option = document.createElement('option');
+                option.value = position;
+                option.textContent = position;
+                positionSelect.appendChild(option);
+            });
+            
+            console.log(`Loaded ${positions.length} positions`);
+        }
+    } catch (error) {
+        console.error('Error loading positions:', error);
+        // Don't show error for positions as it's not critical
+    }
+}
+
+// Preview employees based on filters
+async function previewEmployees() {
+    try {
+        showLoading(true);
+        hideError();
+        
+        const filterCriteria = getFilterCriteria();
+        console.log('Preview filter criteria:', filterCriteria);
+        
+        const response = await fetch('/.netlify/functions/get-employees', {
+            headers: {
+                'Authorization': `Bearer ${currentUser.token.access_token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success && result.employees) {
+            // Filter employees locally
+            previewedEmployees = filterEmployees(result.employees, filterCriteria);
+            
+            displayEmployeeCount(previewedEmployees);
+            
+            // Enable generate button if template is selected and employees found
+            const templateSelected = document.getElementById('templateSelect').value;
+            document.getElementById('generateButton').disabled = !templateSelected || previewedEmployees.length === 0;
+            
+        } else {
+            throw new Error(result.error || 'ไม่สามารถโหลดข้อมูลพนักงานได้');
+        }
+        
+    } catch (error) {
+        console.error('Preview error:', error);
+        showError('ไม่สามารถแสดงตัวอย่างข้อมูลได้: ' + error.message);
+        hideEmployeeCount();
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Get filter criteria from form
+function getFilterCriteria() {
+    const department = document.getElementById('departmentFilter').value;
+    const position = document.getElementById('positionFilter').value;
+    const tempEmployee = document.getElementById('tempEmployeeFilter').checked;
+    const permanentEmployee = document.getElementById('permanentEmployeeFilter').checked;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    const criteria = {};
+    
+    if (department && department !== 'all') {
+        criteria.department = department;
+    }
+    
+    if (position && position !== 'all') {
+        criteria.position = position;
+    }
+    
+    if (tempEmployee) {
+        criteria.is_temp_employee = true;
+    } else if (permanentEmployee) {
+        criteria.is_temp_employee = false;
+    }
+    
+    if (startDate || endDate) {
+        criteria.dateRange = {};
+        if (startDate) criteria.dateRange.start = startDate;
+        if (endDate) criteria.dateRange.end = endDate;
+    }
+    
+    return criteria;
+}
+
+// Filter employees based on criteria
+function filterEmployees(employees, criteria) {
+    return employees.filter(employee => {
+        // Department filter
+        if (criteria.department && employee.department !== criteria.department) {
+            return false;
+        }
+        
+        // Position filter
+        if (criteria.position && employee.position !== criteria.position) {
+            return false;
+        }
+        
+        // Employee type filter
+        if (criteria.is_temp_employee !== undefined && employee.is_temp_employee !== criteria.is_temp_employee) {
+            return false;
+        }
+        
+        // Date range filter
+        if (criteria.dateRange) {
+            const createdDate = new Date(employee.created_at);
+            
+            if (criteria.dateRange.start) {
+                const startDate = new Date(criteria.dateRange.start);
+                if (createdDate < startDate) return false;
+            }
+            
+            if (criteria.dateRange.end) {
+                const endDate = new Date(criteria.dateRange.end);
+                endDate.setHours(23, 59, 59, 999); // End of day
+                if (createdDate > endDate) return false;
+            }
+        }
+        
+        return true;
+    });
+}
+
+// Display employee count and preview
+function displayEmployeeCount(employees) {
+    const countElement = document.getElementById('employeeCount');
+    const countText = document.getElementById('countText');
+    const previewElement = document.getElementById('employeePreview');
+    
+    countText.textContent = employees.length;
+    
+    if (employees.length > 0) {
+        // Show preview of first few employees
+        const previewList = employees.slice(0, 5).map(emp => 
+            `${emp.employee_id}: ${emp.first_name} ${emp.last_name} (${emp.department})`
+        ).join('<br>');
+        
+        previewElement.innerHTML = `
+            <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                <strong>ตัวอย่างพนักงาน (${Math.min(5, employees.length)} คนแรก):</strong><br>
+                ${previewList}
+                ${employees.length > 5 ? '<br>และอีก ' + (employees.length - 5) + ' คน...' : ''}
+            </div>
+        `;
+        
+        countElement.style.display = 'block';
+    } else {
+        previewElement.innerHTML = '<div style="margin-top: 10px; color: #dc3545;">ไม่พบพนักงานที่ตรงกับเงื่อนไข</div>';
+        countElement.style.display = 'block';
+    }
+}
+
+// Hide employee count
+function hideEmployeeCount() {
+    document.getElementById('employeeCount').style.display = 'none';
+    previewedEmployees = [];
+}
+
+// Generate cards
+async function generateCards(event) {
+    event.preventDefault();
+    
+    try {
+        // Validate form
+        if (!validateForm()) {
+            return;
+        }
+        
+        showLoading(true);
+        hideError();
+        hideSuccess();
+        
+        const templateId = document.getElementById('templateSelect').value;
+        const filterCriteria = getFilterCriteria();
+        
+        console.log('Generating cards with:', { templateId, filterCriteria });
+        
+        // Use previewed employees if available, otherwise get fresh data
+        let employeeIds;
+        if (previewedEmployees.length > 0) {
+            employeeIds = previewedEmployees.map(emp => emp.id);
+        } else {
+            // If no preview, we need to get employees first
+            const response = await fetch('/.netlify/functions/get-employees', {
+                headers: {
+                    'Authorization': `Bearer ${currentUser.token.access_token}`
+                }
+            });
+            
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error('ไม่สามารถโหลดข้อมูลพนักงานได้');
+            }
+            
+            const filteredEmployees = filterEmployees(result.employees, filterCriteria);
+            employeeIds = filteredEmployees.map(emp => emp.id);
+        }
+        
+        if (employeeIds.length === 0) {
+            throw new Error('ไม่พบพนักงานที่ตรงกับเงื่อนไขที่กำหนด');
+        }
+        
+        if (employeeIds.length > 200) {
+            throw new Error('จำนวนพนักงานมากเกินไป (เกิน 200 คน) กรุณาใช้เงื่อนไขที่จำกัดมากขึ้น');
+        }
+        
+        const requestBody = {
+            templateId: templateId,
+            filterCriteria: {
+                ...filterCriteria,
+                employeeIds: employeeIds
+            }
+        };
+        
+        console.log('Request body:', requestBody);
         
         const response = await fetch('/.netlify/functions/generate-bulk-cards', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
+                'Authorization': `Bearer ${currentUser.token.access_token}`
             },
-            body: JSON.stringify({
-                template_id: templateId,
-                employee_ids: selectedEmployeeIds,
-                print_settings: printSettings
-            })
+            body: JSON.stringify(requestBody)
         });
         
-        progressFill.style.width = '80%';
-        progressText.textContent = 'Receiving file...';
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.message || 'An error occurred while generating the PDF.');
-        }
-
-        progressFill.style.width = '100%';
-        progressText.textContent = 'File created successfully!';
+        console.log('Response status:', response.status);
         
-        showDownloadLink(result);
-
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+            throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Download PDF
+            const link = document.createElement('a');
+            link.href = `data:application/pdf;base64,${result.pdf}`;
+            link.download = result.filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showSuccess(`สร้างบัตรสำเร็จ จำนวน ${result.cardCount} บัตร`);
+            console.log('Cards generated successfully:', result);
+            
+        } else {
+            throw new Error(result.error || 'Unknown error occurred');
+        }
+        
     } catch (error) {
         console.error('Generate cards error:', error);
-        progressText.textContent = `Error: ${error.message}`;
-        progressFill.style.backgroundColor = '#dc2626'; // Red
-        alert(`An error occurred: ${error.message}`);
+        showError(`เกิดข้อผิดพลาด: ${error.message}`);
     } finally {
-        setTimeout(() => {
-            btn.disabled = false;
-            progressSection.style.display = 'none';
-            progressFill.style.width = '0%';
-            progressFill.style.backgroundColor = 'var(--secondary-color)'; // Reset to green
-        }, 3000);
+        showLoading(false);
     }
 }
 
-/**
- * Displays the download link section after the PDF is successfully generated.
- */
-function showDownloadLink(result) {
-    const section = document.getElementById('download-section');
-    const linksEl = document.getElementById('download-links');
+// Validate form before submission
+function validateForm() {
+    const templateId = document.getElementById('templateSelect').value;
     
-    linksEl.innerHTML = `
-        <div style="text-align: center; padding: 20px; border: 2px dashed var(--secondary-color); border-radius: 8px;">
-            <h3>✅ PDF Created!</h3>
-            <p>Cards generated: <strong>${result.cards_generated || 0}</strong></p>
-            <a href="${result.pdfData}" download="employee-cards.pdf" 
-               style="display: inline-block; background: var(--secondary-color); color: white; padding: 15px 30px; 
-                      text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px;">
-                📥 Download PDF
-            </a>
+    if (!templateId) {
+        showError('กรุณาเลือก Template บัตร');
+        return false;
+    }
+    
+    if (!currentUser) {
+        showError('กรุณาเข้าสู่ระบบก่อน');
+        return false;
+    }
+    
+    // Check if preview was done
+    if (previewedEmployees.length === 0) {
+        showError('กรุณาดูตัวอย่างข้อมูลพนักงานก่อนสร้างบัตร');
+        return false;
+    }
+    
+    return true;
+}
+
+// Show login required message
+function showLoginRequired() {
+    const container = document.querySelector('.container');
+    container.innerHTML = `
+        <div style="text-align: center; padding: 50px;">
+            <h2>กรุณาเข้าสู่ระบบ</h2>
+            <p>คุณต้องเข้าสู่ระบบก่อนใช้งาน Bulk Card Generator</p>
+            <button onclick="netlifyIdentity.open()" class="btn btn-primary">เข้าสู่ระบบ</button>
         </div>
     `;
-    section.style.display = 'block';
 }
+
+// Utility functions
+function showLoading(show) {
+    const loading = document.getElementById('loadingIndicator');
+    const generateButton = document.getElementById('generateButton');
+    const previewButton = document.getElementById('previewButton');
+    
+    if (show) {
+        loading.style.display = 'block';
+        generateButton.disabled = true;
+        previewButton.disabled = true;
+        generateButton.textContent = 'กำลังสร้าง...';
+    } else {
+        loading.style.display = 'none';
+        previewButton.disabled = false;
+        generateButton.textContent = 'สร้างบัตรพนักงาน';
+        
+        // Re-enable generate button only if conditions are met
+        const templateSelected = document.getElementById('templateSelect').value;
+        generateButton.disabled = !templateSelected || previewedEmployees.length === 0;
+    }
+}
+
+function showError(message) {
+    const errorDiv = document.getElementById('errorMessage');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    console.error('Error:', message);
+}
+
+function hideError() {
+    document.getElementById('errorMessage').style.display = 'none';
+}
+
+function showSuccess(message) {
+    const successDiv = document.getElementById('successMessage');
+    successDiv.textContent = message;
+    successDiv.style.display = 'block';
+    
+    // Auto hide after 5 seconds
+    setTimeout(() => {
+        hideSuccess();
+    }, 5000);
+}
+
+function hideSuccess() {
+    document.getElementById('successMessage').style.display = 'none';
+}
+
+// Debug function (for development)
+function debug() {
+    console.log('Debug Info:', {
+        currentUser: currentUser,
+        templateSelected: document.getElementById('templateSelect').value,
+        filterCriteria: getFilterCriteria(),
+        previewedEmployees: previewedEmployees.length
+    });
+}
+
+// Make debug available globally
+window.debug = debug;
