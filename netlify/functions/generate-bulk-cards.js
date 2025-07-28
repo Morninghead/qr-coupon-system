@@ -23,7 +23,7 @@ export const handler = async (event, context) => {
     }
 
     try {
-        // ... (ส่วน Authentication & Authorization เหมือนเดิม)
+        // Authentication & Authorization
         const token = event.headers.authorization?.split('Bearer ')[1];
         if (!token) return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
         const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
@@ -73,7 +73,6 @@ export const handler = async (event, context) => {
     }
 };
 
-// ... (ฟังก์ชัน addCardsToPdf เหมือนเดิม)
 async function addCardsToPdf(doc, employees, template) {
     const isLandscape = template.orientation === 'landscape';
     const cardWidth = isLandscape ? CARD_STANDARD_WIDTH_MM : CARD_STANDARD_HEIGHT_MM;
@@ -107,21 +106,22 @@ async function addCardsToPdf(doc, employees, template) {
     }
 }
 
-
-/**
- * Renders a single card to a canvas using JSDOM and html2canvas.
- */
 async function renderCardToCanvas(employee, template, cardWidthMm, cardHeightMm) {
     const dom = new JSDOM(`<!DOCTYPE html><body><div id="card-container"></div></body>`);
     
-    // FIX: Manually expose JSDOM globals to the Node.js global scope
-    // This allows html2canvas to find browser-specific objects like 'Node'.
+    // **FIX**: Manually expose JSDOM globals and mock missing browser functions.
     global.window = dom.window;
     global.document = dom.window.document;
     global.Node = dom.window.Node;
     global.HTMLCanvasElement = dom.window.HTMLCanvasElement;
     global.HTMLImageElement = dom.window.HTMLImageElement;
-    // End of FIX
+
+    // Create dummy functions for getComputedStyle and scrollTo to prevent html2canvas from crashing.
+    const mockGetComputedStyle = () => ({ getPropertyValue: () => '' });
+    global.getComputedStyle = mockGetComputedStyle;
+    dom.window.getComputedStyle = mockGetComputedStyle;
+    dom.window.scrollTo = () => {};
+    // **End of FIX**
 
     const document = dom.window.document;
     const cardContainer = document.getElementById('card-container');
@@ -144,12 +144,10 @@ async function renderCardToCanvas(employee, template, cardWidthMm, cardHeightMm)
     });
 }
 
-// ... (ฟังก์ชัน generateCardHtml เหมือนเดิม)
 async function generateCardHtml(employee, template) {
     const photoUrl = employee.photo_url || `${supabaseUrl}/storage/v1/object/public/${EMPLOYEE_PHOTOS_BUCKET}/${employee.employee_id}.jpg`;
     const qrCodeData = `${BASE_SCANNER_URL}?token=${employee.permanent_token}`;
     const qrDataUrl = await QRCode.toDataURL(qrCodeData, { errorCorrectionLevel: 'H', width: 200 });
-
     let elementsHtml = '';
     
     let layout;
@@ -164,13 +162,11 @@ async function generateCardHtml(employee, template) {
         const style = layout[key];
         let content = '';
         let inlineStyle = `position:absolute; left:${style.left}; top:${style.top}; width:${style.width}; height:${style.height}; box-sizing:border-box;`;
-        
         if (style.transform) inlineStyle += `transform:${style.transform};`;
         if (style.color) inlineStyle += `color:${style.color};`;
         if (style.fontSize) inlineStyle += `font-size:${style.fontSize};`;
         if (style.fontWeight) inlineStyle += `font-weight:${style.fontWeight};`;
         if (style.textAlign) inlineStyle += `text-align:${style.textAlign};`;
-
         switch (key) {
             case 'photo':
                 inlineStyle += `border-radius:${style.borderRadius || '0'}; object-fit:cover;`;
@@ -201,9 +197,5 @@ async function generateCardHtml(employee, template) {
         ? `background-image: url(${template.background_front_url}); background-size: cover; background-position: center;`
         : 'background-color: #fff;';
 
-    return `
-        <div style="width:100%; height:100%; position:relative; overflow:hidden; font-family: sans-serif; ${backgroundStyle}">
-            ${elementsHtml}
-        </div>
-    `;
+    return `<div style="width:100%; height:100%; position:relative; overflow:hidden; font-family: sans-serif; ${backgroundStyle}">${elementsHtml}</div>`;
 }
