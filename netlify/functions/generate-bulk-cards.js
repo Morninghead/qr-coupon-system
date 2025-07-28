@@ -23,51 +23,35 @@ export const handler = async (event, context) => {
     }
 
     try {
-        // 1. Authentication & Authorization
+        // ... (ส่วน Authentication & Authorization เหมือนเดิม)
         const token = event.headers.authorization?.split('Bearer ')[1];
-        if (!token) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
-        }
+        if (!token) return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
         const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
-        if (userError || !user) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
-        }
+        if (userError || !user) return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
         const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
         if (profile?.role !== 'superuser' && profile?.role !== 'department_admin') {
             return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied.' }) };
         }
 
-        // 2. Parse Request Body
         const { template_id, employee_ids, print_settings } = JSON.parse(event.body);
         if (!template_id || !employee_ids || !employee_ids.length) {
             return { statusCode: 400, body: JSON.stringify({ message: 'Missing template or employee data.' }) };
         }
 
-        // 3. Fetch Data from Database
-        const { data: template, error: templateError } = await supabaseAdmin
-            .from('card_templates')
-            .select('*')
-            .eq('id', template_id)
-            .single();
+        const { data: template, error: templateError } = await supabaseAdmin.from('card_templates').select('*').eq('id', template_id).single();
         if (templateError) throw new Error(`Template not found: ${templateError.message}`);
 
-        const { data: employees, error: employeesError } = await supabaseAdmin
-            .from('employees')
-            .select('id, employee_id, name, permanent_token, photo_url')
-            .in('id', employee_ids);
+        const { data: employees, error: employeesError } = await supabaseAdmin.from('employees').select('id, employee_id, name, permanent_token, photo_url').in('id', employee_ids);
         if (employeesError) throw new Error(`Failed to fetch employees: ${employeesError.message}`);
 
-        // 4. Start PDF Generation Process
         const doc = new jsPDF({
             orientation: template.orientation === 'portrait' ? 'portrait' : 'landscape',
             unit: 'mm',
             format: 'a4'
         });
 
-        // 5. Add Cards to PDF
         await addCardsToPdf(doc, employees, template);
 
-        // 6. Return the Result
         const pdfBase64 = doc.output('datauristring');
         
         return {
@@ -89,9 +73,7 @@ export const handler = async (event, context) => {
     }
 };
 
-/**
- * Loops through employees and adds their rendered card to the PDF document.
- */
+// ... (ฟังก์ชัน addCardsToPdf เหมือนเดิม)
 async function addCardsToPdf(doc, employees, template) {
     const isLandscape = template.orientation === 'landscape';
     const cardWidth = isLandscape ? CARD_STANDARD_WIDTH_MM : CARD_STANDARD_HEIGHT_MM;
@@ -101,13 +83,12 @@ async function addCardsToPdf(doc, employees, template) {
     const cardSpacing = 5;
     const pageWidth = doc.internal.pageSize.getWidth();
     const cols = Math.floor((pageWidth - pageMargin * 2 + cardSpacing) / (cardWidth + cardSpacing));
-    const rows = 4; // A standard assumption for A4 portrait
+    const rows = 4;
     const cardsPerPage = cols * rows;
     
     let cardCount = 0;
     for (const employee of employees) {
-        const pageNumber = Math.floor(cardCount / cardsPerPage);
-        if (pageNumber > 0 && cardCount % cardsPerPage === 0) {
+        if (cardCount > 0 && cardCount % cardsPerPage === 0) {
             doc.addPage();
         }
 
@@ -126,11 +107,22 @@ async function addCardsToPdf(doc, employees, template) {
     }
 }
 
+
 /**
  * Renders a single card to a canvas using JSDOM and html2canvas.
  */
 async function renderCardToCanvas(employee, template, cardWidthMm, cardHeightMm) {
     const dom = new JSDOM(`<!DOCTYPE html><body><div id="card-container"></div></body>`);
+    
+    // FIX: Manually expose JSDOM globals to the Node.js global scope
+    // This allows html2canvas to find browser-specific objects like 'Node'.
+    global.window = dom.window;
+    global.document = dom.window.document;
+    global.Node = dom.window.Node;
+    global.HTMLCanvasElement = dom.window.HTMLCanvasElement;
+    global.HTMLImageElement = dom.window.HTMLImageElement;
+    // End of FIX
+
     const document = dom.window.document;
     const cardContainer = document.getElementById('card-container');
 
@@ -152,9 +144,7 @@ async function renderCardToCanvas(employee, template, cardWidthMm, cardHeightMm)
     });
 }
 
-/**
- * Generates the HTML string for a single card.
- */
+// ... (ฟังก์ชัน generateCardHtml เหมือนเดิม)
 async function generateCardHtml(employee, template) {
     const photoUrl = employee.photo_url || `${supabaseUrl}/storage/v1/object/public/${EMPLOYEE_PHOTOS_BUCKET}/${employee.employee_id}.jpg`;
     const qrCodeData = `${BASE_SCANNER_URL}?token=${employee.permanent_token}`;
@@ -162,16 +152,13 @@ async function generateCardHtml(employee, template) {
 
     let elementsHtml = '';
     
-    // ## FIX: Check for both layout structures ##
     let layout;
     if (template.layout_config && template.layout_config.frontLayout) {
-      // Advanced editor format
       layout = template.layout_config.frontLayout;
     } else {
-      // Simple editor format (or older format)
       layout = template.layout_config;
     }
-    layout = layout || {}; // Fallback to an empty object if layout_config is null
+    layout = layout || {};
 
     for (const key in layout) {
         const style = layout[key];
