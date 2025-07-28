@@ -52,6 +52,13 @@
         .message-info { background-color: #E0E7FF; color: #3730A3; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
         .modal-content { background-color: #fefefe; padding: 30px; border-radius: 16px; width: 90%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .close-button { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-form-group { margin-bottom: 15px; }
+        .modal-form-group label { display: block; margin-bottom: 8px; font-weight: 600; }
+        .modal-form-group input, .modal-form-group select { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; }
+        .modal-save-btn { background-color: var(--primary-color); color: white; border: none; }
+        .modal-cancel-btn { background-color: var(--light-gray); border: 1px solid var(--border-color); }
     </style>
 </head>
 <body>
@@ -104,13 +111,40 @@
     </div>
     
     <div id="editEmployeeModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>แก้ไขข้อมูลพนักงาน</h2>
+            <form id="editEmployeeForm">
+                <input type="hidden" id="edit-employee-id">
+                <div class="modal-form-group">
+                    <label for="edit-employee-id-display">รหัสพนักงาน</label>
+                    <input type="text" id="edit-employee-id-display" disabled>
+                </div>
+                <div class="modal-form-group">
+                    <label for="edit-name">ชื่อ-สกุล</label>
+                    <input type="text" id="edit-name" required>
+                </div>
+                <div class="modal-form-group">
+                    <label for="edit-department">แผนก</label>
+                    <select id="edit-department"></select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-cancel-btn">ยกเลิก</button>
+                    <button type="submit" class="modal-save-btn">บันทึก</button>
+                </div>
+            </form>
         </div>
+    </div>
 
     <script>
         // Global variables
         const mainContent = document.getElementById('main-content');
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
+        let currentUserRole = null;
+        let allDepartments = [];
+        let currentEmployeeData = [];
+
         const employeeTableBody = document.getElementById('employee-table-body');
         const paginationControls = document.getElementById('pagination-controls');
         const searchInput = document.getElementById('search-input');
@@ -121,6 +155,16 @@
         const baseUrl = window.location.origin;
         let currentPage = 1;
         const itemsPerPage = 20;
+        
+        // Modal elements
+        const editEmployeeModal = document.getElementById('editEmployeeModal');
+        const closeModalButton = editEmployeeModal.querySelector('.close-button');
+        const modalCancelButton = editEmployeeModal.querySelector('.modal-cancel-btn');
+        const editEmployeeForm = document.getElementById('editEmployeeForm');
+        const editEmployeeIdInput = document.getElementById('edit-employee-id');
+        const editEmployeeIdDisplay = document.getElementById('edit-employee-id-display');
+        const editNameInput = document.getElementById('edit-name');
+        const editDepartmentSelect = document.getElementById('edit-department');
 
         document.addEventListener('DOMContentLoaded', initializeApp);
 
@@ -135,6 +179,13 @@
                     unauthorizedMessage.classList.remove('hidden');
                     return;
                 }
+
+                const { data: profileData } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
+                if (!profileData || !['superuser', 'department_admin'].includes(profileData.role)) {
+                    unauthorizedMessage.classList.remove('hidden');
+                    return;
+                }
+                currentUserRole = profileData.role;
                 mainContent.classList.remove('hidden');
                 
                 await loadDepartments();
@@ -144,6 +195,14 @@
                     currentPage = 1;
                     fetchEmployees(currentPage);
                 });
+
+                closeModalButton.addEventListener('click', () => editEmployeeModal.style.display = 'none');
+                modalCancelButton.addEventListener('click', () => editEmployeeModal.style.display = 'none');
+                window.addEventListener('click', (event) => {
+                    if (event.target == editEmployeeModal) editEmployeeModal.style.display = 'none';
+                });
+                editEmployeeForm.addEventListener('submit', handleEditFormSubmit);
+
             } catch (error) {
                 console.error('Initialization failed:', error);
                 unauthorizedMessage.classList.remove('hidden');
@@ -158,13 +217,15 @@
                 });
                 if (!response.ok) throw new Error('Failed to load departments');
                 
-                const allDepartments = await response.json();
+                allDepartments = await response.json();
                 departmentFilter.innerHTML = '<option value="all">ทุกแผนก</option>';
+                editDepartmentSelect.innerHTML = '';
                 allDepartments.forEach(dept => {
                     const option = document.createElement('option');
                     option.value = dept.id;
                     option.textContent = dept.name;
                     departmentFilter.appendChild(option);
+                    editDepartmentSelect.appendChild(option.cloneNode(true));
                 });
             } catch (error) {
                 console.error("Failed to load departments:", error);
@@ -188,6 +249,7 @@
                 if (!response.ok) throw new Error((await response.json()).message || 'Failed to fetch data.');
 
                 const data = await response.json();
+                currentEmployeeData = data.employees; // Store current page's data
                 renderEmployeeTable(data.employees);
                 renderPagination(data.currentPage, data.totalPages);
                 showMessage('โหลดข้อมูลพนักงานสำเร็จ', 'success');
@@ -217,7 +279,9 @@
                     <td><span class="${emp.is_active ? 'status-active' : 'status-inactive'}">${emp.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>
                     <td>
                         <button class="action-btn edit-btn" data-id="${emp.id}">แก้ไข</button>
-                        <button class="action-btn delete-btn" data-id="${emp.id}">ลบ</button>
+                        ${currentUserRole === 'superuser' ? 
+                            `<button class="action-btn toggle-active-btn" data-id="${emp.id}" data-current-status="${emp.is_active}">${emp.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</button>
+                             <button class="action-btn delete-btn" data-id="${emp.id}">ลบ</button>` : ''}
                     </td>
                 `;
                 employeeTableBody.appendChild(row);
@@ -225,22 +289,15 @@
 
             // ## FIX: Add event listeners for the new buttons ##
             document.querySelectorAll('.edit-btn').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    // This is where you would call a function to open your edit modal
-                    console.log('Edit employee with ID:', e.target.dataset.id);
-                    // Example: openEditModal(e.target.dataset.id);
-                });
+                button.addEventListener('click', (e) => openEditModal(e.target.dataset.id));
             });
 
             document.querySelectorAll('.delete-btn').forEach(button => {
-                button.addEventListener('click', async (e) => {
-                    const idToDelete = e.target.dataset.id;
-                    if (confirm(`Are you sure you want to delete employee with ID: ${idToDelete}?`)) {
-                        // This is where you would call your delete function
-                        console.log('Delete employee with ID:', idToDelete);
-                        // Example: await deleteEmployee(idToDelete);
-                    }
-                });
+                button.addEventListener('click', (e) => handleDeleteEmployee(e.target.dataset.id));
+            });
+
+            document.querySelectorAll('.toggle-active-btn').forEach(button => {
+                button.addEventListener('click', (e) => toggleEmployeeStatus(e.target.dataset.id, e.target.dataset.currentStatus === 'true'));
             });
         }
         
@@ -283,14 +340,116 @@
                 currentPage = page;
                 fetchEmployees(currentPage);
             } else {
-                alert(`Please enter a page number between 1 and ${totalPages}.`);
+                alert(`กรุณากรอกเลขหน้าที่ถูกต้อง (1 - ${totalPages})`);
                 pageInput.value = currentPage;
             }
         }
 
-        function showMessage(message, type) {
+        function showMessage(message, type, duration = 3000) {
             messageDiv.className = `message-${type}`;
             messageDiv.textContent = message;
+            if (type !== 'info') {
+                setTimeout(() => { messageDiv.textContent = ''; messageDiv.className = 'hidden'; }, duration);
+            }
+        }
+        
+        async function openEditModal(id) {
+            const employee = currentEmployeeData.find(e => e.id === id);
+            if (!employee) {
+                showMessage('ไม่พบข้อมูลพนักงาน', 'error');
+                return;
+            }
+            
+            editEmployeeIdInput.value = employee.id;
+            editEmployeeIdDisplay.value = employee.employee_id;
+            editNameInput.value = employee.name;
+            editDepartmentSelect.value = employee.department_id;
+            
+            editEmployeeModal.style.display = 'flex';
+        }
+
+        async function handleEditFormSubmit(event) {
+            event.preventDefault();
+            const id = editEmployeeIdInput.value;
+            const name = editNameInput.value.trim();
+            const department_id = editDepartmentSelect.value;
+            
+            if (!name || !department_id) {
+                return alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+            }
+            
+            const saveBtn = editEmployeeForm.querySelector('.modal-save-btn');
+            saveBtn.disabled = true;
+
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/update-employees`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ id, name, department_id })
+                });
+
+                if (!response.ok) throw new Error((await response.json()).message || 'Failed to update.');
+
+                showMessage('บันทึกข้อมูลสำเร็จ', 'success');
+                editEmployeeModal.style.display = 'none';
+                fetchEmployees(currentPage);
+            } catch (error) {
+                alert('เกิดข้อผิดพลาด: ' + error.message);
+            } finally {
+                saveBtn.disabled = false;
+            }
+        }
+
+        async function handleDeleteEmployee(id) {
+            const employee = currentEmployeeData.find(e => e.id === id);
+            if (!employee) return;
+            
+            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบพนักงานคนนี้?\n\nรหัส: ${employee.employee_id}\nชื่อ: ${employee.name}`)) {
+                return;
+            }
+            
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/delete-employee`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ id })
+                });
+
+                if (!response.ok) throw new Error((await response.json()).message || 'Failed to delete.');
+
+                showMessage('ลบพนักงานสำเร็จ', 'success');
+                fetchEmployees(currentPage);
+            } catch (error) {
+                showMessage('เกิดข้อผิดพลาดในการลบ: ' + error.message, 'error');
+            }
+        }
+        
+        async function toggleEmployeeStatus(id, currentStatus) {
+            const newStatus = !currentStatus;
+            const employee = currentEmployeeData.find(e => e.id === id);
+            if (!employee) return;
+
+            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการ ${newStatus ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} พนักงาน:\n\nรหัส: ${employee.employee_id}\nชื่อ: ${employee.name}`)) {
+                return;
+            }
+            
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/update-employees`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ id, is_active: newStatus })
+                });
+
+                if (!response.ok) throw new Error((await response.json()).message || 'Failed to update status.');
+
+                showMessage('อัปเดตสถานะสำเร็จ', 'success');
+                fetchEmployees(currentPage);
+            } catch (error) {
+                showMessage('เกิดข้อผิดพลาดในการอัปเดตสถานะ: ' + error.message, 'error');
+            }
         }
 
     </script>
