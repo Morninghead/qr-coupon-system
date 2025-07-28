@@ -29,7 +29,6 @@ exports.handler = async (event, context) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // ตรวจสอบ authorization
     const authHeader = event.headers.authorization;
     if (!authHeader) {
       return {
@@ -50,7 +49,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // ตรวจสอบสิทธิ์ผู้ใช้
     const { data: userProfile } = await supabase
       .from('user_profiles')
       .select('role, department')
@@ -68,9 +66,14 @@ exports.handler = async (event, context) => {
     const requestBody = JSON.parse(event.body || '{}');
     const { name, template_data, description, id } = requestBody;
 
-    console.log('Saving template:', { name, id, elementsCount: template_data?.elements?.length });
+    console.log('Saving template:', { 
+      name, 
+      id, 
+      elementsCount: template_data?.elements?.length,
+      timestamp: new Date().toISOString()
+    });
 
-    // Validation
+    // Enhanced validation for Playwright compatibility
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return {
         statusCode: 400,
@@ -87,7 +90,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validate template data structure
     if (!template_data.elements || !Array.isArray(template_data.elements)) {
       return {
         statusCode: 400,
@@ -104,7 +106,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validate each element
+    // Enhanced element validation for Playwright
     for (let i = 0; i < template_data.elements.length; i++) {
       const element = template_data.elements[i];
       
@@ -120,7 +122,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({ error: `Element ${i + 1}: x and y coordinates are required` })
+          body: JSON.stringify({ error: `Element ${i + 1}: x and y coordinates are required and must be numbers` })
         };
       }
 
@@ -134,6 +136,23 @@ exports.handler = async (event, context) => {
               body: JSON.stringify({ error: `Element ${i + 1}: text content is required for Text elements` })
             };
           }
+          
+          // Validate font properties for Playwright
+          if (element.fontSize && (typeof element.fontSize !== 'number' || element.fontSize < 1 || element.fontSize > 200)) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: `Element ${i + 1}: fontSize must be a number between 1 and 200` })
+            };
+          }
+          
+          if (element.fontFamily && typeof element.fontFamily !== 'string') {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: `Element ${i + 1}: fontFamily must be a string` })
+            };
+          }
           break;
           
         case 'Rect':
@@ -142,7 +161,7 @@ exports.handler = async (event, context) => {
             return {
               statusCode: 400,
               headers,
-              body: JSON.stringify({ error: `Element ${i + 1}: valid width and height are required for Rect elements` })
+              body: JSON.stringify({ error: `Element ${i + 1}: valid width and height (> 0) are required for Rect elements` })
             };
           }
           break;
@@ -155,7 +174,58 @@ exports.handler = async (event, context) => {
               body: JSON.stringify({ error: `Element ${i + 1}: src is required for Image elements` })
             };
           }
+          
+          // Validate image source types
+          const validImageSources = ['employee_photo', 'qr_code'];
+          const isValidPlaceholder = validImageSources.includes(element.src) || 
+                                   element.isEmployeePhoto || 
+                                   element.isQRCode ||
+                                   element.src.startsWith('http');
+          
+          if (!isValidPlaceholder) {
+            return {
+              statusCode: 400,
+              headers,
+              body: JSON.stringify({ error: `Element ${i + 1}: Invalid image source. Must be employee_photo, qr_code, or a valid URL` })
+            };
+          }
           break;
+      }
+
+      // Validate common properties
+      if (element.opacity !== undefined && (typeof element.opacity !== 'number' || element.opacity < 0 || element.opacity > 1)) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: `Element ${i + 1}: opacity must be a number between 0 and 1` })
+        };
+      }
+
+      if (element.rotation !== undefined && typeof element.rotation !== 'number') {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: `Element ${i + 1}: rotation must be a number` })
+        };
+      }
+    }
+
+    // Validate stage properties if present
+    if (template_data.stage) {
+      if (template_data.stage.width && (typeof template_data.stage.width !== 'number' || template_data.stage.width <= 0)) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Stage width must be a positive number' })
+        };
+      }
+      
+      if (template_data.stage.height && (typeof template_data.stage.height !== 'number' || template_data.stage.height <= 0)) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Stage height must be a positive number' })
+        };
       }
     }
 
@@ -194,7 +264,8 @@ exports.handler = async (event, context) => {
           description: description?.trim() || null,
           created_by: user.user.id,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          engine: 'Playwright' // Mark as Playwright compatible
         })
         .select()
         .single();
@@ -214,15 +285,15 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         template: result,
-        message: id ? 'Template updated successfully' : 'Template created successfully'
+        message: id ? 'Template updated successfully' : 'Template created successfully',
+        engine: 'Playwright'
       })
     };
 
   } catch (error) {
     console.error('Error saving template:', error);
     
-    // Handle specific database errors
-    if (error.code === '23505') { // Unique constraint violation
+    if (error.code === '23505') {
       return {
         statusCode: 400,
         headers,
