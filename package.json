@@ -5,6 +5,9 @@
   "main": "add-employees.js",
   "dependencies": {
     "@supabase/supabase-js": "^2.52.0",
+    "html2canvas": "^1.4.1",
+    "jsdom": "^24.1.0",
+    "jspdf": "^2.5.1",
     "qrcode": "^1.5.3"
   },
   "devDependencies": {},
