@@ -1,273 +1,397 @@
-// generate-print-pdf.js
-import { createClient } from '@supabase/supabase-js';
-import { JSDOM } from 'jsdom';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
-import QRCode from 'qrcode'; 
+const { createClient } = require('@supabase/supabase-js');
+const puppeteer = require('puppeteer');
 
-// Supabase Admin client
-const supabaseUrl = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+exports.handler = async (event, context) => {
+  // เปิดใช้งาน CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+  };
 
-// Define standard ID card dimensions in mm
-const CARD_STANDARD_WIDTH_MM = 85.6;
-const CARD_STANDARD_HEIGHT_MM = 53.98;
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
+  }
 
-const BASE_SCANNER_URL = 'https://ssth-ecoupon.netlify.app/scanner'; 
-const EMPLOYEE_PHOTOS_BUCKET = 'employee-photos'; // Make sure this matches your bucket name
-
-export const handler = async (event, context) => {
-    if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Missing Supabase configuration');
     }
 
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // ตรวจสอบ authorization
+    const authHeader = event.headers.authorization;
+    if (!authHeader) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'No authorization header' })
+      };
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: user, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid token' })
+      };
+    }
+
+    const requestBody = JSON.parse(event.body || '{}');
+    const { employeeIds, templateId } = requestBody;
+
+    if (!employeeIds || !Array.isArray(employeeIds) || employeeIds.length === 0) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Employee IDs are required' })
+      };
+    }
+
+    if (!templateId) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Template ID is required' })
+      };
+    }
+
+    // ดึงข้อมูล template พร้อม validation
+    const { data: template, error: templateError } = await supabase
+      .from('card_templates')
+      .select('*')
+      .eq('id', templateId)
+      .single();
+
+    if (templateError || !template) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'Template not found' })
+      };
+    }
+
+    // Validate template data structure
+    if (!template.template_data || typeof template.template_data !== 'object') {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid template data structure' })
+      };
+    }
+
+    // ดึงข้อมูลพนักงาน
+    const { data: employees, error: employeesError } = await supabase
+      .from('employees')
+      .select(`
+        id, employee_id, first_name, last_name, department, position, 
+        photo_url, qr_code_path, is_temp_employee
+      `)
+      .in('id', employeeIds);
+
+    if (employeesError) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to fetch employees' })
+      };
+    }
+
+    if (!employees || employees.length === 0) {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({ error: 'No employees found' })
+      };
+    }
+
+    // สร้าง HTML content สำหรับ PDF generation
+    const htmlContent = await generateCardsHTML(employees, template, supabaseUrl);
+    
+    // สร้าง PDF โดยใช้ Puppeteer
+    let browser;
     try {
-        // 1. Authentication and Authorization Check (Superuser or Department Admin)
-        const token = event.headers.authorization?.split('Bearer ')[1];
-        if (!token) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
-        }
-        const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
-        if (userError || !user) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
-        }
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ]
+      });
 
-        const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
-        if (profile?.role !== 'superuser' && profile?.role !== 'department_admin') {
-            return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied. Superuser or Department Admin role required.' }) };
-        }
+      const page = await browser.newPage();
+      
+      // ตั้งค่าขนาดหน้า A4
+      await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
+      
+      // โหลด HTML content
+      await page.setContent(htmlContent, {
+        waitUntil: ['networkidle0', 'domcontentloaded'],
+        timeout: 30000
+      });
 
-        // 2. Parse Request Body (receiving full employee data and template)
-        const { employees, template } = JSON.parse(event.body);
+      // รอให้ fonts และ images โหลดเสร็จ
+      await page.evaluate(() => {
+        return new Promise((resolve) => {
+          // รอให้ fonts โหลดเสร็จ
+          if (document.fonts) {
+            document.fonts.ready.then(() => {
+              // รอให้ images โหลดเสร็จ
+              const images = document.querySelectorAll('img');
+              let loadedImages = 0;
+              
+              if (images.length === 0) {
+                resolve();
+                return;
+              }
 
-        if (!employees || employees.length === 0 || !template || !template.id) {
-            return { statusCode: 400, body: JSON.stringify({ message: 'Missing employee data or template.' }) };
-        }
-
-        // --- JSDOM setup for server-side HTML rendering ---
-        // Define common styles to be injected into JSDOM for html2canvas
-        const commonCardStyles = `
-            body { margin: 0; padding: 0; } /* Reset body margin within JSDOM */
-            .employee-card {
-                border: 1px solid #ccc; /* Hairline border for cutting */
-                border-radius: 8px;
-                overflow: hidden;
-                position: relative;
-                background-color: #fff;
-                box-shadow: none; /* Remove shadow for printing */
-                box-sizing: border-box; /* Crucial for consistent sizing */
-            }
-            .employee-card .background {
-                position: absolute;
-                top: 0; left: 0;
-                width: 100%; height: 100%;
-                object-fit: cover;
-                z-index: 0;
-            }
-            .employee-card .card-content {
-                position: relative;
-                z-index: 1;
-                width: 100%;
-                height: 100%;
-            }
-            .employee-card .card-element {
-                position: absolute;
-                box-sizing: border-box; /* Important */
-                background-color: rgba(255,255,255,0.7); /* Semi-transparent background for text clarity */
-                padding: 2px 5px;
-                border-radius: 3px;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                color: #000;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; /* Ensure font is consistent */
-            }
-            .employee-card .card-element.text {
-                font-weight: 500;
-            }
-            .employee-card .card-element.img {
-                background-color: transparent;
-                border: none;
-                padding: 0;
-            }
-            .employee-card .card-element.qr {
-                background-color: transparent;
-                border: none;
-                padding: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-            }
-        `;
-        
-        // Initialize JSDOM with basic HTML and the common styles
-        const dom = new JSDOM(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>${commonCardStyles}</style>
-            </head>
-            <body>
-                <div id="render-area" style="position: relative; width: 0; height: 0; overflow: hidden;"></div>
-            </body>
-            </html>
-        `, { resources: 'usable' }); // 'usable' for loading external resources like images
-        const document = dom.window.document;
-        const renderArea = document.getElementById('render-area'); // Area to attach elements for rendering
-
-
-        // Helper function to generate card HTML (server-side with inline styles for html2canvas)
-        const generateCardHtml = async (employee, template) => {
-            let photoUrl = employee.photo_url || `${supabaseUrl}/storage/v1/object/public/${EMPLOYEE_PHOTOS_BUCKET}/${employee.employee_id}.jpg`;
-            const finalPhotoUrl = photoUrl || 'https://via.placeholder.com/80?text=No+Photo';
-
-            let cardHtml = '';
-            if (template.background_front_url) {
-                cardHtml += `<img src="${template.background_front_url}" class="background">`;
-            }
-            cardHtml += `<div class="card-content">`;
-
-            const layout = template.layout_config || {};
-            for (const key in layout) {
-                if (Object.hasOwnProperty.call(layout, key)) {
-                    const style = layout[key];
-                    let content = '';
-                    let className = 'card-element';
-
-                    // Apply inline styles from JSON
-                    let inlineStyleStr = '';
-                    for (const prop in style) {
-                        if (Object.hasOwnProperty.call(style, prop) && prop !== 'text') { 
-                            inlineStyleStr += `${prop}: ${style[prop]};`;
-                        }
+              images.forEach((img) => {
+                if (img.complete) {
+                  loadedImages++;
+                } else {
+                  img.onload = () => {
+                    loadedImages++;
+                    if (loadedImages === images.length) {
+                      resolve();
                     }
-
-                    if (key === "photo") { 
-                        className += ' img';
-                        content = `<img src="${finalPhotoUrl}" style="width:100%;height:100%;object-fit:contain;${style.borderRadius ? `border-radius:${style.borderRadius};` : ''}${style.border ? `border:${style.border};` : ''}" onerror="this.onerror=null;this.src='https://via.placeholder.com/80?text=Photo+Error'">`;
-                    } else if (key === "logo") { 
-                        className += ' img';
-                        content = `<img src="${template.logo_url || 'https://via.placeholder.com/50?text=Logo'}" style="width:100%;height:100%;object-fit:contain;" onerror="this.onerror=null;this.src='https://via.placeholder.com/50?text=Logo+Error'">`;
+                  };
+                  img.onerror = () => {
+                    loadedImages++;
+                    if (loadedImages === images.length) {
+                      resolve();
                     }
-                    else if (key === "company_name") {
-                        className += ' text';
-                        content = template.company_name || '';
-                    } else if (key === "employee_name") {
-                        className += ' text';
-                        content = employee.name;
-                    } else if (key === "employee_id") {
-                        className += ' text';
-                        content = `ID: ${employee.employee_id}`;
-                    } else if (key === "qr_code") {
-                        className += ' qr';
-                        // Generate QR code as Data URL server-side
-                        const qrCodeData = `${BASE_SCANNER_URL}?token=${employee.permanent_token}`;
-                        const qrDataUrl = await QRCode.toDataURL(qrCodeData, {
-                            errorCorrectionLevel: 'H',
-                            width: 100 // A base resolution, html2canvas will scale based on CSS
-                        });
-                        content = `<img src="${qrDataUrl}" style="width:100%;height:100%;object-fit:contain;">`;
-                    } else {
-                        className += ' text';
-                        content = style.text || ''; 
-                    }
-                    
-                    cardHtml += `<div class="${className}" style="${inlineStyleStr}">${content}</div>`;
+                  };
                 }
-            }
-            cardHtml += `</div>`; 
-            return cardHtml;
-        };
+              });
 
-        // Initialize jsPDF outside the loop
-        const pdfOrientation = template.orientation === 'landscape' ? 'landscape' : 'portrait';
-        const doc = new jsPDF({
-            orientation: pdfOrientation, 
-            unit: 'mm',
-            format: 'a4'
-        });
-
-        // Calculate card dimensions for PDF based on standard ratio
-        let finalCardWidthMm, finalCardHeightMm;
-        if (template.orientation === 'landscape') {
-            finalCardWidthMm = CARD_STANDARD_WIDTH_MM; 
-            finalCardHeightMm = CARD_STANDARD_HEIGHT_MM; 
-        } else { // portrait
-            finalCardWidthMm = CARD_STANDARD_HEIGHT_MM; 
-            finalCardHeightMm = CARD_STANDARD_WIDTH_MM; 
-        }
-
-        const renderScale = 3; // Scale factor for html2canvas to render at higher resolution
-        const margin = 10; // mm margin for PDF page
-        let currentX = margin;
-        let currentY = margin;
-
-        for (const employee of employees) {
-            // Create a temporary div for html2canvas rendering in JSDOM
-            const tempCardElement = document.createElement('div');
-            // Apply a class to mimic frontend styles for the main card container
-            tempCardElement.classList.add('employee-card'); 
-            
-            // Set dimensions in pixels for html2canvas rendering (e.g., 96 dpi conversion from mm)
-            // It's crucial for html2canvas to render something with known pixel dimensions.
-            const mmToPx = (mm) => mm * (96 / 25.4); // Standard 96 DPI
-            
-            tempCardElement.style.width = `${mmToPx(finalCardWidthMm)}px`;
-            tempCardElement.style.height = `${mmToPx(finalCardHeightMm)}px`;
-            
-            // Append the generated HTML content
-            tempCardElement.innerHTML = await generateCardHtml(employee, template);
-            renderArea.appendChild(tempCardElement); // Append to the hidden render area in JSDOM
-
-            // Render HTML element to canvas using html2canvas
-            const canvas = await html2canvas(tempCardElement, { 
-                scale: renderScale, 
-                logging: false,
-                backgroundColor: null // Transparent background to use PDF's background
+              if (loadedImages === images.length) {
+                resolve();
+              }
             });
-            const imgData = canvas.toDataURL('image/jpeg', 0.9); // Get image data from canvas
+          } else {
+            resolve();
+          }
+        });
+      });
 
-            // Remove the temporary card element from JSDOM
-            tempCardElement.remove();
+      // รอเพิ่มเติมเพื่อให้แน่ใจว่าทุกอย่างพร้อม
+      await page.waitForTimeout(2000);
 
-            // Add image to PDF
-            const page_width = doc.internal.pageSize.getWidth();
-            const page_height = doc.internal.pageSize.getHeight();
-            
-            if (currentX + finalCardWidthMm > page_width - margin) {
-                currentX = margin;
-                currentY += finalCardHeightMm + margin;
-            }
-            if (currentY + finalCardHeightMm > page_height - margin) {
-                doc.addPage();
-                currentY = margin;
-            }
+      // สร้าง PDF
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '10mm',
+          right: '10mm',
+          bottom: '10mm',
+          left: '10mm'
+        },
+        preferCSSPageSize: true
+      });
 
-            doc.addImage(imgData, 'JPEG', currentX, currentY, finalCardWidthMm, finalCardHeightMm);
-            currentX += finalCardWidthMm + margin;
-        }
+      const base64PDF = pdfBuffer.toString('base64');
 
-        // Return PDF as Base64 Data URI
-        const pdfBase64 = doc.output('datauristring');
-        
-        return {
-            statusCode: 200,
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                success: true,
-                message: `PDF generated successfully for ${employees.length} cards.`,
-                pdfData: pdfBase64 
-            }),
-        };
+      return {
+        statusCode: 200,
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          success: true,
+          pdf: base64PDF,
+          filename: `employee-cards-${new Date().toISOString().split('T')[0]}.pdf`
+        })
+      };
 
-    } catch (error) {
-        console.error('Generate Print PDF Error:', error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ message: 'Failed to generate PDF', error: error.message }),
-        };
+    } finally {
+      if (browser) {
+        await browser.close();
+      }
     }
+
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Failed to generate PDF',
+        details: error.message
+      })
+    };
+  }
 };
+
+async function generateCardsHTML(employees, template, supabaseUrl) {
+  const templateData = template.template_data;
+  
+  // สร้าง CSS สำหรับ template
+  const templateCSS = generateTemplateCSS(templateData);
+  
+  // สร้าง HTML สำหรับแต่ละบัตร
+  const cardsHTML = employees.map(employee => generateCardHTML(employee, templateData, supabaseUrl)).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Employee Cards</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        body {
+          font-family: 'Sarabun', sans-serif;
+          font-size: 12px;
+          line-height: 1.4;
+          background: white;
+        }
+        
+        .cards-container {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 10mm;
+          padding: 10mm;
+        }
+        
+        .card {
+          width: 85.6mm;  /* ขนาดบัตร standard */
+          height: 53.98mm;
+          position: relative;
+          background: white;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          overflow: hidden;
+          page-break-inside: avoid;
+          margin-bottom: 5mm;
+        }
+        
+        .card img {
+          max-width: 100%;
+          height: auto;
+          display: block;
+        }
+        
+        .card-element {
+          position: absolute;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        ${templateCSS}
+      </style>
+    </head>
+    <body>
+      <div class="cards-container">
+        ${cardsHTML}
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+function generateTemplateCSS(templateData) {
+  if (!templateData.elements || !Array.isArray(templateData.elements)) {
+    return '';
+  }
+
+  return templateData.elements.map((element, index) => {
+    const className = `.element-${index}`;
+    let css = `${className} {\n`;
+    
+    // Position
+    if (element.x !== undefined) css += `  left: ${element.x}px;\n`;
+    if (element.y !== undefined) css += `  top: ${element.y}px;\n`;
+    if (element.width !== undefined) css += `  width: ${element.width}px;\n`;
+    if (element.height !== undefined) css += `  height: ${element.height}px;\n`;
+    
+    // Text styling
+    if (element.fontSize) css += `  font-size: ${element.fontSize}px;\n`;
+    if (element.fontFamily) css += `  font-family: '${element.fontFamily}', sans-serif;\n`;
+    if (element.fill) css += `  color: ${element.fill};\n`;
+    if (element.fontStyle === 'bold') css += `  font-weight: bold;\n`;
+    if (element.fontStyle === 'italic') css += `  font-style: italic;\n`;
+    if (element.textAlign) css += `  text-align: ${element.textAlign};\n`;
+    
+    // Background
+    if (element.fill && element.type === 'rect') {
+      css += `  background-color: ${element.fill};\n`;
+    }
+    
+    css += `}\n`;
+    return css;
+  }).join('\n');
+}
+
+function generateCardHTML(employee, templateData, supabaseUrl) {
+  if (!templateData.elements || !Array.isArray(templateData.elements)) {
+    return `<div class="card">Invalid template data</div>`;
+  }
+
+  const elementsHTML = templateData.elements.map((element, index) => {
+    let content = '';
+    let className = `card-element element-${index}`;
+    
+    switch (element.type) {
+      case 'text':
+        content = processTextContent(element.text || '', employee);
+        return `<div class="${className}">${content}</div>`;
+        
+      case 'image':
+        if (element.src === 'employee_photo' && employee.photo_url) {
+          const imageUrl = employee.photo_url.startsWith('http') 
+            ? employee.photo_url 
+            : `${supabaseUrl}/storage/v1/object/public/employee-photos/${employee.photo_url}`;
+          return `<img class="${className}" src="${imageUrl}" alt="Employee Photo" />`;
+        } else if (element.src === 'qr_code' && employee.qr_code_path) {
+          const qrUrl = employee.qr_code_path.startsWith('http')
+            ? employee.qr_code_path
+            : `${supabaseUrl}/storage/v1/object/public/qr-codes/${employee.qr_code_path}`;
+          return `<img class="${className}" src="${qrUrl}" alt="QR Code" />`;
+        }
+        return `<div class="${className}"></div>`;
+        
+      case 'rect':
+        return `<div class="${className}"></div>`;
+        
+      default:
+        return `<div class="${className}"></div>`;
+    }
+  }).join('');
+
+  return `<div class="card">${elementsHTML}</div>`;
+}
+
+function processTextContent(text, employee) {
+  if (!text || typeof text !== 'string') return '';
+  
+  // Replace placeholders with employee data
+  return text
+    .replace(/\{employee_id\}/g, employee.employee_id || '')
+    .replace(/\{first_name\}/g, employee.first_name || '')
+    .replace(/\{last_name\}/g, employee.last_name || '')
+    .replace(/\{full_name\}/g, `${employee.first_name || ''} ${employee.last_name || ''}`.trim())
+    .replace(/\{department\}/g, employee.department || '')
+    .replace(/\{position\}/g, employee.position || '')
+    .replace(/\{employee_type\}/g, employee.is_temp_employee ? 'ชั่วคราว' : 'ประจำ');
+}
