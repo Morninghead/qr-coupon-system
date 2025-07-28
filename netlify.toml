@@ -2,11 +2,13 @@
 
 [build]
   # Directory to publish (root of the project)
-  # บอกให้ Netlify รู้ว่าไฟล์ HTML ทั้งหมดอยู่ที่โฟลเดอร์หลัก
   publish = "."
   
   # Directory where our serverless functions live
-  # บอกให้ Netlify รู้ว่าฟังก์ชัน Backend ทั้งหมดอยู่ที่นี่
   functions = "netlify/functions"
 
-# --- ไม่ต้องมีส่วน [[redirects]] อีกต่อไป ---
+# Add this section to specify the build image
+[images]
+  # Use the "jammy" build image (Ubuntu 22.04)
+  # This is the crucial fix for the missing library error
+  build_image_selection = "jammy"
