@@ -181,8 +181,7 @@
 
             try {
                 const { data: { session } } = await _supabase.auth.getSession();
-                // FIX: Add employee_type=regular to the query
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-employees?page=${page}&limit=${itemsPerPage}&search=${searchTerm}&department=${departmentId}&status=${status}&employee_type=regular`, {
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-employees?page=${page}&limit=${itemsPerPage}&search=${searchTerm}&department=${departmentId}&status=${status}`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
 
@@ -223,9 +222,28 @@
                 `;
                 employeeTableBody.appendChild(row);
             });
-        }
 
-        // ## UPDATED PAGINATION FUNCTION ##
+            // ## FIX: Add event listeners for the new buttons ##
+            document.querySelectorAll('.edit-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    // This is where you would call a function to open your edit modal
+                    console.log('Edit employee with ID:', e.target.dataset.id);
+                    // Example: openEditModal(e.target.dataset.id);
+                });
+            });
+
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const idToDelete = e.target.dataset.id;
+                    if (confirm(`Are you sure you want to delete employee with ID: ${idToDelete}?`)) {
+                        // This is where you would call your delete function
+                        console.log('Delete employee with ID:', idToDelete);
+                        // Example: await deleteEmployee(idToDelete);
+                    }
+                });
+            });
+        }
+        
         function renderPagination(currentPage, totalPages) {
             paginationControls.innerHTML = '';
             if (totalPages <= 1) return;
@@ -245,7 +263,6 @@
             
             paginationControls.innerHTML = buttonsHtml;
 
-            // Add event listeners
             document.getElementById('prev-btn').addEventListener('click', () => goToPage(currentPage - 1));
             document.getElementById('next-btn').addEventListener('click', () => goToPage(currentPage + 1));
             document.getElementById('go-to-page-btn').addEventListener('click', () => {
@@ -253,7 +270,6 @@
                 goToPage(pageNum);
             });
             
-            // Disable buttons if at start or end
             if (currentPage === 1) document.getElementById('prev-btn').disabled = true;
             if (currentPage === totalPages) document.getElementById('next-btn').disabled = true;
         }
@@ -268,7 +284,7 @@
                 fetchEmployees(currentPage);
             } else {
                 alert(`Please enter a page number between 1 and ${totalPages}.`);
-                pageInput.value = currentPage; // Reset to the current page if input is invalid
+                pageInput.value = currentPage;
             }
         }
 
