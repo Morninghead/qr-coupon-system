@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
-// Use chromium-lambda which is optimized for serverless environments
-import chromium from 'chrome-aws-lambda';
-// Use puppeteer-core which is a lightweight version of Puppeteer
+// FIX: Import the new, modern chromium package
+import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
 
 // Supabase Admin client
@@ -24,7 +23,7 @@ export const handler = async (event, context) => {
 
     let browser = null;
     try {
-        // Authentication & Authorization (same as before)
+        // Authentication & Authorization
         const token = event.headers.authorization?.split('Bearer ')[1];
         if (!token) return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
         const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
@@ -46,11 +45,11 @@ export const handler = async (event, context) => {
         const { data: employees, error: employeesError } = await supabaseAdmin.from('employees').select('id, employee_id, name, permanent_token, photo_url').in('id', employee_ids);
         if (employeesError) throw new Error(`Failed to fetch employees: ${employeesError.message}`);
 
-        // Launch the headless browser
+        // FIX: Launch the browser using the new chromium package
         browser = await puppeteer.launch({
             args: chromium.args,
             defaultViewport: chromium.defaultViewport,
-            executablePath: await chromium.executablePath,
+            executablePath: await chromium.executablePath(), // Use executablePath() function
             headless: chromium.headless,
             ignoreHTTPSErrors: true,
         });
@@ -85,13 +84,13 @@ export const handler = async (event, context) => {
             body: JSON.stringify({ message: 'Failed to generate PDF', error: error.message }),
         };
     } finally {
-        // IMPORTANT: Always close the browser
         if (browser !== null) {
             await browser.close();
         }
     }
 };
 
+// The rest of the file (addCardsToPdf, renderCardToImage, generateCardHtml) remains the same.
 async function addCardsToPdf(doc, employees, template, browser) {
     const isLandscape = template.orientation === 'landscape';
     const cardWidth = isLandscape ? CARD_STANDARD_WIDTH_MM : CARD_STANDARD_HEIGHT_MM;
@@ -113,6 +112,7 @@ async function addCardsToPdf(doc, employees, template, browser) {
         const indexOnPage = cardCount % cardsPerPage;
         const col = indexOnPage % cols;
         const row = Math.floor(indexOnPage / cols);
+
         const x = pageMargin + col * (cardWidth + cardSpacing);
         const y = pageMargin + row * (cardHeight + cardSpacing);
 
@@ -123,15 +123,15 @@ async function addCardsToPdf(doc, employees, template, browser) {
 }
 
 async function renderCardToImage(employee, template, cardWidthMm, cardHeightMm, browser) {
-    const dpi = 300; // High resolution for printing
-    const scale = dpi / 25.4; // pixels per mm
+    const dpi = 300;
+    const scale = dpi / 25.4;
     const cardWidthPx = Math.round(cardWidthMm * scale);
     const cardHeightPx = Math.round(cardHeightMm * scale);
 
     const page = await browser.newPage();
     await page.setViewport({ width: cardWidthPx, height: cardHeightPx });
     
-    const finalHtml = await generateCardHtml(employee, template);
+    const finalHtml = await generateCardHtml(employee, template, cardWidthPx, cardHeightPx);
     await page.setContent(finalHtml, { waitUntil: 'networkidle0' });
 
     const screenshotBuffer = await page.screenshot({
@@ -144,8 +144,7 @@ async function renderCardToImage(employee, template, cardWidthMm, cardHeightMm, 
     return `data:image/jpeg;base64,${screenshotBuffer}`;
 }
 
-async function generateCardHtml(employee, template) {
-    // This function remains largely the same, but we can simplify it
+async function generateCardHtml(employee, template, cardWidthPx, cardHeightPx) {
     const photoUrl = employee.photo_url || `${supabaseUrl}/storage/v1/object/public/${EMPLOYEE_PHOTOS_BUCKET}/${employee.employee_id}.jpg`;
     const qrCodeData = `${BASE_SCANNER_URL}?token=${employee.permanent_token}`;
     const qrDataUrl = await QRCode.toDataURL(qrCodeData, { errorCorrectionLevel: 'H', width: 256 });
@@ -164,7 +163,6 @@ async function generateCardHtml(employee, template) {
         let content = '';
         let inlineStyle = `position:absolute; left:${style.left}; top:${style.top}; width:${style.width}; height:${style.height}; box-sizing:border-box;`;
         
-        // Add all style properties from the layout
         Object.keys(style).forEach(prop => {
             if (!['left', 'top', 'width', 'height'].includes(prop)) {
                 const kebabCaseProp = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
@@ -199,7 +197,6 @@ async function generateCardHtml(employee, template) {
         ? `background-image: url(${template.background_front_url}); background-size: cover; background-position: center;`
         : 'background-color: #fff;';
 
-    // Wrap everything in a full HTML document for Puppeteer
     return `
         <html>
             <head>
@@ -213,9 +210,9 @@ async function generateCardHtml(employee, template) {
                         font-family: sans-serif;
                         ${backgroundStyle}
                     }
-                    .card-body img {
-                        max-width: 100%;
-                        max-height: 100%;
+                    .card-body img, .card-body div {
+                        -webkit-font-smoothing: antialiased;
+                        text-rendering: optimizeLegibility;
                     }
                 </style>
             </head>
