@@ -18,12 +18,11 @@ const EMPLOYEE_PHOTOS_BUCKET = 'employee-photos';
 
 // --- Main Handler ---
 export const handler = async (event, context) => {
+    // ... (This part remains the same)
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
-
     try {
-        // Authentication & Authorization
         const token = event.headers.authorization?.split('Bearer ')[1];
         if (!token) return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
         const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
@@ -32,28 +31,21 @@ export const handler = async (event, context) => {
         if (profile?.role !== 'superuser' && profile?.role !== 'department_admin') {
             return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied.' }) };
         }
-
         const { template_id, employee_ids, print_settings } = JSON.parse(event.body);
         if (!template_id || !employee_ids || !employee_ids.length) {
             return { statusCode: 400, body: JSON.stringify({ message: 'Missing template or employee data.' }) };
         }
-
         const { data: template, error: templateError } = await supabaseAdmin.from('card_templates').select('*').eq('id', template_id).single();
         if (templateError) throw new Error(`Template not found: ${templateError.message}`);
-
         const { data: employees, error: employeesError } = await supabaseAdmin.from('employees').select('id, employee_id, name, permanent_token, photo_url').in('id', employee_ids);
         if (employeesError) throw new Error(`Failed to fetch employees: ${employeesError.message}`);
-
         const doc = new jsPDF({
             orientation: template.orientation === 'portrait' ? 'portrait' : 'landscape',
             unit: 'mm',
             format: 'a4'
         });
-
         await addCardsToPdf(doc, employees, template);
-
         const pdfBase64 = doc.output('datauristring');
-        
         return {
             statusCode: 200,
             body: JSON.stringify({
@@ -63,7 +55,6 @@ export const handler = async (event, context) => {
                 pdfData: pdfBase64 
             }),
         };
-
     } catch (error) {
         console.error('Generate Bulk Cards Error:', error);
         return {
@@ -74,33 +65,28 @@ export const handler = async (event, context) => {
 };
 
 async function addCardsToPdf(doc, employees, template) {
+    // ... (This part remains the same)
     const isLandscape = template.orientation === 'landscape';
     const cardWidth = isLandscape ? CARD_STANDARD_WIDTH_MM : CARD_STANDARD_HEIGHT_MM;
     const cardHeight = isLandscape ? CARD_STANDARD_HEIGHT_MM : CARD_STANDARD_WIDTH_MM;
-    
     const pageMargin = 10;
     const cardSpacing = 5;
     const pageWidth = doc.internal.pageSize.getWidth();
     const cols = Math.floor((pageWidth - pageMargin * 2 + cardSpacing) / (cardWidth + cardSpacing));
     const rows = 4;
     const cardsPerPage = cols * rows;
-    
     let cardCount = 0;
     for (const employee of employees) {
         if (cardCount > 0 && cardCount % cardsPerPage === 0) {
             doc.addPage();
         }
-
         const indexOnPage = cardCount % cardsPerPage;
         const col = indexOnPage % cols;
         const row = Math.floor(indexOnPage / cols);
-
         const x = pageMargin + col * (cardWidth + cardSpacing);
         const y = pageMargin + row * (cardHeight + cardSpacing);
-
         const cardCanvas = await renderCardToCanvas(employee, template, cardWidth, cardHeight);
         const imgData = cardCanvas.toDataURL('image/jpeg', 0.9);
-
         doc.addImage(imgData, 'JPEG', x, y, cardWidth, cardHeight);
         cardCount++;
     }
@@ -115,7 +101,18 @@ async function renderCardToCanvas(employee, template, cardWidthMm, cardHeightMm)
     global.HTMLCanvasElement = dom.window.HTMLCanvasElement;
     global.HTMLImageElement = dom.window.HTMLImageElement;
 
-    const mockGetComputedStyle = () => ({ getPropertyValue: () => '' });
+    // ** FIX: Updated mock function **
+    // This new version returns a valid color for 'background-color' to prevent a parsing error.
+    const mockGetComputedStyle = () => {
+        return {
+            getPropertyValue: function (prop) {
+                if (prop === 'background-color' || prop === 'backgroundColor') {
+                    return 'transparent'; // Return a valid, parseable color
+                }
+                return ''; // Return empty for anything else
+            }
+        };
+    };
     global.getComputedStyle = mockGetComputedStyle;
     dom.window.getComputedStyle = mockGetComputedStyle;
     dom.window.scrollTo = () => {};
@@ -141,22 +138,20 @@ async function renderCardToCanvas(employee, template, cardWidthMm, cardHeightMm)
     });
 }
 
+// ... (generateCardHtml function remains the same)
 async function generateCardHtml(employee, template) {
     const photoUrl = employee.photo_url || `${supabaseUrl}/storage/v1/object/public/${EMPLOYEE_PHOTOS_BUCKET}/${employee.employee_id}.jpg`;
     const qrCodeData = `${BASE_SCANNER_URL}?token=${employee.permanent_token}`;
     const qrDataUrl = await QRCode.toDataURL(qrCodeData, { errorCorrectionLevel: 'H', width: 200 });
     let elementsHtml = '';
     
-    // **นี่คือส่วนที่แก้ไขปัญหา layout**
     let layout;
     if (template.layout_config && template.layout_config.frontLayout) {
-      // รูปแบบจาก Advanced Editor
       layout = template.layout_config.frontLayout;
     } else {
-      // รูปแบบาก Simple Editor
       layout = template.layout_config;
     }
-    layout = layout || {}; // ป้องกันกรณี layout_config เป็น null
+    layout = layout || {};
 
     for (const key in layout) {
         const style = layout[key];
