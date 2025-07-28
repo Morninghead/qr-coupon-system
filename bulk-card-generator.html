@@ -2,54 +2,127 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bulk Card Generator</title>
     
-    <!-- ⭐ ใช้ Local Supabase File แทน CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .section { margin-bottom: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; }
-        .section h2 { margin-top: 0; color: #333; }
-        select, input, button { padding: 10px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; }
-        button { background-color: #6366F1; color: white; cursor: pointer; border: none; }
-        button:hover { background-color: #4f46e5; }
-        button:disabled { background-color: #c7d2fe; cursor: not-allowed; }
-        .employee-list { max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; }
-        .employee-item { display: flex; align-items: center; padding: 5px; }
-        .progress-bar { width: 100%; height: 20px; background-color: #f0f0f0; border-radius: 10px; overflow: hidden; }
-        .progress-fill { height: 100%; background-color: #10B981; width: 0%; transition: width 0.3s; }
-        .breadcrumb { margin-bottom: 20px; }
-        .breadcrumb a { color: #6366F1; text-decoration: none; font-weight: 600; }
-        .breadcrumb a:hover { text-decoration: underline; }
-        .error-message { text-align: center; padding: 50px; color: red; }
-        .error-message h2 { color: #dc2626; }
-        .error-message ul { text-align: left; display: inline-block; margin: 20px 0; }
-        .error-message button { background: #6366F1; color: white; border: none; border-radius: 4px; padding: 10px 20px; cursor: pointer; margin: 5px; }
-        .error-message button:hover { background: #4f46e5; }
-        .success-message { background: #f0fdf4; border: 1px solid #16a34a; color: #15803d; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid #6366F1; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        :root {
+            --primary-color: #6366F1;
+            --secondary-color: #10B981;
+            --light-gray: #f0f2f5;
+            --text-color: #333;
+            --border-color: #e0e0e0;
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: var(--light-gray); 
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+        }
+        .section { 
+            margin-bottom: 30px; 
+            padding: 20px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
+        }
+        .section h2 { 
+            margin-top: 0; 
+            color: var(--text-color); 
+        }
+        select, input, button { 
+            padding: 10px; 
+            margin: 5px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-size: 1em;
+        }
+        button { 
+            background-color: var(--primary-color); 
+            color: white; 
+            cursor: pointer; 
+            border: none; 
+            transition: background-color 0.2s;
+        }
+        button:hover { 
+            background-color: #4f46e5; 
+        }
+        button:disabled { 
+            background-color: #c7d2fe; 
+            cursor: not-allowed; 
+        }
+        .employee-list { 
+            max-height: 300px; 
+            overflow-y: auto; 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+        }
+        .employee-item { 
+            display: flex; 
+            align-items: center; 
+            padding: 5px; 
+        }
+        .progress-bar { 
+            width: 100%; 
+            height: 20px; 
+            background-color: #f0f0f0; 
+            border-radius: 10px; 
+            overflow: hidden; 
+        }
+        .progress-fill { 
+            height: 100%; 
+            background-color: var(--secondary-color); 
+            width: 0%; 
+            transition: width 0.3s; 
+        }
+        .breadcrumb { 
+            margin-bottom: 20px; 
+        }
+        .breadcrumb a { 
+            color: var(--primary-color); 
+            text-decoration: none; 
+            font-weight: 600; 
+        }
+        .breadcrumb a:hover { 
+            text-decoration: underline; 
+        }
+        .loading-container {
+            text-align: center;
+            padding: 40px;
+        }
+        .loading-spinner { 
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid var(--primary-color); 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin: 20px auto; 
+        }
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="breadcrumb">
-            <a href="menu.html">&laquo; Back to Menu</a>
+            <a href="menu.html">&laquo; กลับสู่เมนูหลัก</a>
         </div>
         
         <h1>🎨 Bulk Card Generator</h1>
 
-        <!-- Loading Section -->
-        <div id="loading-section">
-            <div class="loading-spinner"></div>
-            <p style="text-align: center;">กำลังเริ่มต้นระบบ...</p>
-        </div>
-
-        <!-- Main Content (ซ่อนไว้จนกว่าจะโหลดเสร็จ) -->
-        <div id="main-content" style="display: none;">
-            <!-- Section 1: Template Selection -->
+        <div id="main-content">
             <div class="section">
                 <h2>1. เลือก Template</h2>
                 <select id="template-select">
@@ -61,34 +134,35 @@
                 </div>
             </div>
 
-            <!-- Section 2: Employee Selection -->
             <div class="section">
                 <h2>2. เลือกพนักงาน</h2>
                 <div style="margin-bottom: 15px;">
-                    <button id="select-all-btn">เลือกทั้งหมด</button>
+                    <button id="select-all-btn">เลือก/ไม่เลือกทั้งหมด</button>
                     <button id="select-by-dept-btn">เลือกตามแผนก</button>
                     <select id="department-filter" style="display: none;">
                         <option value="">เลือกแผนก...</option>
                     </select>
                 </div>
                 <div id="employee-list" class="employee-list">
-                    กำลังโหลดรายชื่อพนักงาน...
+                    <div class="loading-container">
+                        <div class="loading-spinner"></div>
+                        <p>กำลังโหลดรายชื่อพนักงาน...</p>
+                    </div>
                 </div>
                 <div id="selection-summary" style="margin-top: 10px; font-weight: bold;">
                     เลือกแล้ว: 0 คน
                 </div>
             </div>
 
-            <!-- Section 3: Print Settings -->
             <div class="section">
                 <h2>3. ตั้งค่าการพิมพ์</h2>
                 <label>
                     <input type="radio" name="print-layout" value="A4-8cards" checked> 
-                    A4 (8 บัตรต่อหน้า) - เหมาะสำหรับ Printer ธรรมดา
+                    A4 (8 บัตรต่อหน้า)
                 </label><br>
                 <label>
                     <input type="radio" name="print-layout" value="A3-16cards"> 
-                    A3 (16 บัตรต่อหน้า) - ประหยัดกระดาษมากขึ้น
+                    A3 (16 บัตรต่อหน้า)
                 </label><br>
                 <label>
                     <input type="checkbox" id="include-cropmarks" checked> 
@@ -100,7 +174,6 @@
                 </label>
             </div>
 
-            <!-- Section 4: Generate -->
             <div class="section">
                 <h2>4. สร้างบัตร</h2>
                 <button id="generate-cards-btn" disabled>🚀 สร้างบัตรพนักงาน</button>
@@ -112,7 +185,6 @@
                 </div>
             </div>
 
-            <!-- Section 5: Download -->
             <div id="download-section" class="section" style="display: none;">
                 <h2>5. ดาวน์โหลดผลลัพธ์</h2>
                 <div id="download-links"></div>
@@ -120,147 +192,6 @@
         </div>
     </div>
 
-    <!-- Script Section: ตรวจสอบและโหลด JavaScript -->
-    <script>
-        // ฟังก์ชันเริ่มต้นระบบ
-        async function initializeSystem() {
-            const loadingSection = document.getElementById('loading-section');
-            const mainContent = document.getElementById('main-content');
-
-            try {
-                // ตรวจสอบ Supabase
-                if (typeof Supabase === 'undefined') {
-                    throw new Error('ไม่สามารถโหลด Supabase ได้ - ตรวจสอบไฟล์ js/supabase.min.js');
-                }
-
-                console.log('✅ Supabase loaded successfully from local file');
-
-                // โหลด JavaScript หลัก
-                await loadMainScript();
-
-                // แสดง success message
-                loadingSection.innerHTML = `
-                    <div class="success-message">
-                        <strong>✅ ระบบเริ่มต้นสำเร็จ!</strong> 
-                        Supabase โหลดจาก Local File และพร้อมใช้งาน
-                    </div>
-                `;
-
-                // ซ่อน loading และแสดง content หลังจาก 1 วินาที
-                setTimeout(() => {
-                    loadingSection.style.display = 'none';
-                    mainContent.style.display = 'block';
-                }, 1000);
-
-            } catch (error) {
-                console.error('System initialization failed:', error);
-                showErrorMessage(error.message);
-            }
-        }
-
-        // ฟังก์ชันโหลด JavaScript หลัก
-        function loadMainScript() {
-            return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'bulk-card-generator.js';
-                script.onload = () => {
-                    console.log('✅ Bulk Card Generator JavaScript loaded successfully');
-                    resolve();
-                };
-                script.onerror = () => {
-                    reject(new Error('ไม่สามารถโหลด bulk-card-generator.js ได้ - ตรวจสอบว่าไฟล์อยู่ในโฟลเดอร์เดียวกัน'));
-                };
-                document.head.appendChild(script);
-            });
-        }
-
-        // ฟังก์ชันแสดง Error Message
-        function showErrorMessage(message) {
-            const loadingSection = document.getElementById('loading-section');
-            loadingSection.innerHTML = `
-                <div class="error-message">
-                    <h2>⚠️ ไม่สามารถเริ่มต้นระบบได้</h2>
-                    <p><strong>ข้อผิดพลาด:</strong> ${message}</p>
-                    
-                    <div style="background: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                        <h4>🔧 วิธีแก้ไข:</h4>
-                        <ul>
-                            <li>ตรวจสอบว่าไฟล์ <code>js/supabase.min.js</code> อยู่ในโฟลเดอร์ที่ถูกต้อง</li>
-                            <li>ตรวจสอบว่าไฟล์ <code>bulk-card-generator.js</code> อยู่ในโฟลเดอร์เดียวกัน</li>
-                            <li>ตรวจสอบ Console เพื่อดู error details</li>
-                            <li>ลองใช้ Static CDN แทน (วิธีแก้ไขที่ 2)</li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <button onclick="location.reload()">🔄 โหลดใหม่</button>
-                        <button onclick="openConsole()">🔍 เปิด Console</button>
-                        <button onclick="checkFiles()">📁 ตรวจสอบไฟล์</button>
-                    </div>
-                    
-                    <div id="file-check-results" style="margin-top: 20px;"></div>
-                </div>
-            `;
-        }
-
-        // ฟังก์ชันเปิด Console
-        window.openConsole = function() {
-            alert('กด F12 หรือ Ctrl+Shift+I เพื่อเปิด DevTools แล้วดูที่ Console tab');
-        };
-
-        // ฟังก์ชันตรวจสอบไฟล์
-        window.checkFiles = function() {
-            const results = document.getElementById('file-check-results');
-            results.innerHTML = '<p>กำลังตรวจสอบไฟล์...</p>';
-
-            const filesToCheck = [
-                { name: 'Supabase Local', url: './js/supabase.min.js' },
-                { name: 'Main JavaScript', url: './bulk-card-generator.js' },
-                { name: 'Menu Page', url: './menu.html' }
-            ];
-
-            Promise.allSettled(filesToCheck.map(file => 
-                fetch(file.url, { method: 'HEAD' })
-                    .then(response => ({ 
-                        name: file.name, 
-                        status: response.ok ? 'found' : 'not-found',
-                        code: response.status 
-                    }))
-                    .catch(() => ({ 
-                        name: file.name, 
-                        status: 'error' 
-                    }))
-            )).then(results => {
-                let html = '<h4>📁 ผลการตรวจสอบไฟล์:</h4><ul style="text-align: left;">';
-                results.forEach((result, index) => {
-                    const data = result.value || result.reason;
-                    let icon = '❌';
-                    if (data.status === 'found') icon = '✅';
-                    else if (data.status === 'not-found') icon = '⚠️';
-                    
-                    html += `<li>${icon} ${data.name} ${data.code ? `(${data.code})` : ''}</li>`;
-                });
-                html += '</ul>';
-                
-                html += `
-                    <div style="background: #e0f2fe; padding: 10px; border-radius: 8px; margin-top: 15px;">
-                        <strong>📝 หมายเหตุ:</strong><br>
-                        ✅ = ไฟล์พบและโหลดได้<br>
-                        ⚠️ = ไฟล์ไม่พบ (404)<br>
-                        ❌ = เกิดข้อผิดพลาดในการเข้าถึง
-                    </div>
-                `;
-                
-                results.innerHTML = html;
-            });
-        };
-
-        // เริ่มต้นระบบเมื่อ DOM พร้อม
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeSystem);
-        } else {
-            initializeSystem();
-        }
-    </script>
+    <script src="bulk-card-generator.js" defer></script>
 </body>
 </html>
