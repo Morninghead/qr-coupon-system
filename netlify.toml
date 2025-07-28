@@ -1,22 +1,18 @@
 # netlify.toml
 
-# Base build settings
 [build]
   publish = "."
   functions = "netlify/functions"
 
-# Environment settings for the build
 [build.environment]
-  # Specify a stable Node.js version
   NODE_VERSION = "20"
 
 # Settings for serverless functions
 [functions]
-  # Use the modern 'esbuild' bundler for better performance
   node_bundler = "esbuild"
+  # FIX: Tell Netlify to include the chromium binary files in the function bundle
+  included_files = ["node_modules/@sparticuz/chromium/bin/**"]
 
-# This section is the most important part for fixing the error
 [images]
-  # Tell Netlify to use the "jammy" build image (Ubuntu 22.04)
-  # This version is compatible with the PDF generation libraries.
+  # Use the "jammy" build image (Ubuntu 22.04)
   build_image_selection = "jammy"
