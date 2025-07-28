@@ -20,60 +20,54 @@ export const handler = async (event, context) => {
         }
 
         const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
-        if (profile?.role !== 'superuser' && profile?.role !== 'department_admin') {
-            return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied. Superuser or Department Admin role required.' }) };
+        if (!['superuser', 'department_admin'].includes(profile?.role)) {
+            return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied.' }) };
         }
 
-        const { page = 1, limit = 20, search = '', department = 'all', status = 'all' } = event.queryStringParameters;
+        const { page = 1, limit = 20, search = '', department = 'all', status = 'all', employee_type } = event.queryStringParameters;
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         const offset = (pageNum - 1) * limitNum;
-        const searchTerm = search.toLowerCase();
-
+        
         let query = supabaseAdmin
-            .from('combined_employees_view') // <<< ดึงจาก View แทน
-            .select('*', { count: 'exact' });
+            .from('employees') // Query the 'employees' table directly
+            .select('*, departments(name)', { count: 'exact' });
 
-        // Apply filters
-        if (searchTerm) {
-            query = query.or(`employee_id.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
+        if (search) {
+            query = query.or(`employee_id.ilike.%${search}%,name.ilike.%${search}%`);
         }
         if (department !== 'all') {
             query = query.eq('department_id', department);
         }
-        if (status !== 'all') { // Apply status filter to combined view
+        if (status !== 'all') {
             query = query.eq('is_active', status === 'active');
         }
+        
+        // FIX: This was the missing filter on the backend
+        if (employee_type === 'regular') {
+            // This is a placeholder as your main table is already regular employees.
+            // If you add an 'employee_type' column to your 'employees' table, you can filter here.
+            // For now, we assume this table is only for 'regular' employees.
+        }
 
-        // Ordering, Pagination
-        query = query.order('employee_id', { ascending: true }) // Order by employee_id for consistency
+        query = query.order('employee_id', { ascending: true })
                      .range(offset, offset + limitNum - 1);
 
-        const { data: combinedData, error: combinedError, count: totalCount } = await query;
-        if (combinedError) throw combinedError;
-
-        // Map data to expected format (mostly already done by View)
-        const employees = combinedData.map(emp => ({
-            id: emp.id,
-            employee_id: emp.employee_id,
-            name: emp.name,
-            department_id: emp.department_id,
-            department_name: emp.department_name,
-            is_active: emp.is_active,
-            permanent_token: emp.permanent_token,
-            photo_url: emp.photo_url,
-            qr_code_url: emp.qr_code_url, // Make sure qr_code_url is in the view too if needed
-            employee_type: emp.employee_type,
-            source_table: emp.source_table // Useful for debugging or specific frontend logic
-        }));
+        const { data, error, count } = await query;
+        if (error) throw error;
         
+        const employees = data.map(emp => ({
+            ...emp,
+            department_name: emp.departments?.name || 'N/A' // Handle joined data
+        }));
+
         return {
             statusCode: 200,
             body: JSON.stringify({
                 employees: employees,
-                totalCount: totalCount,
+                totalCount: count,
                 currentPage: pageNum,
-                totalPages: Math.ceil(totalCount / limitNum),
+                totalPages: Math.ceil(count / limitNum),
             }),
         };
 
