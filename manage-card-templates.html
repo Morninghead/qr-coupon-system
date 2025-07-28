@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>จัดการ Template บัตร - ระบบคูปองพนักงาน</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="/js/qrcode.min.js"></script> 
+    <script src="/js/qrcode.min.js"></script>
     <style>
         :root {
             --primary-color: #6366F1;
@@ -50,12 +50,10 @@
             text-decoration: none; transition: background-color 0.2s;
         }
         .unauthorized-button:hover { background-color: #4F46E5; }
-
         .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
         .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
-
         .controls-card {
             background: white;
             padding: 24px;
@@ -66,7 +64,7 @@
             gap: 16px;
             flex-wrap: wrap;
             align-items: center;
-            justify-content: flex-end; 
+            justify-content: flex-end;
         }
         .controls-card button {
             padding: 10px 20px;
@@ -80,10 +78,9 @@
             transition: background-color 0.2s;
         }
         .controls-card button:hover { background-color: #4F46E5; }
-
         .table-container {
             background: white;
-            padding: 24px; 
+            padding: 24px;
             border-radius: 16px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
             overflow-x: auto;
@@ -92,7 +89,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            white-space: nowrap; 
+            white-space: nowrap;
         }
         th, td {
             padding: 12px 16px;
@@ -117,208 +114,41 @@
         td .edit-btn:hover { background-color: #C7D2FE; }
         td .delete-btn { background-color: #FEE2E2; color: var(--error-color); border: 1px solid var(--error-color); }
         td .delete-btn:hover { background-color: #FCA5A5; }
-
         #message { margin-top: 20px; padding: 12px; border-radius: 8px; font-weight: 500; display: block; min-height: 48px; text-align: center; }
         .message-success { background-color: #D1FAE5; color: #065F46; }
         .message-error { background-color: #FEE2E2; color: #991B1B; }
         .message-info { background-color: #E0E7FF; color: #3730A3; }
 
         /* Modal Styles */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4);
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-content {
-            background-color: #fefefe;
-            margin: auto;
-            padding: 30px;
-            border-radius: 16px;
-            width: 90%;
-            max-width: 800px; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            position: relative;
-        }
-        .close-button {
-            color: #aaa;
-            position: absolute;
-            top: 10px;
-            right: 20px;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .close-button:hover,
-        .close-button:focus {
-            color: black;
-            text-decoration: none;
-            cursor: pointer;
-        }
-        .modal-content h2 {
-            margin-top: 0;
-            color: var(--dark-gray);
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-        .modal-form-group {
-            margin-bottom: 15px;
-        }
-        .modal-form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: var(--dark-gray);
-        }
-        .modal-form-group input[type="text"],
-        .modal-form-group textarea {
-            width: calc(100% - 24px); 
-            padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-        .modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 25px;
-        }
-        .modal-actions button {
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .modal-save-btn {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-        }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 30px; border-radius: 16px; width: 90%; max-width: 800px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; }
+        .close-button { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-button:hover, .close-button:focus { color: black; text-decoration: none; cursor: pointer; }
+        .modal-content h2 { margin-top: 0; color: var(--dark-gray); font-size: 24px; margin-bottom: 20px; }
+        .modal-form-group { margin-bottom: 15px; }
+        .modal-form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark-gray); }
+        .modal-form-group input[type="text"], .modal-form-group textarea { width: calc(100% - 24px); padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; }
+        .modal-actions button { padding: 10px 20px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
+        .modal-save-btn { background-color: var(--primary-color); color: white; border: none; }
         .modal-save-btn:hover { background-color: #4F46E5; }
-        .modal-cancel-btn {
-            background-color: var(--light-gray);
-            color: var(--text-gray);
-            border: 1px solid var(--border-color);
-        }
+        .modal-cancel-btn { background-color: var(--light-gray); color: var(--text-gray); border: 1px solid var(--border-color); }
         .modal-cancel-btn:hover { background-color: #E5E7EB; }
-
-        /* Template Editor Specific Styles */
-        .template-editor-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        .template-editor-form {
-            grid-column: 1 / 2;
-        }
-        .template-card-preview {
-            grid-column: 2 / 3;
-            padding: 15px;
-            border: 1px dashed var(--border-color);
-            border-radius: 8px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 200px;
-            background-color: var(--light-gray);
-            flex-direction: column;
-            gap: 10px;
-        }
-        .template-card-preview-inner {
-            /* Adjust dimensions based on orientation */
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            overflow: hidden; 
-            position: relative;
-            background-color: #fff;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .template-card-preview-inner.portrait {
-             width: 280px; 
-             height: 177px; 
-        }
-        .template-card-preview-inner.landscape {
-             width: 280px; 
-             height: 177px; 
-             /* Note: Actual print orientation is handled by jspdf */
-        }
-
-        /* Styles for elements within preview */
-        .template-card-preview-inner img.background {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            object-fit: cover;
-            z-index: 0;
-        }
-        .template-card-preview-content {
-            position: relative; 
-            z-index: 1;
-            width: 100%;
-            height: 100%;
-        }
-        .preview-element {
-            position: absolute; 
-            box-sizing: border-box;
-            background-color: rgba(255,255,255,0.7); 
-            padding: 2px 5px;
-            border-radius: 3px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            color: #000; 
-        }
-        .preview-element.text {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-weight: 500;
-        }
-        .preview-element.img {
-            background-color: transparent; 
-            border: none;
-            padding: 0;
-        }
-        .preview-element.qr {
-            background-color: transparent;
-            border: none;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .preview-element.qr canvas {
-            width: 100% !important;
-            height: 100% !important;
-        }
-        /* Radio button group for orientation */
-        .radio-group {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 15px;
-            align-items: center;
-        }
-        .radio-group label {
-            display: flex;
-            align-items: center;
-            font-weight: 500;
-            color: var(--text-gray);
-            cursor: pointer;
-        }
-        .radio-group input[type="radio"] {
-            width: auto;
-            margin-right: 8px;
-            margin-bottom: 0;
-        }
+        .template-editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .template-editor-form { grid-column: 1 / 2; }
+        .template-card-preview { grid-column: 2 / 3; padding: 15px; border: 1px dashed var(--border-color); border-radius: 8px; display: flex; justify-content: center; align-items: center; min-height: 200px; background-color: var(--light-gray); flex-direction: column; gap: 10px; }
+        .template-card-preview-inner { border: 1px solid #ccc; border-radius: 8px; overflow: hidden; position: relative; background-color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .template-card-preview-inner.portrait { width: 177px; height: 280px; }
+        .template-card-preview-inner.landscape { width: 280px; height: 177px; }
+        .template-card-preview-inner img.background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+        .template-card-preview-content { position: relative; z-index: 1; width: 100%; height: 100%; }
+        .preview-element { position: absolute; box-sizing: border-box; padding: 2px 5px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 500; }
+        .preview-element.img, .preview-element.qr { background-color: transparent; border: none; padding: 0; }
+        .preview-element.qr { display: flex; justify-content: center; align-items: center; }
+        .preview-element.qr canvas { width: 100% !important; height: 100% !important; }
+        .radio-group { display: flex; gap: 20px; margin-bottom: 15px; align-items: center; }
+        .radio-group label { display: flex; align-items: center; font-weight: 500; color: var(--text-gray); cursor: pointer; }
+        .radio-group input[type="radio"] { width: auto; margin-right: 8px; margin-bottom: 0; }
     </style>
 </head>
 <body>
@@ -370,7 +200,6 @@
             <div class="template-editor-grid">
                 <form id="templateForm" class="template-editor-form">
                     <input type="hidden" id="template-id">
-
                     <div class="modal-form-group">
                         <label for="template-name">ชื่อ Template</label>
                         <input type="text" id="template-name" required>
@@ -404,23 +233,12 @@
                         <label for="background-back-url">Background หลัง URL</label>
                         <input type="text" id="background-back-url" placeholder="เช่น https://your.supabase.co/storage/v1/object/public/card-assets/bg_back.jpg">
                     </div>
-
-                    <h3>การจัดวางองค์ประกอบ (Layout Config - JSON)</h3>
                     <div class="modal-form-group">
                         <label for="layout-config">
-                            JSON (ตำแหน่ง/สไตล์ขององค์ประกอบ) 
-                            <br>
-                            <small>
-                                <strong>ตัวอย่างสำหรับแนวตั้ง (Portrait):</strong> <br>
-                                `{"photo": {"top": "15%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)", "borderRadius": "50%", "objectFit": "cover", "border": "2px solid #6366F1"}, "company_name": {"top": "35%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.1em", "fontWeight": "600"}, "employee_name": {"top": "50%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.2em", "fontWeight": "700"}, "employee_id": {"top": "60%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "0.9em", "color": "#6B7280"}, "qr_code": {"top": "75%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)"}}`
-                                <br><br>
-                                <strong>ตัวอย่างสำหรับแนวนอน (Landscape):</strong> <br>
-                                `{"photo": {"top": "10%", "left": "10%", "width": "60px", "height": "60px", "borderRadius": "50%", "objectFit": "cover", "border": "2px solid #6366F1"}, "company_name": {"top": "10%", "left": "30%", "width": "60%", "textAlign": "left", "fontSize": "1.1em", "fontWeight": "600"}, "employee_name": {"top": "35%", "left": "10%", "width": "80%", "textAlign": "left", "fontSize": "1.2em", "fontWeight": "700"}, "employee_id": {"top": "55%", "left": "10%", "width": "80%", "textAlign": "left", "fontSize": "0.9em", "color": "#6B7280"}, "qr_code": {"top": "10%", "right": "10%", "width": "80px", "height": "80px", "background": "#fff"}}`
-                            </small>
+                            การจัดวางองค์ประกอบ (Layout Config - JSON)
                         </label>
                         <textarea id="layout-config" rows="10"></textarea>
                     </div>
-
                     <div class="modal-actions">
                         <button type="button" class="modal-cancel-btn">ยกเลิก</button>
                         <button type="submit" class="modal-save-btn">บันทึก Template</button>
@@ -429,12 +247,9 @@
 
                 <div class="template-card-preview">
                     <h3>ตัวอย่างบัตร (หน้า)</h3>
-                    <div class="template-card-preview-inner" id="card-preview-front">
-                        </div>
+                    <div class="template-card-preview-inner" id="card-preview-front"></div>
                     <p style="font-size: 0.8em; color: var(--text-gray);">
-                        ตัวอย่างข้อมูล: <br>
-                        ชื่อ: **สมศรี สุขใจ** <br>
-                        รหัส: **12345**
+                        ตัวอย่างข้อมูล: ชื่อ: **สมศรี สุขใจ**, รหัส: **12345**
                     </p>
                 </div>
             </div>
@@ -445,12 +260,9 @@
         const mainContent = document.getElementById('main-content');
         const unauthorizedMessage = document.getElementById('unauthorized-message');
         let _supabase;
-        let currentUserRole = null;
-
         const templateTableBody = document.getElementById('template-table-body');
         const messageDiv = document.getElementById('message');
         const addTemplateBtn = document.getElementById('add-template-btn');
-
         const templateModal = document.getElementById('templateModal');
         const closeModalButton = templateModal.querySelector('.close-button');
         const modalCancelButton = templateModal.querySelector('.modal-cancel-btn');
@@ -465,24 +277,15 @@
         const backgroundBackUrlInput = document.getElementById('background-back-url');
         const layoutConfigInput = document.getElementById('layout-config');
         const cardPreviewFront = document.getElementById('card-preview-front');
-
         const baseUrl = window.location.origin;
 
-        // Sample data for previewing layout - Use relative path for placeholder image
         const previewEmployee = {
             name: "สมศรี สุขใจ",
             employee_id: "12345",
-            permanent_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", 
-            photo_url: "/images/placeholder_photo.png" 
+            permanent_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            photo_url: "https://via.placeholder.com/80?text=Photo"
         };
-        const defaultLogoUrl = "/images/placeholder_logo.png"; 
-        const defaultBgErrorUrl = "/images/placeholder_bg_error.png"; 
-
-        const CARD_WIDTH_PX_PORTRAIT = 280; 
-        const CARD_HEIGHT_PX_PORTRAIT = 177; 
-        const CARD_WIDTH_PX_LANDSCAPE = 280; 
-        const CARD_HEIGHT_PX_LANDSCAPE = 177; 
-
+        const defaultLogoUrl = "https://via.placeholder.com/100x40?text=Logo";
 
         async function initializeApp() {
             try {
@@ -496,149 +299,80 @@
                     return;
                 }
 
-                const { data: profileData, error: profileError } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
-                if (profileError || !profileData || profileData.role !== 'superuser') { 
+                const { data: profileData } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
+                if (!profileData || profileData.role !== 'superuser') {
                     unauthorizedMessage.classList.remove('hidden');
                     return;
                 }
-                currentUserRole = profileData.role;
                 mainContent.classList.remove('hidden');
-
-                await fetchTemplates(); // Fetches templates and calls renderTemplateTable
+                await fetchTemplates();
 
                 addTemplateBtn.addEventListener('click', () => openTemplateModal());
                 closeModalButton.addEventListener('click', () => templateModal.style.display = 'none');
                 modalCancelButton.addEventListener('click', () => templateModal.style.display = 'none');
                 window.addEventListener('click', (event) => {
-                    if (event.target == templateModal) {
-                        templateModal.style.display = 'none';
-                    }
+                    if (event.target == templateModal) templateModal.style.display = 'none';
                 });
-
                 templateForm.addEventListener('submit', handleTemplateFormSubmit);
-                orientationRadios.forEach(radio => radio.addEventListener('change', updatePreview)); 
-                templateNameInput.addEventListener('input', updatePreview);
-                companyNameInput.addEventListener('input', updatePreview);
-                logoUrlInput.addEventListener('input', updatePreview);
-                backgroundFrontUrlInput.addEventListener('input', updatePreview);
-                layoutConfigInput.addEventListener('input', updatePreview);
-
+                [...orientationRadios, templateNameInput, companyNameInput, logoUrlInput, backgroundFrontUrlInput, layoutConfigInput].forEach(el => {
+                    el.addEventListener('input', updatePreview);
+                    el.addEventListener('change', updatePreview);
+                });
             } catch (error) {
                 console.error('Initialization failed:', error);
-                showMessage('เกิดข้อผิดพลาดในการโหลดระบบ: ' + error.message, 'error');
                 unauthorizedMessage.classList.remove('hidden');
             }
         }
 
         async function fetchTemplates() {
-            showMessage('กำลังโหลด Template บัตร...', 'info');
-            templateTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center;">กำลังโหลด Template บัตร...</td></tr>`; 
-            
+            templateTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center;">กำลังโหลด...</td></tr>`;
             try {
                 const { data: { session } } = await _supabase.auth.getSession();
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-card-templates`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to fetch card templates.');
-                }
-
-                const templates = await response.json();
-                renderTemplateTable(templates);
-                showMessage('โหลด Template บัตรสำเร็จ', 'success');
-
-                // NEW: If there are no templates, prevent opening modal
-                if (templates.length === 0) {
-                    addTemplateBtn.textContent = '➕ สร้าง Template ใหม่ (ไม่มี Template)';
-                    // Do not call updatePreview() here, as there's no template to preview initially
-                } else {
-                    addTemplateBtn.textContent = '➕ สร้าง Template ใหม่';
-                }
-
+                if (!response.ok) throw new Error((await response.json()).message || 'Failed to fetch templates.');
+                renderTemplateTable(await response.json());
             } catch (error) {
-                console.error('Error fetching templates:', error);
-                templateTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--error-color);">ไม่สามารถโหลด Template บัตรได้: ${error.message}</td></tr>`;
-                showMessage('ไม่สามารถโหลด Template บัตรได้: ' + error.message, 'error');
-                addTemplateBtn.textContent = '➕ สร้าง Template ใหม่ (ผิดพลาด)';
+                templateTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: red;">${error.message}</td></tr>`;
             }
         }
 
         function renderTemplateTable(templates) {
-            templateTableBody.innerHTML = '';
-            if (templates.length === 0) {
-                templateTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center;">ไม่พบ Template บัตร</td></tr>`; 
-                return;
-            }
-
+            templateTableBody.innerHTML = templates.length === 0 ? `<tr><td colspan="7" style="text-align:center;">ไม่พบ Template</td></tr>` : '';
             templates.forEach(template => {
-                const row = document.createElement('tr');
+                const row = templateTableBody.insertRow();
                 row.innerHTML = `
                     <td>${template.template_name}</td>
                     <td>${template.company_name || '-'}</td>
-                    <td>${template.orientation === 'portrait' ? 'แนวตั้ง' : 'แนวนอน'}</td> 
-                    <td><a href="${template.logo_url}" target="_blank">${template.logo_url ? 'ดู Logo' : '-'}</a></td>
-                    <td><a href="${template.background_front_url}" target="_blank">${template.background_front_url ? 'ดูรูป' : '-'}</a></td>
-                    <td><a href="${template.background_back_url}" target="_blank">${template.background_back_url ? 'ดูรูป' : '-'}</a></td>
+                    <td>${template.orientation || 'landscape'}</td>
+                    <td>${template.logo_url ? `<a href="${template.logo_url}" target="_blank">ดู Logo</a>` : '-'}</td>
+                    <td>${template.background_front_url ? `<a href="${template.background_front_url}" target="_blank">ดูรูป</a>` : '-'}</td>
+                    <td>${template.background_back_url ? `<a href="${template.background_back_url}" target="_blank">ดูรูป</a>` : '-'}</td>
                     <td>
                         <button class="action-btn edit-btn" data-id="${template.id}">แก้ไข</button>
                         <button class="action-btn delete-btn" data-id="${template.id}">ลบ</button>
                     </td>
                 `;
-                templateTableBody.appendChild(row);
             });
-
-            document.querySelectorAll('.edit-btn').forEach(button => {
-                button.addEventListener('click', (e) => openTemplateModal(e.target.dataset.id));
-            });
-            document.querySelectorAll('.delete-btn').forEach(button => {
-                button.addEventListener('click', (e) => handleDeleteTemplate(e.target.dataset.id));
-            });
-        }
-
-        function showMessage(message, type) {
-            messageDiv.classList.remove('hidden', 'message-success', 'message-error', 'message-info');
-            messageDiv.textContent = message;
-            messageDiv.classList.add(`message-${type}`);
-            setTimeout(() => {
-                messageDiv.classList.add('hidden');
-            }, 5000); 
+            document.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', (e) => openTemplateModal(e.target.dataset.id)));
+            document.querySelectorAll('.delete-btn').forEach(b => b.addEventListener('click', (e) => handleDeleteTemplate(e.target.dataset.id)));
         }
 
         async function openTemplateModal(templateId = null) {
             templateForm.reset();
             templateIdInput.value = '';
-            templateModalTitle.textContent = 'สร้าง Template บัตรใหม่';
-            cardPreviewFront.innerHTML = ''; 
-
-            const defaultLayout = {
-                "photo": {"top": "15%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)", "borderRadius": "50%", "objectFit": "cover", "border": "2px solid var(--primary-color)"}, 
-                "company_name": {"top": "35%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.1em", "fontWeight": "600"},
-                "employee_name": {"top": "50%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "1.2em", "fontWeight": "700"},
-                "employee_id": {"top": "60%", "left": "0", "width": "100%", "textAlign": "center", "fontSize": "0.9em", "color": "#6B7280"},
-                "qr_code": {"top": "75%", "left": "50%", "width": "80px", "height": "80px", "transform": "translateX(-50%)"}
-            };
-            layoutConfigInput.value = JSON.stringify(defaultLayout, null, 2); 
-            document.querySelector('input[name="orientation-selection"][value="portrait"]').checked = true; 
-
+            templateModalTitle.textContent = 'สร้าง Template ใหม่';
+            cardPreviewFront.innerHTML = '';
             if (templateId) {
-                showMessage('กำลังดึงข้อมูล Template...', 'info');
                 try {
                     const { data: { session } } = await _supabase.auth.getSession();
-                    const response = await fetch(`${baseUrl}/.netlify/functions/get-card-templates`, {
-                        headers: { 'Authorization': `Bearer ${session.access_token}` }
-                    });
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.message || 'Failed to fetch template details.');
-                    }
-                    const templates = await response.json();
+                    const res = await fetch(`${baseUrl}/.netlify/functions/get-card-templates`, { headers: { 'Authorization': `Bearer ${session.access_token}` } });
+                    const templates = await res.json();
                     const template = templates.find(t => t.id === templateId);
-
                     if (!template) throw new Error('Template not found.');
 
-                    templateModalTitle.textContent = 'แก้ไข Template บัตร';
+                    templateModalTitle.textContent = 'แก้ไข Template';
                     templateIdInput.value = template.id;
                     templateNameInput.value = template.template_name;
                     companyNameInput.value = template.company_name || '';
@@ -646,223 +380,158 @@
                     backgroundFrontUrlInput.value = template.background_front_url || '';
                     backgroundBackUrlInput.value = template.background_back_url || '';
                     layoutConfigInput.value = JSON.stringify(template.layout_config || {}, null, 2);
-                    document.querySelector(`input[name="orientation-selection"][value="${template.orientation || 'portrait'}"]`).checked = true; 
-                    
-                    updatePreview(); // Update preview with loaded data
-                    showMessage('', 'hidden');
+                    document.querySelector(`input[name="orientation-selection"][value="${template.orientation || 'landscape'}"]`).checked = true;
                 } catch (error) {
-                    console.error('Error opening template modal:', error);
-                    showMessage('ไม่สามารถดึงข้อมูล Template เพื่อแก้ไขได้: ' + error.message, 'error');
+                    showMessage('ไม่สามารถดึงข้อมูล Template: ' + error.message, 'error');
                     return;
                 }
-            } else {
-                // NEW: Clear error messages/warnings for placeholder if creating new template
-                // and display a generic "Ready for preview" message or nothing
-                showMessage('', 'hidden'); // Clear any previous error message
             }
-
             templateModal.style.display = 'flex';
-            updatePreview(); // Initial preview rendering, now handles lack of template data gracefully
+            updatePreview();
         }
 
+        // ## FIXED PREVIEW FUNCTION ##
         function updatePreview() {
-            cardPreviewFront.innerHTML = ''; // Clear existing preview
-            
+            cardPreviewFront.innerHTML = '';
             const selectedOrientation = document.querySelector('input[name="orientation-selection"]:checked').value;
-            
-            if (selectedOrientation === 'portrait') {
-                cardPreviewFront.classList.remove('landscape');
-                cardPreviewFront.classList.add('portrait');
-            } else { 
-                cardPreviewFront.classList.remove('portrait');
-                cardPreviewFront.classList.add('landscape');
-            }
+            cardPreviewFront.className = 'template-card-preview-inner ' + selectedOrientation;
 
             const template = {
-                company_name: companyNameInput.value || "ชื่อบริษัทของคุณ",
+                company_name: companyNameInput.value || "Your Company",
                 logo_url: logoUrlInput.value,
                 background_front_url: backgroundFrontUrlInput.value,
                 layout_config: {},
-                orientation: selectedOrientation
             };
+
             try {
-                template.layout_config = JSON.parse(layoutConfigInput.value);
+                template.layout_config = JSON.parse(layoutConfigInput.value || '{}');
             } catch (e) {
-                console.error("Invalid JSON for layout_config", e);
-                cardPreviewFront.innerHTML = `<p style="color: var(--error-color);">JSON Layout Config ผิดพลาด!</p>`;
+                cardPreviewFront.innerHTML = `<p style="color: var(--error-color);">Invalid JSON in Layout Config!</p>`;
                 return;
             }
-
-            // NEW: Only attempt to render content if template_name (or other basic info) is present
-            if (!templateNameInput.value.trim() && !templateIdInput.value) { // If creating new and no name yet
-                 cardPreviewFront.innerHTML = `<p style="text-align: center; color: var(--text-gray);">กรอกข้อมูล Template เพื่อดูตัวอย่าง</p>`;
-                 return;
-            }
-
 
             if (template.background_front_url) {
                 const bgImg = document.createElement('img');
                 bgImg.src = template.background_front_url;
-                bgImg.classList.add('background');
-                bgImg.onerror = () => bgImg.src = defaultBgErrorUrl; 
+                bgImg.className = 'background';
                 cardPreviewFront.appendChild(bgImg);
             }
 
             const contentDiv = document.createElement('div');
-            contentDiv.classList.add('template-card-preview-content');
-            cardPreviewFront.appendChild(contentDiv);
-
+            contentDiv.className = 'template-card-preview-content';
+            
+            let finalHtml = '';
             for (const key in template.layout_config) {
-                if (Object.hasOwnProperty.call(template.layout_config, key)) {
-                    const style = template.layout_config[key];
-                    let content = '';
-                    let className = 'card-element';
+                const style = template.layout_config[key];
+                let content = '';
+                let className = 'preview-element';
+                let styleStr = `position:absolute;`;
 
-                    if (key === "photo") { 
+                Object.keys(style).forEach(prop => {
+                    const kebabCaseProp = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
+                    styleStr += `${kebabCaseProp}:${style[prop]};`;
+                });
+
+                switch(key) {
+                    case "photo": 
                         className += ' img';
-                        content = `<img src="${previewEmployee.photo_url}" style="width:100%;height:100%;object-fit:contain;${style.borderRadius ? `border-radius:${style.borderRadius};` : ''}${style.border ? `border:${style.border};` : ''}" onerror="this.onerror=null;this.src='${previewEmployee.photo_url}'">`; 
-                    } else if (key === "logo") { 
+                        content = `<img src="${previewEmployee.photo_url}" style="width:100%;height:100%;object-fit:cover;">`; 
+                        break;
+                    case "logo": 
                         className += ' img';
-                        content = `<img src="${template.logo_url || defaultLogoUrl}" style="width:100%;height:100%;object-fit:contain;" onerror="this.onerror=null;this.src='${defaultLogoUrl}'">`; 
-                    }
-                    else if (key === "company_name") {
+                        content = `<img src="${template.logo_url || defaultLogoUrl}" style="width:100%;height:100%;object-fit:contain;">`; 
+                        break;
+                    case "company_name":
                         className += ' text';
                         content = template.company_name;
-                    } else if (key === "employee_name") {
+                        break;
+                    case "employee_name":
                         className += ' text';
                         content = previewEmployee.name;
-                    } else if (key === "employee_id") {
+                        break;
+                    case "employee_id":
                         className += ' text';
                         content = `ID: ${previewEmployee.employee_id}`;
-                    } else if (key === "qr_code") {
+                        break;
+                    case "qr_code":
                         className += ' qr';
-                        const qrDiv = document.createElement('div');
-                        qrDiv.id = `preview-qr-${key}`; 
-                        elementDiv.appendChild(qrDiv);
-                        if (window.QRCode) {
-                            // Clear previous QR to prevent multiple QR canvases in the same div
-                            qrDiv.innerHTML = ''; 
-                            new QRCode(qrDiv, {
-                                text: `${baseUrl}/scanner?token=${previewEmployee.permanent_token}`,
-                                width: parseInt(style.width) || 80,
-                                height: parseInt(style.height) || 80,
-                                colorDark : "#000000",
-                                colorLight : "#ffffff",
-                                correctLevel : QRCode.CorrectLevel.H 
-                            });
-                        } else {
-                            qrDiv.textContent = 'QR Code Lib Not Loaded';
-                        }
-                    } else {
-                        className += ' text';
-                        content = style.text || ''; 
-                    }
-                    
-                    let styleStr = '';
-                    for (const prop in style) {
-                        if (Object.hasOwnProperty.call(style, prop) && prop !== 'text') { 
-                            styleStr += `${prop}: ${style[prop]};`;
-                        }
-                    }
-
-                    cardHtml += `<div class="${className}" style="${styleStr}">${content}</div>`;
+                        content = `<div id="preview-qr-code" style="width:100%; height:100%;"></div>`; 
+                        break;
                 }
+                finalHtml += `<div class="${className}" style="${styleStr}">${content}</div>`;
             }
-            cardPreviewFront.innerHTML += cardHtml; // Use += to append all elements
+
+            contentDiv.innerHTML = finalHtml;
+            cardPreviewFront.appendChild(contentDiv);
+
+            const qrDiv = document.getElementById('preview-qr-code');
+            if (qrDiv && window.QRCode) {
+                new QRCode(qrDiv, {
+                    text: `${baseUrl}/scanner?token=${previewEmployee.permanent_token}`,
+                    width: qrDiv.clientWidth,
+                    height: qrDiv.clientHeight,
+                    correctLevel : QRCode.CorrectLevel.H 
+                });
+            }
         }
 
         async function handleTemplateFormSubmit(event) {
             event.preventDefault();
             const templateId = templateIdInput.value || null;
-            const templateName = templateNameInput.value.trim();
-            const selectedOrientation = document.querySelector('input[name="orientation-selection"]:checked').value;
-            const companyName = companyNameInput.value.trim();
-            const logoUrl = logoUrlInput.value.trim();
-            const backgroundFrontUrl = backgroundFrontUrlInput.value.trim();
-            const backgroundBackUrl = backgroundBackUrlInput.value.trim();
-            let layoutConfig = {};
+            const templateData = {
+                id: templateId,
+                template_name: templateNameInput.value.trim(),
+                orientation: document.querySelector('input[name="orientation-selection"]:checked').value,
+                company_name: companyNameInput.value.trim(),
+                logo_url: logoUrlInput.value.trim(),
+                background_front_url: backgroundFrontUrlInput.value.trim(),
+                background_back_url: backgroundBackUrlInput.value.trim(),
+                layout_config: JSON.parse(layoutConfigInput.value)
+            };
+            if (!templateData.template_name) return showMessage('กรุณากรอกชื่อ Template', 'error');
 
-            try {
-                layoutConfig = JSON.parse(layoutConfigInput.value);
-            } catch (e) {
-                showMessage('Layout Config (JSON) ไม่ถูกต้อง กรุณาตรวจสอบ', 'error');
-                return;
-            }
-
-            if (!templateName || !selectedOrientation) {
-                showMessage('กรุณากรอกชื่อ Template และเลือก Orientation', 'error');
-                return;
-            }
-
-            showMessage('กำลังบันทึก Template...', 'info');
-            templateForm.querySelector('.modal-save-btn').disabled = true;
-
+            const saveBtn = templateForm.querySelector('.modal-save-btn');
+            saveBtn.disabled = true;
             try {
                 const { data: { session } } = await _supabase.auth.getSession();
                 const response = await fetch(`${baseUrl}/.netlify/functions/save-card-template`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session.access_token}`
-                    },
-                    body: JSON.stringify({ 
-                        id: templateId, 
-                        template_name: templateName, 
-                        company_name: companyName, 
-                        logo_url: logoUrl, 
-                        background_front_url: backgroundFrontUrl, 
-                        background_back_url: backgroundBackUrl, 
-                        layout_config: layoutConfig,
-                        orientation: selectedOrientation 
-                    })
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                    body: JSON.stringify(templateData)
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to save template.');
-                }
-
+                if (!response.ok) throw new Error((await response.json()).message || 'Failed to save.');
                 showMessage('บันทึก Template สำเร็จ', 'success');
                 templateModal.style.display = 'none';
-                fetchTemplates(); 
-
+                fetchTemplates();
             } catch (error) {
-                console.error('Error saving template:', error);
-                showMessage('บันทึก Template ไม่สำเร็จ: ' + error.message, 'error');
+                showMessage('บันทึกไม่สำเร็จ: ' + error.message, 'error');
             } finally {
-                templateForm.querySelector('.modal-save-btn').disabled = false;
+                saveBtn.disabled = false;
             }
         }
 
         async function handleDeleteTemplate(id) {
-            if (!confirm(`คุณแน่ใจหรือไม่ที่ต้องการลบ Template นี้? (ID: ${id})`)) {
-                return;
-            }
-
-            showMessage('กำลังลบ Template...', 'info');
+            if (!confirm(`คุณแน่ใจหรือไม่ที่จะลบ Template ID: ${id}?`)) return;
             try {
                 const { data: { session } } = await _supabase.auth.getSession();
                 const response = await fetch(`${baseUrl}/.netlify/functions/delete-card-template`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session.access_token}`
-                    },
-                    body: JSON.stringify({ id: id })
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ id })
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to delete template.');
-                }
-
+                if (!response.ok) throw new Error((await response.json()).message || 'Failed to delete.');
                 showMessage('ลบ Template สำเร็จ', 'success');
-                fetchTemplates(); 
-
+                fetchTemplates();
             } catch (error) {
-                console.error('Error deleting template:', error);
-                showMessage('ลบ Template ไม่สำเร็จ: ' + error.message, 'error');
+                showMessage('ลบไม่สำเร็จ: ' + error.message, 'error');
             }
+        }
+
+        function showMessage(message, type) {
+            messageDiv.className = `message-${type}`;
+            messageDiv.textContent = message;
+            messageDiv.classList.remove('hidden');
+            setTimeout(() => messageDiv.classList.add('hidden'), 5000);
         }
 
         initializeApp();
