@@ -54,12 +54,10 @@
             transition: background-color 0.2s;
         }
         .unauthorized-button:hover { background-color: #4F46E5; }
-
         .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
         .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
-
         .controls-card {
             background: white;
             padding: 24px;
@@ -92,7 +90,6 @@
             transition: background-color 0.2s;
         }
         .controls-card button:hover { background-color: #4F46E5; }
-
         .table-container {
             background: white;
             border-radius: 16px;
@@ -136,17 +133,14 @@
             width: 20px;
             height: 20px;
         }
-
         .pagination { display: flex; justify-content: center; align-items: center; padding: 24px; gap: 8px; }
         .pagination button { padding: 8px 16px; border: 1px solid var(--border-color); background-color: white; border-radius: 8px; cursor: pointer; }
         .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
         .pagination button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
-        
         #message { margin-top: 20px; padding: 12px; border-radius: 8px; font-weight: 500; display: block; min-height: 48px; text-align: center; }
         .message-success { background-color: #D1FAE5; color: #065F46; }
         .message-error { background-color: #FEE2E2; color: #991B1B; }
         .message-info { background-color: #E0E7FF; color: #3730A3; }
-
         /* Card Preview Area */
         .card-preview-area {
             background: white;
@@ -168,7 +162,6 @@
             gap: 20px;
             justify-content: center;
         }
-
         /* Employee Card Styles (for printing) - MUST MATCH manage-card-templates.html */
         .employee-card {
             border: 1px solid #ccc;
@@ -232,8 +225,6 @@
             width: 100% !important;
             height: 100% !important;
         }
-
-
         /* Print specific styles */
         @media print {
             body > *:not(.print-area) {
@@ -258,7 +249,6 @@
                 align-items: flex-start;
             }
         }
-
         #pdf-generation-progress {
             margin-top: 15px;
             padding: 10px;
@@ -279,7 +269,6 @@
             <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
     </div>
-
     <div id="main-content" class="hidden">
         <div class="container">
             <div class="header">
@@ -293,7 +282,6 @@
                     <option value="">กำลังโหลด Template...</option>
                 </select>
             </div>
-
             <div class="controls-card">
                 <input type="text" id="search-input" placeholder="ค้นหาด้วยรหัสพนักงาน หรือชื่อ...">
                 <select id="department-filter">
@@ -306,7 +294,6 @@
                 </select>
                 <button id="apply-filters-btn">ค้นหา/กรอง</button>
             </div>
-
             <div class="table-container">
                 <table id="employee-selection-table">
                     <thead>
@@ -327,7 +314,6 @@
             <div class="pagination" id="pagination-controls">
                 </div>
             <div id="message" class="hidden"></div>
-
             <div class="card-preview-area">
                 <h2>บัตรที่เลือกสำหรับพิมพ์</h2>
                 <div class="card-preview-grid" id="card-preview-grid">
@@ -342,7 +328,6 @@
             </div>
         </div>
     </div>
-
     <script src="/js/qrcode.min.js"></script> 
     <script>
         const mainContent = document.getElementById('main-content');
@@ -353,7 +338,6 @@
         let allTemplates = []; 
         let selectedTemplate = null; 
         let allEmployees = []; 
-
         const employeeTableBody = document.getElementById('employee-table-body');
         const paginationControls = document.getElementById('pagination-controls');
         const searchInput = document.getElementById('search-input');
@@ -366,13 +350,10 @@
         const printSelectedCardsBtn = document.getElementById('print-selected-cards-btn');
         const pdfGenerationProgress = document.getElementById('pdf-generation-progress');
         const templateSelect = document.getElementById('template-select'); 
-
         const baseUrl = window.location.origin;
         let currentPage = 1;
         const itemsPerPage = 10; 
-
         let selectedEmployeeIds = new Set(); 
-
         const CARD_STANDARD_WIDTH_MM = 85.6;
         const CARD_STANDARD_HEIGHT_MM = 53.98;
 
@@ -500,7 +481,8 @@
 
         function handleTemplateChange(event) {
             const templateId = event.target.value;
-            selectedTemplate = allTemplates.find(t => t.id === templateId);
+            // *** FIX #1: Convert templateId to a number for correct comparison ***
+            selectedTemplate = allTemplates.find(t => t.id === parseInt(templateId, 10));
             updatePreviewCards(); 
             updatePrintButtonStatus(); 
         }
@@ -515,7 +497,8 @@
 
             try {
                 const { data: { session } = {} } = await _supabase.auth.getSession(); 
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-employees?page=${page}&limit=${itemsPerPage}&search=${searchTerm}&department=${departmentId}&status=active`, { 
+                // *** FIX #2: Use the 'status' variable in the fetch URL instead of hardcoding 'active' ***
+                const response = await fetch(`${baseUrl}/.netlify/functions/get-employees?page=${page}&limit=${itemsPerPage}&search=${searchTerm}&department=${departmentId}&status=${status}`, { 
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
 
@@ -538,13 +521,13 @@
             }
         }
 
+        // This function is now safe because the backend provides `department_name`
         function renderEmployeeTable(employees) {
             employeeTableBody.innerHTML = '';
             if (employees.length === 0) {
                 employeeTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">ไม่พบข้อมูลพนักงาน</td></tr>`;
                 return;
             }
-
             selectAllCheckbox.checked = true; 
             employees.forEach(emp => {
                 const row = document.createElement('tr');
@@ -553,12 +536,13 @@
                 if (emp.photo_url) {
                     photoUrl = emp.photo_url;
                 } else if (emp.employee_id) {
+                    // Assuming this logic is correct as per original code
                     photoUrl = `${_supabase.supabaseUrl}/storage/v1/object/public/employee-photos/${emp.employee_id}.jpg`; 
                 }
                 const finalPhotoUrl = photoUrl || 'https://via.placeholder.com/30?text=No+Photo';
 
                 row.innerHTML = `
-                    <td><input type="checkbox" class="employee-checkbox" data-id="${emp.id}" ${selectedEmployeeIds.has(emp.id) ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="employee-checkbox" data-id="${emp.id}" ${selectedEmployeeIds.has(String(emp.id)) ? 'checked' : ''}></td>
                     <td><img src="${finalPhotoUrl}" alt="${emp.name}" class="employee-photo-thumb" onerror="this.onerror=null;this.src='https://via.placeholder.com/30?text=Error'"></td>
                     <td>${emp.employee_id || 'N/A'}</td>
                     <td>${emp.name}</td>
@@ -566,12 +550,10 @@
                     <td>${emp.permanent_token || 'N/A'}</td>
                 `;
                 employeeTableBody.appendChild(row);
-
-                if (!selectedEmployeeIds.has(emp.id)) {
+                if (!selectedEmployeeIds.has(String(emp.id))) {
                     selectAllCheckbox.checked = false;
                 }
             });
-
             document.querySelectorAll('.employee-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', updateSelectedEmployees);
             });
@@ -582,16 +564,15 @@
         function renderPagination(currentPage, totalPages) {
             paginationControls.innerHTML = '';
             if (totalPages <= 1) return;
-
             let buttonsHtml = `<button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>ก่อนหน้า</button>`;
             buttonsHtml += `<span>หน้า ${currentPage} / ${totalPages}</span>`;
             buttonsHtml += `<button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>ถัดไป</button>`;
-            
             paginationControls.innerHTML = buttonsHtml;
         }
 
         function goToPage(page) {
-            if (page < 1 || page > parseInt(paginationControls.querySelector('span').textContent.split('/')[1].trim())) return;
+            const totalPages = parseInt(paginationControls.querySelector('span').textContent.split('/')[1].trim());
+            if (page < 1 || page > totalPages) return;
             currentPage = page;
             fetchEmployees(currentPage);
         }
@@ -599,10 +580,16 @@
         function showMessage(message, type) {
             messageDiv.classList.remove('hidden', 'message-success', 'message-error', 'message-info');
             messageDiv.textContent = message;
-            messageDiv.classList.add(`message-${type}`);
-            setTimeout(() => {
-                messageDiv.classList.add('hidden');
-            }, 5000); 
+            if (message) {
+                 messageDiv.classList.add(`message-${type}`);
+            }
+            if (type !== 'info') {
+                 setTimeout(() => {
+                    if (messageDiv.textContent === message) {
+                        messageDiv.classList.add('hidden');
+                    }
+                }, 5000); 
+            }
         }
 
         function toggleSelectAll(event) {
@@ -637,22 +624,17 @@
                 updatePrintButtonStatus(); 
                 return;
             }
-
-            const selectedEmployees = allEmployees.filter(emp => selectedEmployeeIds.has(emp.id));
-
+            const selectedEmployees = allEmployees.filter(emp => selectedEmployeeIds.has(String(emp.id)));
             if (selectedEmployees.length > 0) {
                 showMessage('กำลังสร้างตัวอย่างบัตร...', 'info');
             }
-
             for (const emp of selectedEmployees) {
                 const cardDiv = document.createElement('div');
                 cardDiv.classList.add('employee-card');
                 cardDiv.classList.add(selectedTemplate.orientation || 'portrait'); 
-
                 const cardContentHtml = await generateCardHtml(emp, selectedTemplate);
                 cardDiv.innerHTML = cardContentHtml;
                 cardPreviewGrid.appendChild(cardDiv);
-
                 const qrCodeElement = cardDiv.querySelector('.card-element.qr > div');
                 if (qrCodeElement && emp.permanent_token && window.QRCode) {
                     const qrCodeData = `${baseUrl}/scanner?token=${emp.permanent_token}`;
@@ -672,28 +654,24 @@
         async function generateCardHtml(employee, template) {
             let photoUrl = employee.photo_url || `${_supabase.supabaseUrl}/storage/v1/object/public/employee-photos/${employee.employee_id}.jpg`;
             const finalPhotoUrl = photoUrl || 'https://via.placeholder.com/80?text=No+Photo';
-
             let cardHtml = '';
             if (template.background_front_url) {
                 cardHtml += `<img src="${template.background_front_url}" class="background" onerror="this.onerror=null;this.src='https://via.placeholder.com/280x177?text=BG+Error'">`;
             }
             cardHtml += `<div class="card-content">`;
-
             const layout = template.layout_config || {};
             for (const key in layout) {
                 if (Object.hasOwnProperty.call(layout, key)) {
                     const style = layout[key];
                     let content = '';
                     let className = 'card-element';
-
                     if (key === "photo") { 
                         className += ' img';
                         content = `<img src="${finalPhotoUrl}" style="width:100%;height:100%;object-fit:contain;${style.borderRadius ? `border-radius:${style.borderRadius};` : ''}${style.border ? `border:${style.border};` : ''}" onerror="this.onerror=null;this.src='https://via.placeholder.com/80?text=Photo+Error'">`;
                     } else if (key === "logo") { 
                         className += ' img';
                         content = `<img src="${template.logo_url || 'https://via.placeholder.com/50?text=Logo'}" style="width:100%;height:100%;object-fit:contain;" onerror="this.onerror=null;this.src='https://via.placeholder.com/50?text=Logo+Error'">`;
-                    }
-                    else if (key === "company_name") {
+                    } else if (key === "company_name") {
                         className += ' text';
                         content = template.company_name || '';
                     } else if (key === "employee_name") {
@@ -709,22 +687,18 @@
                         className += ' text';
                         content = style.text || ''; 
                     }
-                    
                     let styleStr = '';
                     for (const prop in style) {
                         if (Object.hasOwnProperty.call(style, prop) && prop !== 'text') { 
                             styleStr += `${prop}: ${style[prop]};`;
                         }
                     }
-
                     cardHtml += `<div class="${className}" style="${styleStr}">${content}</div>`;
                 }
             }
             cardHtml += `</div>`; 
-
             return cardHtml;
         }
-
 
         async function generatePdfForSelectedCards() {
             if (selectedEmployeeIds.size === 0) {
@@ -735,14 +709,11 @@
                 showMessage('กรุณาเลือก Template บัตรก่อนพิมพ์', 'error');
                 return;
             }
-
             pdfGenerationProgress.style.display = 'block';
             printSelectedCardsBtn.disabled = true;
             showMessage('กำลังสร้างไฟล์ PDF... อาจใช้เวลาสักครู่', 'info');
-
             try {
-                // Prepare data for backend function
-                const employeesToPrint = allEmployees.filter(emp => selectedEmployeeIds.has(emp.id)).map(emp => ({
+                const employeesToPrint = allEmployees.filter(emp => selectedEmployeeIds.has(String(emp.id))).map(emp => ({
                     id: emp.id,
                     employee_id: emp.employee_id,
                     name: emp.name,
@@ -750,7 +721,6 @@
                     photo_url: emp.photo_url,
                     qr_code_url: emp.qr_code_url 
                 }));
-
                 const { data: { session } = {} } = await _supabase.auth.getSession(); 
                 const response = await fetch(`${baseUrl}/.netlify/functions/generate-print-pdf`, {
                     method: 'POST',
@@ -761,27 +731,21 @@
                     body: JSON.stringify({
                         employees: employeesToPrint,
                         template: selectedTemplate
-                        // cardStandardWidthMm and cardStandardHeightMm are now fixed in backend
                     })
                 });
-
                 if (!response.ok) {
                     const errorResult = await response.json();
                     throw new Error(errorResult.message || 'Server error during PDF generation.');
                 }
-
                 const result = await response.json();
                 const pdfDataUri = result.pdfData; 
-
                 const link = document.createElement('a');
                 link.href = pdfDataUri;
                 link.download = 'employee_cards.pdf';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-
                 showMessage('สร้างไฟล์ PDF สำหรับพิมพ์สำเร็จ', 'success');
-
             } catch (error) {
                 console.error('Error generating PDF:', error);
                 showMessage('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF: ' + error.message, 'error');
@@ -790,7 +754,6 @@
                 printSelectedCardsBtn.disabled = false;
             }
         }
-
         initializeApp();
     </script>
 </body>
