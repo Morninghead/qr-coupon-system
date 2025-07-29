@@ -18,32 +18,47 @@ export const handler = async (event) => {
   }
   
   const { startDate, endDate, departmentId } = event.queryStringParameters;
+  const startOfDay = `${startDate} 00:00:00`;
+  const endOfDay = `${endDate} 23:59:59`;
 
   try {
     // --- Step 1: Fetch Regular Coupons (Normal & OT) ---
+    // This query correctly filters by department via the employees table.
     let regularQuery = supabaseAdmin
       .from('daily_coupons')
-      .select('coupon_type, status')
+      .select('coupon_type, status, employees!inner(department_id)')
       .gte('coupon_date', startDate)
       .lte('coupon_date', endDate);
 
     if (departmentId && departmentId !== 'all') {
-      regularQuery = regularQuery.eq('department_id', departmentId);
+      regularQuery = regularQuery.eq('employees.department_id', departmentId);
     }
 
     const { data: regularCoupons, error: regularError } = await regularQuery;
-    if (regularError) throw regularError;
+    if (regularError) {
+        console.error('Regular Coupon Query Error:', regularError);
+        throw regularError;
+    }
 
     // --- Step 2: Fetch Temporary Coupons ---
-    const { data: tempCoupons, error: tempError } = await supabaseAdmin
-      .from('temporary_coupon_requests')
-      .select('status')
-      .gte('coupon_date', startDate)
-      .lte('coupon_date', endDate);
+    let tempCoupons = [];
+    // Only fetch temp coupons if 'All Departments' is selected.
+    if (!departmentId || departmentId === 'all') {
+        const { data: tempData, error: tempError } = await supabaseAdmin
+          .from('temporary_coupon_requests')
+          .select('status')
+          // *** FIX: Changed 'coupon_date' to the correct column 'created_at' ***
+          .gte('created_at', startOfDay)
+          .lte('created_at', endOfDay);
+        
+        if (tempError) {
+            console.error('Temporary Coupon Query Error:', tempError);
+            throw tempError;
+        }
+        tempCoupons = tempData;
+    }
     
-    if (tempError) throw tempError;
-
-    // --- Step 3: Process Data ---
+    // --- Step 3: Process Data (This logic remains the same) ---
     const report = {
       normalData: { totalGranted: 0, totalUsed: 0 },
       otData: { totalGranted: 0, totalUsed: 0 },
