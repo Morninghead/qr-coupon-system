@@ -54,7 +54,8 @@ export const handler = async (event) => {
         if (!departmentId || departmentId === 'all') {
             const tempQuery = supabaseAdmin
                 .from('temporary_coupon_requests')
-                .select('created_at, temp_employee_id, temp_employee_name, coupon_type, status')
+                // *** FIX: Removed non-existent 'temp_employee_id' column ***
+                .select('created_at, temp_employee_name, coupon_type, status')
                 .gte('created_at', startOfDay)
                 .lte('created_at', endOfDay)
                 .order('created_at', { ascending: true });
@@ -92,15 +93,12 @@ export const handler = async (event) => {
             summarySheet.addRow({ category: 'คูปองชั่วคราว (กลางวัน)', amount: summary.tempNormal });
             summarySheet.addRow({ category: 'คูปองชั่วคราว (โอที)', amount: summary.tempOt });
             summarySheet.addRow({ category: 'รวมทั้งสิ้น', amount: summary.total });
-
-            // Style summary
             summarySheet.findRow(9).font = { bold: true };
             summarySheet.getCell('B9').numFmt = '#,##0.00';
             ['B5','B6','B7','B8'].forEach(cell => {
                 summarySheet.getCell(cell).numFmt = '#,##0.00';
             });
             
-            // Add detailed sheets
             const regularSheet = workbook.addWorksheet('รายละเอียดคูปองปกติ');
             regularSheet.columns = [
                 { header: 'วันที่', key: 'date', width: 15 },
@@ -121,7 +119,8 @@ export const handler = async (event) => {
                     { header: 'ประเภทคูปอง', key: 'type', width: 15 },
                 ];
                 usedTemp.forEach(c => {
-                    tempSheet.addRow({ date: new Date(c.created_at).toLocaleString('th-TH'), id: c.temp_employee_id, name: c.temp_employee_name, type: c.coupon_type });
+                    // *** FIX: Changed to use 'N/A' for the ID column as it doesn't exist ***
+                    tempSheet.addRow({ date: new Date(c.created_at).toLocaleString('th-TH'), id: 'N/A', name: c.temp_employee_name, type: c.coupon_type });
                 });
             }
 
@@ -142,7 +141,6 @@ export const handler = async (event) => {
             const buffers = [];
             doc.on('data', buffers.push.bind(buffers));
             
-            // Register Thai fonts
             const fontPath = path.join(process.cwd(), 'netlify', 'functions', 'Sarabun-Regular.ttf');
             const boldFontPath = path.join(process.cwd(), 'netlify', 'functions', 'Sarabun-Bold.ttf');
             doc.registerFont('Sarabun', fontPath);
@@ -154,7 +152,6 @@ export const handler = async (event) => {
             doc.text(`แผนก: ${departmentName}`);
             doc.moveDown(2);
 
-            // Summary Table
             doc.font('Sarabun-Bold').text('สรุปยอดรวม');
             const formatCurrency = (amount) => amount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
             doc.font('Sarabun').text(` - คูปองปกติ (กลางวัน): ${formatCurrency(summary.regularNormal)} บาท`);
@@ -163,11 +160,9 @@ export const handler = async (event) => {
             doc.text(` - คูปองชั่วคราว (โอที): ${formatCurrency(summary.tempOt)} บาท`);
             doc.font('Sarabun-Bold').text(`รวมทั้งสิ้น: ${formatCurrency(summary.total)} บาท`);
             
-            // Detailed Table
             if (usedRegular.length > 0) {
                 doc.addPage().font('Sarabun-Bold').fontSize(14).text('รายละเอียดการใช้คูปองปกติ', { continued: false });
                 doc.moveDown();
-                // Draw table header here if needed...
                 usedRegular.forEach(c => {
                     doc.font('Sarabun').fontSize(10).text(`${c.coupon_date} | ${c.employees.employee_id} | ${c.employees.name} | ${c.coupon_type}`);
                 });
@@ -177,7 +172,8 @@ export const handler = async (event) => {
                  doc.addPage().font('Sarabun-Bold').fontSize(14).text('รายละเอียดการใช้คูปองชั่วคราว', { continued: false });
                  doc.moveDown();
                  usedTemp.forEach(c => {
-                    doc.font('Sarabun').fontSize(10).text(`${new Date(c.created_at).toLocaleDateString('th-TH')} | ${c.temp_employee_id} | ${c.temp_employee_name} | ${c.coupon_type}`);
+                    // *** FIX: Removed reference to non-existent 'temp_employee_id' ***
+                    doc.font('Sarabun').fontSize(10).text(`${new Date(c.created_at).toLocaleDateString('th-TH')} | ${c.temp_employee_name} | ${c.coupon_type}`);
                 });
             }
 
@@ -186,10 +182,7 @@ export const handler = async (event) => {
                     const pdfBuffer = Buffer.concat(buffers);
                     resolve({
                         statusCode: 200,
-                        headers: {
-                            'Content-Type': 'application/pdf',
-                            'Content-Disposition': `attachment; filename="report-${startDate}-to-${endDate}.pdf"`,
-                        },
+                        headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="report-${startDate}-to-${endDate}.pdf"` },
                         body: pdfBuffer.toString('base64'),
                         isBase64Encoded: true,
                     });
