@@ -30,41 +30,38 @@ export const handler = async (event) => {
         const limitNum = parseInt(limit, 10);
         const offset = (pageNum - 1) * limitNum;
 
-        // --- Build a dynamic filter string ---
-        // This is the most robust way to handle multiple optional filters.
-        const filters = [];
-        
-        // 1. Add department filter if specified
-        if (department && department !== 'all') {
-            filters.push(`department_id.eq.${department}`);
-        }
-
-        // 2. Add status filter if specified
-        if (status === 'active') {
-            filters.push('is_active.eq.true');
-        } else if (status === 'inactive') {
-            filters.push('is_active.eq.false');
-        }
-        
-        // 3. Add search filter if specified
-        if (search) {
-            // This creates a sub-condition for the search term
-            filters.push(`or(employee_id.eq.${search},name.ilike.%${search}%)`);
-        }
-
-        // --- Build the final query ---
+        // --- Build Query using Method Chaining (The Stable & Correct Way) ---
         let query = supabaseAdmin
             .from('combined_employees_view')
             .select('*', { count: 'exact' });
 
-        // Apply all collected filters with AND logic
-        if (filters.length > 0) {
-            query = query.and(filters.join(','));
+        // Filter 1: Department
+        if (department && department !== 'all') {
+            query = query.eq('department_id', department);
         }
 
-        // --- Execute the final query with pagination ---
+        // Filter 2: Status (is_active)
+        if (status === 'active') {
+            query = query.eq('is_active', true);
+        } else if (status === 'inactive') {
+            query = query.eq('is_active', false);
+        }
+        
+        // Filter 3: Search (with smart logic for ID or Name)
+        if (search) {
+            // Check if the search term consists only of digits
+            if (/^\d+$/.test(search)) {
+                // If it's all numbers, search in employee_id
+                query = query.eq('employee_id', search);
+            } else {
+                // Otherwise, search in name
+                query = query.ilike('name', `%${search}%`);
+            }
+        }
+
+        // --- Execute the final query with pagination and ordering ---
         const { data: employees, error, count } = await query
-            .order('name', { ascending: true })
+            .order('name', { ascending: true }) // Order by a column that exists
             .range(offset, offset + limitNum - 1);
 
         if (error) {
