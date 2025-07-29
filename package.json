@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "license": "ISC",
   "dependencies": {
+    "exceljs": "^4.4.0",
+    "pdfkit": "^0.15.0",
     "@sparticuz/chromium": "^126.0.0",
     "@supabase/supabase-js": "^2.52.0",
     "html2canvas": "^1.4.1",
