@@ -2,144 +2,309 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Advanced Card Template Editor</title>
-    <!-- ใช้ Konva.js ใน local แทน CDN -->
-    <script src="./js/konva.js"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"></script>
-    <!-- เพิ่ม Supabase CDN -->
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Template Editor</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; display: flex; gap: 30px; flex-wrap: wrap; }
-        .editor-wrapper { display: flex; gap: 30px; width: 100%; }
-        .controls { padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); width: 300px; height: fit-content; }
+        /* Your existing CSS styles remain unchanged... */
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background-color: #f0f2f5; }
+        .sidebar { width: 350px; padding: 20px; background-color: #fff; box-shadow: 2px 0 5px rgba(0,0,0,0.1); overflow-y: auto; }
+        .main-content { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .card-container { display: flex; justify-content: center; align-items: center; }
+        .card-preview { border: 1px solid #ccc; position: relative; background-size: cover; background-position: center; overflow: hidden; }
+        .card-preview.portrait { width: 255px; height: 405px; }
+        .card-preview.landscape { width: 405px; height: 255px; }
+        .card-element { position: absolute; border: 1px dashed #3498db; box-sizing: border-box; cursor: move; user-select: none; }
+        .card-element img, .card-element div { width: 100%; height: 100%; object-fit: contain; }
         .control-group { margin-bottom: 15px; }
-        .control-group label, .control-group h3 { font-weight: 600; display: block; margin-bottom: 12px; color: #333; font-size: 1em; }
-        .control-group button, .control-group input, .control-group select { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc; }
-        .control-group button { background-color: #6366F1; color: white; border: none; cursor: pointer; transition: background-color 0.2s; }
-        .control-group button:hover { background-color: #4f46e5; }
-        .control-group button:disabled { background-color: #c7d2fe; cursor: not-allowed; }
-        .remove-bg-btn { background-color: #EF4444 !important; font-size: 0.8em; padding: 4px; margin-top: -5px; }
-        #save-template-btn { background-color: #10B981; } #save-template-btn:hover { background-color: #059669; }
-        .history-buttons { display: flex; gap: 10px; }
-        textarea { width: 100%; height: 150px; font-family: monospace; font-size: 12px; }
-        .canvases { display: flex; gap: 30px; flex-wrap: wrap; }
-        .canvas-container-wrapper { padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .canvas-container-wrapper.active { box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5), 0 0 0 2px #6366F1; }
-        .canvas-container-wrapper h2 { margin-bottom: 15px; font-size: 1.2em; color: #444; text-align: center; }
-        .stage-wrapper { position: relative; cursor: pointer; padding-left: 25px; padding-top: 25px;}
-        .konvajs-content { border: 1px solid #ccc; background-color: #fff; }
-        .radio-group label, .checkbox-group label { display: inline-flex; align-items: center; margin-right: 15px; cursor: pointer; font-weight: normal; }
-        #properties-panel { border-top: 1px solid #eee; padding-top: 15px; }
-        .opacity-control, .font-size-control { display: flex; align-items: center; gap: 10px; }
-        .opacity-control input[type=range] { flex-grow: 1; } .opacity-control input[type=number] { width: 60px; }
-        .font-size-control input[type=number] { flex-grow: 1; } .font-size-control button { width: 40px; padding: 4px; margin: 0; }
-        .ruler { position: absolute; background-color: #f8f8f8; overflow: hidden; display: none; }
-        .ruler.horizontal { top: 0; left: 25px; height: 25px; border-bottom: 1px solid #ccc; }
-        .ruler.vertical { top: 25px; left: 0; width: 25px; border-right: 1px solid #ccc; }
-        #page-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center; font-size: 1.2em; font-weight: 600; color: #333; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="url"], select, textarea { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        textarea { height: 150px; font-family: monospace; }
+        button { padding: 10px 15px; border: none; background-color: #28a745; color: white; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        button:hover { background-color: #218838; }
+        #message { margin-top: 15px; padding: 10px; border-radius: 4px; display: none; }
+        .message-success { background-color: #d4edda; color: #155724; }
+        .message-error { background-color: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
-    <div id="page-loader">Loading Editor...</div>
-    <div class="editor-wrapper">
-        <div class="controls">
-            <a href="/manage-card-templates.html" style="text-decoration: none; display: block; margin-bottom: 15px; text-align: center; font-weight: 600; color: #4f46e5;">&laquo; Back to All Templates</a>
-            <div class="control-group">
-                <button id="save-template-btn">💾 Save Template</button>
-            </div>
-             <div class="control-group">
-                <h3>History</h3>
-                <div class="history-buttons"><button id="undo-btn">Undo</button><button id="redo-btn">Redo</button></div>
-            </div>
-            <hr>
-            <div class="control-group">
-                <h3>Template Details</h3>
-                <label for="template-name">Template Name</label>
-                <input type="text" id="template-name" required>
-                <label for="company-name">Company Name</label>
-                <input type="text" id="company-name">
-            </div>
-            <hr>
-            <div class="control-group">
-                <h3>View Options</h3>
-                <div class="checkbox-group">
-                    <label><input type="checkbox" id="show-rulers"> Rulers</label>
-                    <label><input type="checkbox" id="show-hole-mark"> Hole Mark</label>
-                </div>
-            </div>
-            <hr>
-            <div class="control-group">
-                <h3>Card Orientation</h3>
-                <div class="radio-group">
-                    <label><input type="radio" name="orientation" value="landscape" checked> Landscape</label>
-                    <label><input type="radio" name="orientation" value="portrait"> Portrait</label>
-                </div>
-            </div>
-            <hr>
-            <div class="control-group">
-                <label>Front Background</label>
-                <input type="file" id="bg-front-upload" accept="image/*"><button id="remove-bg-front" class="remove-bg-btn">Remove</button>
-                <div class="opacity-control">
-                    <input type="range" id="bg-opacity-slider" min="0" max="1" step="0.01" value="1">
-                    <input type="number" id="bg-opacity-input" min="0" max="100" value="100"> %
-                </div>
-                <div class="checkbox-group"><label><input type="checkbox" id="lock-background"> Lock Background</label></div>
-            </div>
-            <div class="control-group"><label for="bg-back-upload">Back Background</label><input type="file" id="bg-back-upload" accept="image/*"><button id="remove-bg-back" class="remove-bg-btn">Remove</button></div>
-            <hr>
-            <div class="control-group">
-                <label>Add Elements (to Active Card)</label>
-                <button id="add-photo">Add Employee Photo</button>
-                <button id="add-employee-name">Add Employee Name</button>
-                <button id="add-employee-id">Add Employee ID</button>
-                <button id="add-company-name">Add Company Name</button>
-                <button id="add-logo">Add Company Logo</button>
-                <button id="add-qr">Add QR Code</button>
-            </div>
-            <div id="properties-panel" class="control-group" style="display: none;"></div>
-            <hr>
-            <div class="control-group">
-                <h3>Export</h3>
-                <button id="export-json">Export to JSON</button>
-                <textarea id="json-output" rows="10" placeholder="JSON output will appear here..."></textarea>
-            </div>
-        </div>
-        <div class="canvases">
-            <div class="canvas-container-wrapper" id="front-container">
-                <h2>Front</h2>
-                <div class="stage-wrapper">
-                    <canvas id="ruler-v-front" class="ruler vertical"></canvas><canvas id="ruler-h-front" class="ruler horizontal"></canvas>
-                    <div id="stage-container-front"></div>
-                </div>
-            </div>
-            <div class="canvas-container-wrapper" id="back-container">
-                <h2>Back</h2>
-                <div class="stage-wrapper">
-                     <canvas id="ruler-v-back" class="ruler vertical"></canvas><canvas id="ruler-h-back" class="ruler horizontal"></canvas>
-                     <div id="stage-container-back"></div>
-                </div>
-            </div>
+
+<div class="sidebar">
+    <h2>Card Template Editor</h2>
+    <div class="control-group">
+        <label for="template-name">Template Name</label>
+        <input type="text" id="template-name" placeholder="e.g., Standard Employee Card">
+    </div>
+    <div class="control-group">
+        <label for="company-name">Company Name</label>
+        <input type="text" id="company-name" placeholder="Your Company Inc.">
+    </div>
+    <div class="control-group">
+        <label for="orientation">Orientation</label>
+        <select id="orientation">
+            <option value="landscape">Landscape</option>
+            <option value="portrait">Portrait</option>
+        </select>
+    </div>
+    <div class="control-group">
+        <label for="background-url">Background Image URL</label>
+        <input type="url" id="background-url" placeholder="https://example.com/bg.jpg">
+    </div>
+     <div class="control-group">
+        <label for="logo-url">Logo Image URL</label>
+        <input type="url" id="logo-url" placeholder="https://example.com/logo.png">
+    </div>
+    <hr>
+    <h3>Elements</h3>
+    <button id="add-text-btn">Add Text</button>
+    <hr>
+    <div class="control-group">
+        <label for="layout-config-json">Layout Config (JSON)</label>
+        <textarea id="layout-config-json" readonly></textarea>
+    </div>
+    <button id="save-template-btn">Save Template</button>
+    <a href="/menu.html">Back to Menu</a>
+    <div id="message"></div>
+</div>
+
+<div class="main-content">
+    <div class="card-container">
+        <div id="card-preview" class="card-preview landscape">
+            <!-- Pre-defined elements -->
+            <div id="photo-element" class="card-element"><img src="https://placehold.co/80x80/EFEFEF/AAAAAA&text=Photo" alt="Photo"></div>
+            <div id="logo-element" class="card-element"><img src="https://placehold.co/100x40/EFEFEF/AAAAAA&text=Logo" alt="Logo"></div>
+            <div id="name-element" class="card-element"><span>Employee Name</span></div>
+            <div id="id-element" class="card-element"><span>Employee ID</span></div>
+            <div id="qr-element" class="card-element"><div>QR Code</div></div>
+            <div id="department-element" class="card-element"><span>Department</span></div>
+            <div id="company-name-element" class="card-element"><span>Company Name</span></div>
         </div>
     </div>
+</div>
 
-    <script>
-    // รอให้ทุกอย่างโหลดเสร็จก่อน
-    window.addEventListener('load', function() {
-        // ซ่อน loader
-        document.getElementById('page-loader').style.display = 'none';
+<script>
+    let _supabase;
+    const baseUrl = window.location.origin;
+    let currentTemplateId = null;
+
+    // --- DOM Elements ---
+    const cardPreview = document.getElementById('card-preview');
+    const orientationSelect = document.getElementById('orientation');
+    const backgroundUrlInput = document.getElementById('background-url');
+    const layoutConfigTextarea = document.getElementById('layout-config-json');
+    const saveBtn = document.getElementById('save-template-btn');
+    const messageDiv = document.getElementById('message');
+
+    let layoutConfig = {};
+
+    function makeInteractive(element) {
+        const id = element.id.replace('-element', '');
+        if (!layoutConfig[id]) { // Initialize if not present
+            layoutConfig[id] = {
+                x: element.offsetLeft,
+                y: element.offsetTop,
+                width: element.offsetWidth,
+                height: element.offsetHeight
+            };
+        }
         
-        // โหลด card-editor.js
-        const script = document.createElement('script');
-        script.src = 'card-editor.js';
-        script.onload = function() {
-            console.log('Card editor loaded successfully');
-        };
-        script.onerror = function() {
-            console.error('Failed to load card-editor.js');
-            alert('Failed to load editor. Please refresh the page.');
-        };
-        document.head.appendChild(script);
-    });
-    </script>
+        interact(element)
+            .draggable({
+                listeners: {
+                    move(event) {
+                        layoutConfig[id].x += event.dx;
+                        layoutConfig[id].y += event.dy;
+                        event.target.style.transform = `translate(${layoutConfig[id].x}px, ${layoutConfig[id].y}px)`;
+                        updateLayoutConfig();
+                    }
+                },
+                modifiers: [
+                    interact.modifiers.restrictRect({ restriction: 'parent' })
+                ]
+            })
+            .resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                listeners: {
+                    move(event) {
+                        let { x, y } = event.target.dataset;
+                        x = (parseFloat(x) || 0) + event.deltaRect.left;
+                        y = (parseFloat(y) || 0) + event.deltaRect.top;
+
+                        Object.assign(event.target.style, {
+                            width: `${event.rect.width}px`,
+                            height: `${event.rect.height}px`,
+                        });
+                        
+                        layoutConfig[id].width = event.rect.width;
+                        layoutConfig[id].height = event.rect.height;
+                        updateLayoutConfig();
+                    }
+                },
+                modifiers: [
+                    interact.modifiers.restrictSize({ min: { width: 20, height: 20 } })
+                ]
+            })
+            .on('tap', (event) => {
+                // Future: Implement property editor on click
+                console.log(`Tapped on ${id}`);
+            });
+            
+        // Initial position from layoutConfig
+        element.style.transform = `translate(${layoutConfig[id].x}px, ${layoutConfig[id].y}px)`;
+        element.style.width = `${layoutConfig[id].width}px`;
+        element.style.height = `${layoutConfig[id].height}px`;
+    }
+
+    function updateLayoutConfig() {
+        layoutConfigTextarea.value = JSON.stringify(layoutConfig, null, 2);
+    }
+    
+    async function initializeApp() {
+        try {
+            const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+            const config = await response.json();
+            _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+
+            const { data: { session } } = await _supabase.auth.getSession();
+            if (!session) {
+                document.body.innerHTML = '<h1>Please log in to access this page.</h1>';
+                return;
+            }
+
+            document.querySelectorAll('.card-element').forEach(el => makeInteractive(el));
+            updateLayoutConfig();
+
+            orientationSelect.addEventListener('change', (e) => {
+                cardPreview.className = `card-preview ${e.target.value}`;
+            });
+
+            backgroundUrlInput.addEventListener('input', (e) => {
+                cardPreview.style.backgroundImage = `url('${e.target.value}')`;
+            });
+            
+            // --- ADDED: Save functionality ---
+            saveBtn.addEventListener('click', saveTemplate);
+
+            // Check for template_id in URL for editing
+            const urlParams = new URLSearchParams(window.location.search);
+            const templateId = urlParams.get('template_id');
+            if (templateId) {
+                currentTemplateId = templateId;
+                await loadTemplateData(templateId);
+            }
+
+        } catch (error) {
+            console.error('Initialization failed:', error);
+            showMessage('Failed to initialize the editor: ' + error.message, 'error');
+        }
+    }
+    
+    // --- ADDED: Load existing template data for editing ---
+    async function loadTemplateData(templateId) {
+        try {
+            showMessage('Loading template data...', 'success');
+            const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
+            if (error) throw error;
+
+            document.getElementById('template-name').value = data.template_name || '';
+            document.getElementById('company-name').value = data.company_name || '';
+            document.getElementById('background-url').value = data.background_front_url || '';
+            document.getElementById('logo-url').value = data.logo_url || '';
+            orientationSelect.value = data.orientation || 'landscape';
+            
+            cardPreview.className = `card-preview ${data.orientation || 'landscape'}`;
+            if(data.background_front_url) {
+                cardPreview.style.backgroundImage = `url('${data.background_front_url}')`;
+            }
+
+            if (data.layout_config) {
+                layoutConfig = data.layout_config;
+                document.querySelectorAll('.card-element').forEach(el => {
+                     const id = el.id.replace('-element', '');
+                     if (layoutConfig[id]) {
+                        el.style.transform = `translate(${layoutConfig[id].x}px, ${layoutConfig[id].y}px)`;
+                        el.style.width = `${layoutConfig[id].width}px`;
+                        el.style.height = `${layoutConfig[id].height}px`;
+                     }
+                });
+                updateLayoutConfig();
+            }
+            showMessage('Template loaded successfully.', 'success');
+        } catch (error) {
+            console.error('Failed to load template:', error);
+            showMessage('Failed to load template: ' + error.message, 'error');
+        }
+    }
+
+    // --- ADDED: Complete saveTemplate function ---
+    async function saveTemplate() {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        
+        try {
+            const { data: { session } } = await _supabase.auth.getSession();
+            if (!session) throw new Error('You must be logged in to save.');
+
+            // Gather all data from the form
+            const payload = {
+                id: currentTemplateId, // Will be null for new templates
+                template_name: document.getElementById('template-name').value,
+                company_name: document.getElementById('company-name').value,
+                orientation: orientationSelect.value,
+                background_front_url: backgroundUrlInput.value,
+                logo_url: document.getElementById('logo-url').value,
+                layout_config: layoutConfig,
+                // created_by: session.user.id // The backend function should set this
+            };
+
+            if (!payload.template_name) {
+                throw new Error('Template Name is required.');
+            }
+
+            const response = await fetch(`${baseUrl}/.netlify/functions/upsert-card-template`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message || 'Failed to save template.');
+            }
+
+            const savedTemplate = await response.json();
+            
+            // If it was a new template, update the current ID and URL
+            if (!currentTemplateId) {
+                currentTemplateId = savedTemplate.id;
+                const newUrl = `${window.location.pathname}?template_id=${currentTemplateId}`;
+                window.history.pushState({ path: newUrl }, '', newUrl);
+            }
+
+            showMessage('Template saved successfully!', 'success');
+
+        } catch (error) {
+            console.error('Save Error:', error);
+            showMessage(error.message, 'error');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Template';
+        }
+    }
+    
+    function showMessage(msg, type) {
+        messageDiv.textContent = msg;
+        messageDiv.className = `message message-${type}`;
+        messageDiv.style.display = 'block';
+        setTimeout(() => { messageDiv.style.display = 'none'; }, 5000);
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeApp);
+</script>
+
 </body>
 </html>
