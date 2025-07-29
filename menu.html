@@ -17,20 +17,18 @@
         .menu-icon { font-size: 2.5em; text-align: center; margin-bottom: 15px; }
         .menu-item h3 { margin: 0 0 10px; color: #333; font-size: 1.2em; }
         .menu-item p { margin: 0; color: #666; font-size: 0.9em; line-height: 1.4; }
-        
-        /* เพิ่ม CSS พิเศษสำหรับ Bulk Card Generator */
-        .menu-item[href="bulk-card-generator.html"] {
+        /* FIX: Corrected CSS selector for the new link format */
+        .menu-item[href="/bulk-card-generator.html"] {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
-        .menu-item[href="bulk-card-generator.html"] h3,
-        .menu-item[href="bulk-card-generator.html"] p {
+        .menu-item[href="/bulk-card-generator.html"] h3,
+        .menu-item[href="/bulk-card-generator.html"] p {
             color: white;
         }
-        .menu-item[href="bulk-card-generator.html"] .menu-icon {
+        .menu-item[href="/bulk-card-generator.html"] .menu-icon {
             animation: pulse 2s infinite;
         }
-        
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.1); }
@@ -39,84 +37,85 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🏢 Employee Management System</h1>
-            <p>ระบบจัดการพนักงานและบัตรประจำตัว</p>
-        </div>
-
-        <!-- Employee Management Section (เดิม) -->
-        <div class="menu-section">
-            <h2>👥 Employee Management</h2>
-            <div class="menu-items">
-                <a href="add-employee.html" class="menu-item">
-                    <div class="menu-icon">➕</div>
-                    <h3>Add New Employee</h3>
-                    <p>เพิ่มข้อมูลพนักงานใหม่</p>
-                </a>
-                
-                <a href="manage-employees.html" class="menu-item">
-                    <div class="menu-icon">📋</div>
-                    <h3>Manage Employees</h3>
-                    <p>จัดการข้อมูลพนักงานที่มีอยู่</p>
-                </a>
-            </div>
-        </div>
-
-        <!-- Card Management Section (แก้ไขเพิ่ม Bulk Generator) -->
-        <div class="menu-section">
-            <h2>🎨 Card Management</h2>
-            <div class="menu-items">
-                <a href="card-editor.html" class="menu-item">
-                    <div class="menu-icon">✏️</div>
-                    <h3>Create Card Template</h3>
-                    <p>ออกแบบเทมเพลตบัตรพนักงาน</p>
-                </a>
-                
-                <a href="manage-card-templates.html" class="menu-item">
-                    <div class="menu-icon">📋</div>
-                    <h3>Manage Templates</h3>
-                    <p>จัดการเทมเพลตที่มีอยู่</p>
-                </a>
-                
-                <!-- ⭐ เพิ่มปุ่มใหม่ตรงนี้ -->
-                <a href="bulk-card-generator.html" class="menu-item">
-                    <div class="menu-icon">🚀</div>
-                    <h3>Bulk Card Generator</h3>
-                    <p>สร้างบัตรพนักงานจำนวนมากแบบอัตโนมัติ</p>
-                </a>
-            </div>
-        </div>
-
-        <!-- Coupon Management Section (เดิม) -->
-        <div class="menu-section">
-            <h2>🎟️ Coupon Management</h2>
-            <div class="menu-items">
-                <a href="grant-coupons.html" class="menu-item">
-                    <div class="menu-icon">🎁</div>
-                    <h3>Grant Coupons</h3>
-                    <p>มอบสิทธิ์คูปองให้พนักงาน</p>
-                </a>
-                
-                <a href="issue-temp-coupon.html" class="menu-item">
-                    <div class="menu-icon">⏰</div>
-                    <h3>Issue Temporary Coupon</h3>
-                    <p>ออกคูปองชั่วคราว</p>
-                </a>
-            </div>
-        </div>
-
-        <!-- Reports Section (เดิม) -->
-        <div class="menu-section">
-            <h2>📊 Reports</h2>
-            <div class="menu-items">
-                <a href="reports.html" class="menu-item">
-                    <div class="menu-icon">📈</div>
-                    <h3>Usage Reports</h3>
-                    <p>รายงานการใช้งานคูปอง</p>
-                </a>
-            </div>
+<div class="container">
+    <div class="header">
+        <h1>🏢 Employee Management System</h1>
+        <p>ระบบจัดการพนักงานและบัตรประจำตัว</p>
+    </div>
+    
+    <!-- Employee Management Section -->
+    <div class="menu-section">
+        <h2>👥 Employee Management</h2>
+        <div class="menu-items">
+            <a class='menu-item' href='/add-employee.html'>
+                <div class="menu-icon">➕</div>
+                <h3>Add New Employee</h3>
+                <p>เพิ่มข้อมูลพนักงานใหม่</p>
+            </a>
+            <a class='menu-item' href='/manage-employees.html'>
+                <div class="menu-icon">📋</div>
+                <h3>Manage Employees</h3>
+                <p>จัดการข้อมูลพนักงานที่มีอยู่</p>
+            </a>
         </div>
     </div>
+    
+    <!-- Card Management Section -->
+    <div class="menu-section">
+        <h2>🎨 Card Management</h2>
+        <div class="menu-items">
+            <a class='menu-item' href='/card-editor.html'>
+                <div class="menu-icon">✏️</div>
+                <h3>Create Card Template</h3>
+                <p>ออกแบบเทมเพลตบัตรพนักงาน</p>
+            </a>
+            <a class='menu-item' href='/manage-card-templates.html'>
+                <div class="menu-icon">📋</div>
+                <h3>Manage Templates</h3>
+                <p>จัดการเทมเพลตที่มีอยู่</p>
+            </a>
+            <a class='menu-item' href='/bulk-card-generator.html'>
+                <div class="menu-icon">🚀</div>
+                <h3>Bulk Card Generator</h3>
+                <p>สร้างบัตรพนักงานจำนวนมากแบบอัตโนมัติ</p>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Coupon Management Section -->
+    <div class="menu-section">
+        <h2>🎟️ Coupon Management</h2>
+        <div class="menu-items">
+            <a class='menu-item' href='/grant-coupons.html'>
+                <div class="menu-icon">🎁</div>
+                <h3>Grant Coupons</h3>
+                <p>มอบสิทธิ์คูปองให้พนักงาน</p>
+            </a>
+            <a class='menu-item' href='/issue-temp-coupon.html'>
+                <div class="menu-icon">⏰</div>
+                <h3>Issue Temporary Coupon</h3>
+                <p>ออกคูปองชั่วคราว</p>
+            </a>
+            <!-- FIX: Added the missing scanner button here -->
+            <a class='menu-item' href='/scanner.html'>
+                <div class="menu-icon">📷</div>
+                <h3>Scan Coupon</h3>
+                <p>สแกน QR Code เพื่อใช้งานคูปอง</p>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Reports Section -->
+    <div class="menu-section">
+        <h2>📊 Reports</h2>
+        <div class="menu-items">
+            <a class='menu-item' href='/reports.html'>
+                <div class="menu-icon">📈</div>
+                <h3>Usage Reports</h3>
+                <p>รายงานการใช้งานคูปอง</p>
+            </a>
+        </div>
+    </div>
+</div>
 </body>
 </html>
