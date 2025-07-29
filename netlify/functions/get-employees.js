@@ -7,7 +7,7 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
 export const handler = async (event) => {
-    // Authentication
+    // --- Authentication (Don't touch) ---
     const token = event.headers.authorization?.split('Bearer ')[1];
     if (!token) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
@@ -35,9 +35,12 @@ export const handler = async (event) => {
             .from('combined_employees_view')
             .select('*', { count: 'exact' });
 
-        // Apply filters
+        // --- Apply filters ---
         if (search) {
-            query = query.or(`name.ilike.%${search}%,employee_id.ilike.%${search}%`);
+            // *** THE DEFINITIVE FIX: Use precise filters for each column type ***
+            // This searches for an EXACT match on 'employee_id' OR a partial match on 'name'.
+            // This avoids data type issues with ILIKE on a numeric column.
+            query = query.or(`employee_id.eq.${search},name.ilike.%${search}%`);
         }
         if (department && department !== 'all') {
             query = query.eq('department_id', department);
@@ -48,9 +51,9 @@ export const handler = async (event) => {
             query = query.eq('is_active', false);
         }
 
-        // *** THE DEFINITIVE FIX: Order by 'name', a column that exists in your view ***
+        // --- Execute the final query with pagination ---
         const { data: employees, error, count } = await query
-            .order('name', { ascending: true }) // Corrected ordering column
+            .order('name', { ascending: true }) // Order by name for consistent results
             .range(offset, offset + limitNum - 1);
 
         if (error) {
