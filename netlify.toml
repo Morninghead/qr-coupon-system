@@ -1,5 +1,6 @@
-# netlify.toml
+# /netlify.toml - Final Consolidated Version
 
+# (1) These are your existing general build settings, which are correct.
 [build]
   publish = "."
   functions = "netlify/functions"
@@ -7,7 +8,13 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# (2) This is your existing setting for a function that needs Chromium.
+# It remains unchanged.
 [functions."generate-bulk-cards"]
-  # This line is still needed to include the browser files
   included_files = ["node_modules/@sparticuz/chromium/bin/**"]
+
+# (3) *** THIS IS THE NEW, CRUCIAL PART ***
+# This adds a new, specific setting for our PDF generation function.
+# It tells Netlify to include the 'fonts' directory for 'generate-bulk-pdf'.
+[functions."generate-bulk-pdf"]
   included_files = ["fonts/**"]
