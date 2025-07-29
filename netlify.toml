@@ -10,3 +10,4 @@
 [functions."generate-bulk-cards"]
   # This line is still needed to include the browser files
   included_files = ["node_modules/@sparticuz/chromium/bin/**"]
+  included_files = ["fonts/**"]
