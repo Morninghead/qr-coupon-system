@@ -235,7 +235,6 @@
             editModal.style.display = 'block';
         }
 
-        // --- FIXED DELETE FUNCTION ---
         async function deleteEmployee(employeeId, employeeName) {
             const headers = getAuthHeader();
             if (!headers) {
@@ -248,7 +247,6 @@
             }
 
             try {
-                // FIX: Use POST method and send only the 'id' in the body.
                 const response = await fetch('/.netlify/functions/delete-employee', {
                     method: 'POST',
                     headers: headers,
@@ -280,7 +278,6 @@
             const newName = document.getElementById('edit-name').value;
             const newDepartmentId = document.getElementById('edit-department').value;
             
-            // FIX: Create a payload without the 'type' field.
             const payload = {
                 id: employeeId,
                 name: newName,
@@ -288,7 +285,6 @@
             };
             
             try {
-                // FIX: Use POST method to send the update.
                 const response = await fetch('/.netlify/functions/update-employees', {
                     method: 'POST',
                     headers: headers,
