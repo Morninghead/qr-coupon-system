@@ -97,9 +97,9 @@
         }
         .employee-card .background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
         .employee-card .card-content { position: relative; z-index: 1; width: 100%; height: 100%; }
-        .employee-card .card-element { position: absolute; box-sizing: border-box; display: flex; align-items: center; }
-        .employee-card .card-element.img { background-color: transparent; border: none; padding: 0; }
-        .employee-card .card-element.qr { justify-content: center; }
+        .employee-card .card-element { position: absolute; box-sizing: border-box; display: flex; align-items: center; padding: 2px 4px; }
+        .employee-card .card-element.img { padding: 0; }
+        .employee-card .card-element.qr { padding: 0; justify-content: center; }
         .employee-card .card-element.qr canvas { width: 100% !important; height: 100% !important; }
 
     </style>
@@ -111,7 +111,8 @@
             <a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
         </div>
 
-        <div class="card">
+        <!-- All other HTML remains the same... -->
+         <div class="card">
             <div class="controls-grid">
                 <div class="control-group">
                     <label for="template-select">1. เลือก Template บัตร</label>
@@ -424,27 +425,36 @@
         }
 
         // *** THE DEFINITIVE FIX FOR CARD PREVIEW ***
-        async function generateCardHtml(employee, template) {
+        function generateCardHtml(employee, template) {
             let elementsHtml = '';
             const layout = template.layout_config || {};
 
+            // Helper function to add 'px' unit only if the value is a number
+            const toPx = (value) => {
+                if (typeof value === 'number') return `${value}px`;
+                if (typeof value === 'string' && !isNaN(value)) return `${value}px`; // Handle numeric strings
+                return value; // Return string as-is (e.g., "100%", "auto")
+            };
+
             for (const key in layout) {
                 const style = layout[key];
-                if (!style) continue; // Skip if style for a key is missing
+                if (!style) continue;
 
                 // Build a robust style string
-                let styleStr = `left: ${style.x || 0}px; top: ${style.y || 0}px; width: ${style.width || 'auto'}px; height: ${style.height || 'auto'}px;`;
+                let styleStr = `left: ${toPx(style.x) || '0px'}; top: ${toPx(style.y) || '0px'}; width: ${toPx(style.width) || 'auto'}; height: ${toPx(style.height) || 'auto'};`;
                 if (style.color) styleStr += ` color: ${style.color};`;
-                if (style.fontSize) styleStr += ` font-size: ${style.fontSize}px;`;
+                if (style.fontSize) styleStr += ` font-size: ${toPx(style.fontSize)};`;
                 if (style.textAlign) styleStr += ` text-align: ${style.textAlign};`;
-                if (style.fontFamily) styleStr += ` font-family: ${style.fontFamily}, sans-serif;`;
+                if (style.fontFamily) styleStr += ` font-family: "${style.fontFamily}", sans-serif;`;
                 
                 let content = '';
                 let className = `card-element ${key}`;
 
+                let textContent = '';
                 switch (key) {
                     case 'photo':
-                        content = `<img src="${employee.photo_url || PLACEHOLDER_IMG_URL_40}" style="width:100%; height:100%; object-fit:cover; border-radius: ${style.borderRadius || '0'};">`;
+                        const borderRadius = toPx(style.borderRadius) || '0';
+                        content = `<img src="${employee.photo_url || PLACEHOLDER_IMG_URL_40}" style="width:100%; height:100%; object-fit:cover; border-radius: ${borderRadius};">`;
                         break;
                     case 'logo':
                         content = `<img src="${template.logo_url || ''}" style="width:100%; height:100%; object-fit:contain;">`;
@@ -454,24 +464,28 @@
                         content = `<div class="qr-placeholder" style="width:100%; height:100%;"></div>`;
                         break;
                     case 'employee_name':
-                        content = `<span>${employee.name || ''}</span>`;
+                        textContent = employee.name;
                         break;
                     case 'employee_id':
-                        content = `<span>${employee.employee_id || ''}</span>`;
+                        textContent = employee.employee_id;
                         break;
                     case 'department_name':
-                        content = `<span>${employee.department_name || ''}</span>`;
+                        textContent = employee.department_name;
                         break;
-                    default: // For custom text fields like 'position', 'company_name'
-                        content = `<span>${style.text || ''}</span>`;
+                    default:
+                        textContent = style.text || '';
                         break;
                 }
                 
+                if (textContent) {
+                    content = `<span style="display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${textContent}</span>`;
+                }
+
                 elementsHtml += `<div class="${className}" style="${styleStr}">${content}</div>`;
             }
 
             const backgroundHtml = template.background_front_url ? `<img src="${template.background_front_url}" class="background">` : '';
-            return `${backgroundHtml}<div class="card-content">${elementsHtml}</div>`;
+            return Promise.resolve(`${backgroundHtml}<div class="card-content">${elementsHtml}</div>`);
         }
         
         async function generatePdfForSelectedCards() {
