@@ -31,7 +31,7 @@ exports.handler = async (event) => {
         const pdfDoc = await PDFDocument.create();
         pdfDoc.registerFontkit(fontkit);
 
-        // *** THE DEFINITIVE FIX: Updated the font path to match your directory structure ***
+        // *** THE DEFINITIVE FIX: Updated the font path to match your exact directory structure ***
         const fontPath = path.resolve(process.cwd(), 'fonts/Noto_Sans_Thai/noto-sans-thai-latin-ext-400-normal.woff');
         
         const fontBytes = await fs.readFile(fontPath);
