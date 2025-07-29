@@ -6,43 +6,43 @@
     <title>Bulk Card Generator</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* You can copy styles from print-employee-cards.html for a consistent look */
         body { font-family: -apple-system, sans-serif; background-color: #f0f2f5; padding: 20px; }
         .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; }
         .btn { padding: 10px 18px; border-radius: 8px; font-weight: 600; color: white; border: none; cursor: pointer; }
         .btn-generate { background-color: #28a745; }
-        .btn-generate:disabled { background-color: #a0a0a0; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px; border: 1px solid #ddd; text-align: left; }
+        .btn-generate:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px;}
+        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+        th { background-color: #f9f9f9; }
+        #pdf-message { margin-top: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Bulk Card Generator</h1>
-        <div id="template-info">
+        <a href="/manage-templates.html">← Back to Manage Templates</a>
+        <div id="template-info" style="margin-top: 20px; padding: 15px; background: #eef2ff; border-radius: 8px;">
             <h2>Using Template: <span id="template-name-display">Loading...</span></h2>
         </div>
-        <hr>
-        <!-- Add your employee search/filter UI here if you want -->
-        <hr>
-        <h3>Select Employees</h3>
+        
         <div id="employee-list">
+             <h3>Select Employees</h3>
              <table id="employee-selection-table">
                 <thead>
                     <tr>
-                        <th><input type="checkbox" id="select-all-employees"></th>
-                        <th>รหัสพนักงาน</th>
-                        <th>ชื่อ-สกุล</th>
+                        <th style="width: 5%;"><input type="checkbox" id="select-all-employees"></th>
+                        <th>Employee ID</th>
+                        <th>Name</th>
                     </tr>
                 </thead>
                 <tbody id="employee-table-body">
-                    <tr><td colspan="3">Loading employees...</td></tr>
+                    <tr><td colspan="3" style="text-align: center; padding: 20px;">Loading employees...</td></tr>
                 </tbody>
             </table>
         </div>
         <br>
         <button id="generate-pdf-btn" class="btn btn-generate" disabled>Generate PDF for Selected (<span id="selected-count">0</span>)</button>
-        <div id="pdf-message" style="margin-top: 15px;"></div>
+        <div id="pdf-message"></div>
     </div>
 
 <script>
@@ -52,7 +52,6 @@
     let allEmployees = [];
     let selectedEmployeeIds = new Map();
 
-    // DOM Elements
     const templateNameEl = document.getElementById('template-name-display');
     const employeeTableBody = document.getElementById('employee-table-body');
     const selectAllCheckbox = document.getElementById('select-all-employees');
@@ -73,8 +72,10 @@
             const templateId = urlParams.get('template_id');
             if (!templateId) throw new Error('No template ID provided in URL.');
             
-            await loadTemplate(templateId);
-            await fetchAllEmployees();
+            await Promise.all([
+                loadTemplate(templateId),
+                fetchAllEmployees()
+            ]);
 
             selectAllCheckbox.addEventListener('change', handleSelectAll);
             generateBtn.addEventListener('click', generatePdf);
@@ -86,20 +87,24 @@
 
     async function loadTemplate(templateId) {
         const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
-        if (error) throw error;
+        if (error) throw new Error(`Could not load template with ID ${templateId}.`);
         selectedTemplate = data;
         templateNameEl.textContent = selectedTemplate.template_name;
     }
 
     async function fetchAllEmployees() {
-        const { data, error } = await _supabase.from('combined_employees_view').select('*');
-        if (error) throw error;
+        const { data, error } = await _supabase.from('combined_employees_view').select('id, employee_id, name, photo_url, department_name');
+        if (error) throw new Error('Could not fetch employees.');
         allEmployees = data;
         renderEmployeeTable(allEmployees);
     }
     
     function renderEmployeeTable(employees) {
         employeeTableBody.innerHTML = '';
+        if (employees.length === 0) {
+             employeeTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center;">No employees found.</td></tr>';
+             return;
+        }
         employees.forEach(emp => {
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -121,18 +126,25 @@
         updateGenerateButton();
     }
     
+    // *** THE DEFINITIVE FIX for "Select All" functionality ***
     function handleSelectAll(event) {
         const isChecked = event.target.checked;
-        document.querySelectorAll('.employee-checkbox').forEach(cb => {
-            cb.checked = isChecked;
-            const empId = parseInt(cb.dataset.id, 10);
-            const employee = allEmployees.find(e => e.id === empId);
+        
+        allEmployees.forEach(emp => {
+            const checkbox = employeeTableBody.querySelector(`.employee-checkbox[data-id="${emp.id}"]`);
+            if(checkbox) checkbox.checked = isChecked;
+
             if (isChecked) {
-                selectedEmployeeIds.set(employee.id, employee);
+                selectedEmployeeIds.set(emp.id, emp);
             } else {
-                selectedEmployeeIds.delete(employee.id);
+                selectedEmployeeIds.delete(emp.id);
             }
         });
+        
+        if (!isChecked) {
+            selectedEmployeeIds.clear();
+        }
+
         updateGenerateButton();
     }
 
@@ -147,15 +159,13 @@
         
         generateBtn.disabled = true;
         pdfMessageEl.textContent = 'Generating PDF, please wait... This may take a moment.';
+        pdfMessageEl.style.color = 'blue';
 
         try {
             const { data: { session } } = await _supabase.auth.getSession();
             const response = await fetch(`${baseUrl}/.netlify/functions/generate-bulk-pdf`, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
                 body: JSON.stringify({
                     template: selectedTemplate,
                     employees: Array.from(selectedEmployeeIds.values())
@@ -163,20 +173,26 @@
             });
 
             if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.message || 'PDF Generation Failed on Server.');
+                 const errText = await response.text();
+                 try { const errJson = JSON.parse(errText); throw new Error(errJson.message); }
+                 catch { throw new Error(errText || 'PDF Generation Failed on Server.'); }
             }
 
             const pdfBase64 = await response.text();
             const link = document.createElement('a');
             link.href = `data:application/pdf;base64,${pdfBase64}`;
             link.download = `employee-cards-${Date.now()}.pdf`;
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
+
             pdfMessageEl.textContent = 'PDF generated successfully!';
+            pdfMessageEl.style.color = 'green';
 
         } catch (error) {
             console.error('PDF Generation Error:', error);
             pdfMessageEl.textContent = `Error: ${error.message}`;
+            pdfMessageEl.style.color = 'red';
         } finally {
             generateBtn.disabled = false;
         }
