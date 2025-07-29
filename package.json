@@ -11,6 +11,8 @@
     "jsdom": "^24.1.0",
     "jspdf": "^2.5.1",
     "puppeteer-core": "^22.13.0",
-    "qrcode": "^1.5.3"
+    "qrcode": "^1.5.3",
+    "pdf-lib": "^1.17.1",
+    "@fontsource/noto-sans-thai": "^5.0.13"
   }
 }
