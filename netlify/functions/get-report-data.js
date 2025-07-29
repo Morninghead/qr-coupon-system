@@ -22,14 +22,15 @@ export const handler = async (event) => {
   const endOfDay = `${endDate} 23:59:59`;
 
   try {
-    // --- Step 1: Fetch Regular Coupons (Normal & OT) ---
-    // This query correctly filters by department via the employees table.
+    // --- Step 1: Fetch Regular Coupons ---
     let regularQuery = supabaseAdmin
       .from('daily_coupons')
-      .select('coupon_type, status, employees!inner(department_id)')
+      // Correctly join with employees table to access department_id
+      .select('coupon_type, status, employees!inner(department_id)') 
       .gte('coupon_date', startDate)
       .lte('coupon_date', endDate);
 
+    // Now, filter on the joined table
     if (departmentId && departmentId !== 'all') {
       regularQuery = regularQuery.eq('employees.department_id', departmentId);
     }
@@ -42,13 +43,12 @@ export const handler = async (event) => {
 
     // --- Step 2: Fetch Temporary Coupons ---
     let tempCoupons = [];
-    // Only fetch temp coupons if 'All Departments' is selected.
+    // Temp coupons are not associated with a department, so only include them when 'All' is selected.
     if (!departmentId || departmentId === 'all') {
         const { data: tempData, error: tempError } = await supabaseAdmin
           .from('temporary_coupon_requests')
-          .select('status')
-          // *** FIX: Changed 'coupon_date' to the correct column 'created_at' ***
-          .gte('created_at', startOfDay)
+          .select('coupon_type, status')
+          .gte('created_at', startOfDay) // Use 'created_at' as per our last fix
           .lte('created_at', endOfDay);
         
         if (tempError) {
@@ -58,31 +58,31 @@ export const handler = async (event) => {
         tempCoupons = tempData;
     }
     
-    // --- Step 3: Process Data (This logic remains the same) ---
+    // --- Step 3: Process Data into the 4 required categories ---
     const report = {
-      normalData: { totalGranted: 0, totalUsed: 0 },
-      otData: { totalGranted: 0, totalUsed: 0 },
-      tempData: { totalGranted: 0, totalUsed: 0 }
+      regularNormalData: { totalGranted: 0, totalUsed: 0 },
+      regularOtData: { totalGranted: 0, totalUsed: 0 },
+      tempNormalData: { totalGranted: 0, totalUsed: 0 },
+      tempOtData: { totalGranted: 0, totalUsed: 0 },
     };
 
     regularCoupons.forEach(c => {
       if (c.coupon_type === 'NORMAL') {
-        report.normalData.totalGranted++;
-        if (c.status === 'USED') {
-          report.normalData.totalUsed++;
-        }
+        report.regularNormalData.totalGranted++;
+        if (c.status === 'USED') report.regularNormalData.totalUsed++;
       } else if (c.coupon_type === 'OT') {
-        report.otData.totalGranted++;
-        if (c.status === 'USED') {
-          report.otData.totalUsed++;
-        }
+        report.regularOtData.totalGranted++;
+        if (c.status === 'USED') report.regularOtData.totalUsed++;
       }
     });
 
     tempCoupons.forEach(c => {
-      report.tempData.totalGranted++;
-      if (c.status === 'USED') {
-        report.tempData.totalUsed++;
+      if (c.coupon_type === 'NORMAL') {
+        report.tempNormalData.totalGranted++;
+        if (c.status === 'USED') report.tempNormalData.totalUsed++;
+      } else if (c.coupon_type === 'OT') {
+        report.tempOtData.totalGranted++;
+        if (c.status === 'USED') report.tempOtData.totalUsed++;
       }
     });
 
