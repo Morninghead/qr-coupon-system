@@ -10,7 +10,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
-// Helper function to fetch all data without pagination
+// Helper function remains unchanged
 async function fetchAllData(query) {
     let allData = [];
     let page = 0;
@@ -26,7 +26,7 @@ async function fetchAllData(query) {
 }
 
 export const handler = async (event) => {
-    // Authentication
+    // Authentication remains unchanged
     const token = event.headers.authorization?.split('Bearer ')[1];
     if (!token) return { statusCode: 401, body: 'Authentication required' };
     const { data: { user } } = await supabaseAdmin.auth.getUser(token);
@@ -37,7 +37,7 @@ export const handler = async (event) => {
     const endOfDay = `${endDate} 23:59:59`;
 
     try {
-        // --- Fetch Raw Data ---
+        // --- Data fetching logic remains unchanged ---
         let regularQuery = supabaseAdmin
             .from('daily_coupons')
             .select('coupon_date, coupon_type, status, employees!inner(employee_id, name, departments(name))')
@@ -54,7 +54,6 @@ export const handler = async (event) => {
         if (!departmentId || departmentId === 'all') {
             const tempQuery = supabaseAdmin
                 .from('temporary_coupon_requests')
-                // *** FIX: Removed non-existent 'temp_employee_id' column ***
                 .select('created_at, temp_employee_name, coupon_type, status')
                 .gte('created_at', startOfDay)
                 .lte('created_at', endOfDay)
@@ -74,20 +73,15 @@ export const handler = async (event) => {
         summary.total = summary.regularNormal + summary.regularOt + summary.tempNormal + summary.tempOt;
 
         if (format === 'xlsx') {
-            // --- Generate XLSX ---
+            // --- XLSX Generation logic remains unchanged ---
             const workbook = new ExcelJS.Workbook();
             workbook.creator = 'Employee Coupon System';
-            workbook.created = new Date();
-
             const summarySheet = workbook.addWorksheet('Summary');
-            summarySheet.columns = [
-                { header: 'ประเภท', key: 'category', width: 30 },
-                { header: 'ยอดรวม (บาท)', key: 'amount', width: 20 },
-            ];
+            summarySheet.columns = [{ header: 'ประเภท', key: 'category', width: 30 }, { header: 'ยอดรวม (บาท)', key: 'amount', width: 20 }];
             summarySheet.addRow({ category: 'รายงานสรุปยอด', amount: '' });
             summarySheet.addRow({ category: `ช่วงวันที่: ${startDate} ถึง ${endDate}`, amount: '' });
             summarySheet.addRow({ category: `แผนก: ${departmentName}`, amount: '' });
-            summarySheet.addRow({}); // Spacer
+            summarySheet.addRow({});
             summarySheet.addRow({ category: 'คูปองปกติ (กลางวัน)', amount: summary.regularNormal });
             summarySheet.addRow({ category: 'คูปองปกติ (โอที)', amount: summary.regularOt });
             summarySheet.addRow({ category: 'คูปองชั่วคราว (กลางวัน)', amount: summary.tempNormal });
@@ -95,63 +89,37 @@ export const handler = async (event) => {
             summarySheet.addRow({ category: 'รวมทั้งสิ้น', amount: summary.total });
             summarySheet.findRow(9).font = { bold: true };
             summarySheet.getCell('B9').numFmt = '#,##0.00';
-            ['B5','B6','B7','B8'].forEach(cell => {
-                summarySheet.getCell(cell).numFmt = '#,##0.00';
-            });
-            
+            ['B5','B6','B7','B8'].forEach(cell => { summarySheet.getCell(cell).numFmt = '#,##0.00'; });
             const regularSheet = workbook.addWorksheet('รายละเอียดคูปองปกติ');
-            regularSheet.columns = [
-                { header: 'วันที่', key: 'date', width: 15 },
-                { header: 'รหัสพนักงาน', key: 'id', width: 15 },
-                { header: 'ชื่อ-สกุล', key: 'name', width: 30 },
-                { header: 'ประเภทคูปอง', key: 'type', width: 15 },
-            ];
-            usedRegular.forEach(c => {
-                regularSheet.addRow({ date: c.coupon_date, id: c.employees.employee_id, name: c.employees.name, type: c.coupon_type });
-            });
-
+            regularSheet.columns = [{ header: 'วันที่', key: 'date', width: 15 }, { header: 'รหัสพนักงาน', key: 'id', width: 15 }, { header: 'ชื่อ-สกุล', key: 'name', width: 30 }, { header: 'ประเภทคูปอง', key: 'type', width: 15 }];
+            usedRegular.forEach(c => { regularSheet.addRow({ date: c.coupon_date, id: c.employees.employee_id, name: c.employees.name, type: c.coupon_type }); });
             if(usedTemp.length > 0) {
                  const tempSheet = workbook.addWorksheet('รายละเอียดคูปองชั่วคราว');
-                 tempSheet.columns = [
-                    { header: 'วันที่', key: 'date', width: 20 },
-                    { header: 'รหัสพนักงาน', key: 'id', width: 15 },
-                    { header: 'ชื่อ-สกุล', key: 'name', width: 30 },
-                    { header: 'ประเภทคูปอง', key: 'type', width: 15 },
-                ];
-                usedTemp.forEach(c => {
-                    // *** FIX: Changed to use 'N/A' for the ID column as it doesn't exist ***
-                    tempSheet.addRow({ date: new Date(c.created_at).toLocaleString('th-TH'), id: 'N/A', name: c.temp_employee_name, type: c.coupon_type });
-                });
+                 tempSheet.columns = [{ header: 'วันที่', key: 'date', width: 20 }, { header: 'รหัสพนักงาน', key: 'id', width: 15 }, { header: 'ชื่อ-สกุล', key: 'name', width: 30 }, { header: 'ประเภทคูปอง', key: 'type', width: 15 }];
+                 usedTemp.forEach(c => { tempSheet.addRow({ date: new Date(c.created_at).toLocaleString('th-TH'), id: 'N/A', name: c.temp_employee_name, type: c.coupon_type }); });
             }
-
             const buffer = await workbook.xlsx.writeBuffer();
-            return {
-                statusCode: 200,
-                headers: {
-                    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    'Content-Disposition': `attachment; filename="report-${startDate}-to-${endDate}.xlsx"`,
-                },
-                body: buffer.toString('base64'),
-                isBase64Encoded: true,
-            };
+            return { statusCode: 200, headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="report-${startDate}-to-${endDate}.xlsx"`, }, body: buffer.toString('base64'), isBase64Encoded: true };
 
         } else if (format === 'pdf') {
-            // --- Generate PDF ---
+            // --- PDF Generation logic ---
             const doc = new PDFDocument({ margin: 50, size: 'A4' });
             const buffers = [];
             doc.on('data', buffers.push.bind(buffers));
             
-            const fontPath = path.join(process.cwd(), 'netlify', 'functions', 'Sarabun-Regular.ttf');
-            const boldFontPath = path.join(process.cwd(), 'netlify', 'functions', 'Sarabun-Bold.ttf');
+            // *** FIX: Updated font paths to point to the new '/fonts' directory ***
+            const fontPath = path.join(process.cwd(), 'fonts', 'Sarabun-Regular.ttf');
+            const boldFontPath = path.join(process.cwd(), 'fonts', 'Sarabun-Bold.ttf');
+            
             doc.registerFont('Sarabun', fontPath);
             doc.registerFont('Sarabun-Bold', boldFontPath);
 
+            // The rest of the PDF generation logic remains unchanged
             doc.font('Sarabun-Bold').fontSize(16).text('รายงานสรุปยอดการใช้คูปอง', { align: 'center' });
             doc.moveDown();
             doc.font('Sarabun').fontSize(12).text(`ช่วงวันที่: ${startDate} ถึง ${endDate}`);
             doc.text(`แผนก: ${departmentName}`);
             doc.moveDown(2);
-
             doc.font('Sarabun-Bold').text('สรุปยอดรวม');
             const formatCurrency = (amount) => amount.toLocaleString('th-TH', { minimumFractionDigits: 2 });
             doc.font('Sarabun').text(` - คูปองปกติ (กลางวัน): ${formatCurrency(summary.regularNormal)} บาท`);
@@ -159,33 +127,20 @@ export const handler = async (event) => {
             doc.text(` - คูปองชั่วคราว (กลางวัน): ${formatCurrency(summary.tempNormal)} บาท`);
             doc.text(` - คูปองชั่วคราว (โอที): ${formatCurrency(summary.tempOt)} บาท`);
             doc.font('Sarabun-Bold').text(`รวมทั้งสิ้น: ${formatCurrency(summary.total)} บาท`);
-            
             if (usedRegular.length > 0) {
                 doc.addPage().font('Sarabun-Bold').fontSize(14).text('รายละเอียดการใช้คูปองปกติ', { continued: false });
                 doc.moveDown();
-                usedRegular.forEach(c => {
-                    doc.font('Sarabun').fontSize(10).text(`${c.coupon_date} | ${c.employees.employee_id} | ${c.employees.name} | ${c.coupon_type}`);
-                });
+                usedRegular.forEach(c => { doc.font('Sarabun').fontSize(10).text(`${c.coupon_date} | ${c.employees.employee_id} | ${c.employees.name} | ${c.coupon_type}`); });
             }
-
             if (usedTemp.length > 0) {
                  doc.addPage().font('Sarabun-Bold').fontSize(14).text('รายละเอียดการใช้คูปองชั่วคราว', { continued: false });
                  doc.moveDown();
-                 usedTemp.forEach(c => {
-                    // *** FIX: Removed reference to non-existent 'temp_employee_id' ***
-                    doc.font('Sarabun').fontSize(10).text(`${new Date(c.created_at).toLocaleDateString('th-TH')} | ${c.temp_employee_name} | ${c.coupon_type}`);
-                });
+                 usedTemp.forEach(c => { doc.font('Sarabun').fontSize(10).text(`${new Date(c.created_at).toLocaleDateString('th-TH')} | ${c.temp_employee_name} | ${c.coupon_type}`); });
             }
-
             return new Promise(resolve => {
                 doc.on('end', () => {
                     const pdfBuffer = Buffer.concat(buffers);
-                    resolve({
-                        statusCode: 200,
-                        headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="report-${startDate}-to-${endDate}.pdf"` },
-                        body: pdfBuffer.toString('base64'),
-                        isBase64Encoded: true,
-                    });
+                    resolve({ statusCode: 200, headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="report-${startDate}-to-${endDate}.pdf"` }, body: pdfBuffer.toString('base64'), isBase64Encoded: true });
                 });
                 doc.end();
             });
