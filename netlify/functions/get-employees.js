@@ -30,10 +30,11 @@ export const handler = async (event) => {
         const limitNum = parseInt(limit, 10);
         const offset = (pageNum - 1) * limitNum;
 
-        // --- Build the base query ---
+        // --- Build the base query from the combined_employees_view ---
+        // Now directly selecting from the view, which already has department_name and is_active.
         let query = supabaseAdmin
-            .from('employees')
-            .select('*, departments(name)', { count: 'exact' });
+            .from('combined_employees_view') // *** FIX: Use combined_employees_view ***
+            .select('*', { count: 'exact' }); // Select all columns from the view
 
         // --- Apply shared filters ---
         if (search) {
@@ -43,17 +44,17 @@ export const handler = async (event) => {
             query = query.eq('department_id', department);
         }
 
-        // *** THE DEFINITIVE FIX ***
-        // This now filters on a TEXT column named 'status', which matches your likely schema.
-        if (status && status !== 'all') {
-            // It will correctly filter for rows WHERE status = 'active' or status = 'inactive'.
-            query = query.eq('status', status);
+        // *** FIX: Correctly filter by 'is_active' (boolean) based on 'status' parameter (string) ***
+        if (status === 'active') {
+            query = query.eq('is_active', true);
+        } else if (status === 'inactive') {
+            query = query.eq('is_active', false);
         }
-        // If status is 'all', no status filter is applied. This is the correct behavior.
+        // If status is 'all', no 'is_active' filter is applied. This is the correct behavior.
 
         // --- Execute the final query with pagination ---
         const { data: employees, error, count } = await query
-            .order('created_at', { ascending: false })
+            .order('created_at', { ascending: false }) // Assuming 'created_at' exists in your view for ordering
             .range(offset, offset + limitNum - 1);
 
         if (error) {
@@ -62,10 +63,23 @@ export const handler = async (event) => {
         }
 
         // --- Prepare the response in the expected format for the frontend ---
+        // No need to map department_name or is_active as they come directly from the view.
+        // We ensure all necessary fields for the frontend are present.
         const formattedEmployees = employees.map(emp => ({
-            ...emp,
-            department_name: emp.departments ? emp.departments.name : 'N/A'
+            id: emp.id,
+            employee_id: emp.employee_id,
+            name: emp.name,
+            department_id: emp.department_id,
+            department_name: emp.department_name, // Directly from view
+            is_active: emp.is_active, // Directly from view
+            permanent_token: emp.permanent_token,
+            photo_url: emp.photo_url,
+            qr_code_url: emp.qr_code_url,
+            employee_type: emp.employee_type,
+            source_table: emp.source_table,
+            created_at: emp.created_at // Assuming created_at exists and is used for ordering
         }));
+
 
         const totalPages = Math.ceil(count / limitNum);
 
