@@ -1,463 +1,345 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>จัดการพนักงาน - ระบบคูปองพนักงาน</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>จัดการพนักงาน - Employee Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
     <style>
-        :root {
-            --primary-color: #6366F1;
-            --light-gray: #F3F4F6;
-            --dark-gray: #1F2937;
-            --text-gray: #4B5563;
-            --border-color: #E5E7EB;
-            --success-color: #10B981;
-            --error-color: #EF4444;
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
         }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--light-gray);
-            margin: 0;
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
         }
-        .hidden { display: none !important; }
-        .unauthorized-container { display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .unauthorized-box { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; max-width: 450px; }
-        .unauthorized-button { display: inline-block; width: 100%; padding: 12px; font-size: 16px; font-weight: 600; color: white; background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; text-decoration: none; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-        .header h1 { color: var(--dark-gray); }
-        .back-link { color: var(--primary-color); text-decoration: none; font-weight: 600; }
-        .controls-card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 32px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
-        .controls-card input, .controls-card select { padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; flex-grow: 1; }
-        .controls-card button { padding: 10px 20px; font-size: 16px; font-weight: 600; color: white; background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; }
-        .table-container { background: white; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; white-space: nowrap; }
-        th, td { padding: 16px; text-align: left; border-bottom: 1px solid var(--border-color); }
-        th { background-color: #F9FAFB; font-weight: 600; color: var(--text-gray); }
-        td img.employee-photo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-        .status-active { color: var(--success-color); font-weight: 600; }
-        .status-inactive { color: var(--error-color); font-weight: 600; }
-        .action-btn { padding: 8px 12px; margin-right: 8px; border-radius: 8px; cursor: pointer; font-weight: 500; border: none; }
-        .edit-btn { background-color: #E0E7FF; color: var(--primary-color); }
-        .delete-btn { background-color: #FEE2E2; color: var(--error-color); }
-        .toggle-active-btn { background-color: #DBEAFE; color: #2563EB; }
-        .pagination { display: flex; justify-content: center; align-items: center; padding: 24px; gap: 8px; }
-        .pagination button { padding: 8px 16px; border: 1px solid var(--border-color); background-color: white; border-radius: 8px; cursor: pointer; }
-        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .pagination input[type="number"] { width: 60px; text-align: center; padding: 7px; border-radius: 8px; border: 1px solid var(--border-color); }
-        #message { margin-top: 20px; padding: 12px; border-radius: 8px; font-weight: 500; text-align: center; }
-        .message-success { background-color: #D1FAE5; color: #065F46; }
-        .message-error { background-color: #FEE2E2; color: #991B1B; }
-        .message-info { background-color: #E0E7FF; color: #3730A3; }
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
-        .modal-content { background-color: #fefefe; padding: 30px; border-radius: 16px; width: 90%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .close-button { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
-        .modal-form-group { margin-bottom: 15px; }
-        .modal-form-group label { display: block; margin-bottom: 8px; font-weight: 600; }
-        .modal-form-group input, .modal-form-group select { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; }
-        .modal-save-btn { background-color: var(--primary-color); color: white; border: none; }
-        .modal-cancel-btn { background-color: var(--light-gray); border: 1px solid var(--border-color); }
     </style>
 </head>
-<body>
-    <div id="unauthorized-message" class="unauthorized-container hidden">
-        <div class="unauthorized-box">
-            <h1>Please Log In</h1>
-            <p>You must be logged in to access this page.</p>
-            <a href="/index.html" class="unauthorized-button">Go to Login</a>
+
+<body class="bg-gray-100">
+
+    <div id="login-gate" class="hidden min-h-screen flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-md text-center">
+            <h1 class="text-2xl font-bold mb-4">Please Log In</h1>
+            <p class="mb-6">You must be logged in to access this page.</p>
+            <button onclick="netlifyIdentity.open()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Go to Login
+            </button>
         </div>
     </div>
 
-    <div id="main-content" class="hidden">
-        <div class="container">
-            <div class="header">
-                <h1>จัดการพนักงาน</h1>
-                <a class='back-link' href='/menu.html'>กลับสู่เมนูหลัก</a>
-            </div>
-            
-            <div class="controls-card">
-                <input type="text" id="search-input" placeholder="ค้นหาด้วยรหัสพนักงาน หรือชื่อ...">
-                <select id="department-filter">
-                    <option value="all">ทุกแผนก</option>
-                </select>
-                <select id="status-filter">
-                    <option value="all">สถานะทั้งหมด</option>
-                    <option value="active">ใช้งาน</option>
-                    <option value="inactive">ไม่ใช้งาน</option>
-                </select>
-                <button id="apply-filters-btn">ค้นหา/กรอง</button>
-            </div>
 
-            <div class="table-container">
-                <table id="employee-table">
-                    <thead>
-                        <tr>
-                            <th>รูป</th>
-                            <th>รหัสพนักงาน</th>
-                            <th>ชื่อ-สกุล</th>
-                            <th>แผนก</th>
-                            <th>สถานะ</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="employee-table-body"></tbody>
-                </table>
-            </div>
-            <div class="pagination" id="pagination-controls"></div>
-            <div id="message" class="hidden"></div>
+    <div id="main-content" class="hidden container mx-auto p-4">
+        <h1 class="text-2xl font-bold mb-4">จัดการพนักงาน</h1>
+        <button onclick="window.location.href='/main-menu.html'"
+            class="mb-4 bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+            กลับสู่เมนูหลัก
+        </button>
+
+        <div class="bg-white p-4 rounded-lg shadow-md mb-4 flex items-center space-x-4 flex-wrap">
+            <select id="department-filter" class="border p-2 rounded">
+                <option value="">ทุกแผนก</option>
+            </select>
+            <select id="status-filter" class="border p-2 rounded">
+                <option value="">สถานะทั้งหมด</option>
+                <option value="true">ใช้งาน</option>
+                <option value="false">ไม่ใช้งาน</option>
+            </select>
+            <input type="text" id="search-input" class="border p-2 rounded flex-grow" placeholder="ค้นหา/กรอง">
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow-md">
+            <table class="w-full text-left">
+                <thead>
+                    <tr>
+                        <th class="p-2">รูป</th>
+                        <th class="p-2">รหัสพนักงาน</th>
+                        <th class="p-2">ชื่อ-สกุล</th>
+                        <th class="p-2">แผนก</th>
+                        <th class="p-2">สถานะ</th>
+                        <th class="p-2">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="employee-table">
+                    <!-- Employee rows will be inserted here -->
+                </tbody>
+            </table>
         </div>
     </div>
-    
-    <div id="editEmployeeModal" class="modal">
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="modal">
         <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>แก้ไขข้อมูลพนักงาน</h2>
-            <form id="editEmployeeForm">
+            <h2 class="text-xl font-bold mb-4">แก้ไขข้อมูลพนักงาน</h2>
+            <form id="edit-form">
                 <input type="hidden" id="edit-employee-id">
-                <input type="hidden" id="edit-employee-type">
-                <div class="modal-form-group">
-                    <label for="edit-employee-id-display">รหัสพนักงาน</label>
-                    <input type="text" id="edit-employee-id-display" disabled>
+                <div class="mb-4">
+                    <label for="edit-employee-id-display" class="block text-gray-700">รหัสพนักงาน</label>
+                    <input type="text" id="edit-employee-id-display" class="w-full border p-2 rounded" disabled>
                 </div>
-                <div class="modal-form-group">
-                    <label for="edit-name">ชื่อ-สกุล</label>
-                    <input type="text" id="edit-name" required>
+                <div class="mb-4">
+                    <label for="edit-name" class="block text-gray-700">ชื่อ-สกุล</label>
+                    <input type="text" id="edit-name" class="w-full border p-2 rounded">
                 </div>
-                <div class="modal-form-group">
-                    <label for="edit-department">แผนก</label>
-                    <select id="edit-department"></select>
+                <div class="mb-4">
+                    <label for="edit-department" class="block text-gray-700">แผนก</label>
+                    <select id="edit-department" class="w-full border p-2 rounded"></select>
                 </div>
-                <div class="modal-actions">
-                    <button type="button" class="modal-cancel-btn">ยกเลิก</button>
-                    <button type="submit" class="modal-save-btn">บันทึก</button>
+                <div class="flex justify-end space-x-4">
+                    <button type="button" onclick="document.getElementById('edit-modal').style.display='none'"
+                        class="bg-gray-300 hover:bg-gray-400 text-black py-2 px-4 rounded">ยกเลิก</button>
+                    <button type="submit"
+                        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">บันทึก</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <script>
-        // Global variables
-        const mainContent = document.getElementById('main-content');
-        const unauthorizedMessage = document.getElementById('unauthorized-message');
-        let _supabase;
-        let currentUserRole = null;
-        let allDepartments = [];
-        let currentEmployeeData = [];
 
-        const employeeTableBody = document.getElementById('employee-table-body');
-        const paginationControls = document.getElementById('pagination-controls');
+    <script>
+        const loginGate = document.getElementById('login-gate');
+        const mainContent = document.getElementById('main-content');
+        const employeeTable = document.getElementById('employee-table');
         const searchInput = document.getElementById('search-input');
         const departmentFilter = document.getElementById('department-filter');
         const statusFilter = document.getElementById('status-filter');
-        const applyFiltersBtn = document.getElementById('apply-filters-btn');
-        const messageDiv = document.getElementById('message');
-        const baseUrl = window.location.origin;
-        let currentPage = 1;
-        const itemsPerPage = 20;
-        
-        // Modal elements
-        const editEmployeeModal = document.getElementById('editEmployeeModal');
-        const closeModalButton = editEmployeeModal.querySelector('.close-button');
-        const modalCancelButton = editEmployeeModal.querySelector('.modal-cancel-btn');
-        const editEmployeeForm = document.getElementById('editEmployeeForm');
-        const editEmployeeIdInput = document.getElementById('edit-employee-id');
-        const editEmployeeTypeInput = document.getElementById('edit-employee-type');
-        const editEmployeeIdDisplay = document.getElementById('edit-employee-id-display');
-        const editNameInput = document.getElementById('edit-name');
-        const editDepartmentSelect = document.getElementById('edit-department');
+        const editModal = document.getElementById('edit-modal');
+        let allEmployees = [];
+        let departments = {};
 
-        document.addEventListener('DOMContentLoaded', initializeApp);
-
-        async function initializeApp() {
-            try {
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
-                const config = await response.json();
-                _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
-
-                const { data: { session } } = await _supabase.auth.getSession();
-                if (!session) {
-                    unauthorizedMessage.classList.remove('hidden');
-                    return;
-                }
-
-                const { data: profileData } = await _supabase.from('profiles').select('role').eq('id', session.user.id).single();
-                if (!profileData || !['superuser', 'department_admin'].includes(profileData.role)) {
-                    unauthorizedMessage.classList.remove('hidden');
-                    return;
-                }
-                currentUserRole = profileData.role;
-                mainContent.classList.remove('hidden');
-                
-                await loadDepartments();
-                await fetchEmployees(currentPage);
-
-                applyFiltersBtn.addEventListener('click', () => {
-                    currentPage = 1;
-                    fetchEmployees(currentPage);
-                });
-
-                closeModalButton.addEventListener('click', () => editEmployeeModal.style.display = 'none');
-                modalCancelButton.addEventListener('click', () => editEmployeeModal.style.display = 'none');
-                window.addEventListener('click', (event) => {
-                    if (event.target == editEmployeeModal) editEmployeeModal.style.display = 'none';
-                });
-                editEmployeeForm.addEventListener('submit', handleEditFormSubmit);
-
-            } catch (error) {
-                console.error('Initialization failed:', error);
-                unauthorizedMessage.classList.remove('hidden');
+        function getAuthHeader() {
+            const user = netlifyIdentity.currentUser();
+            if (!user || !user.token) {
+                return null;
             }
+            return {
+                'Authorization': `Bearer ${user.token.access_token}`,
+                'Content-Type': 'application/json'
+            };
         }
 
-        async function loadDepartments() {
+        async function fetchDepartments() {
+            const headers = getAuthHeader();
+            if (!headers) return;
             try {
-                const { data: { session } } = await _supabase.auth.getSession();
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
-                    headers: { 'Authorization': `Bearer ${session.access_token}` }
-                });
-                if (!response.ok) throw new Error('Failed to load departments');
-                
-                allDepartments = await response.json();
-                departmentFilter.innerHTML = '<option value="all">ทุกแผนก</option>';
-                editDepartmentSelect.innerHTML = '';
-                allDepartments.forEach(dept => {
-                    const option = document.createElement('option');
-                    option.value = dept.id;
-                    option.textContent = dept.name;
-                    departmentFilter.appendChild(option);
-                    editDepartmentSelect.appendChild(option.cloneNode(true));
-                });
-            } catch (error) {
-                console.error("Failed to load departments:", error);
-            }
-        }
-
-        async function fetchEmployees(page = 1) {
-            showMessage('กำลังโหลดข้อมูลพนักงาน...', 'info');
-            employeeTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">Loading...</td></tr>`;
-            
-            const searchTerm = searchInput.value.trim();
-            const departmentId = departmentFilter.value;
-            const status = statusFilter.value;
-
-            try {
-                const { data: { session } } = await _supabase.auth.getSession();
-                const response = await fetch(`${baseUrl}/.netlify/functions/get-employees?page=${page}&limit=${itemsPerPage}&search=${searchTerm}&department=${departmentId}&status=${status}`, {
-                    headers: { 'Authorization': `Bearer ${session.access_token}` }
-                });
-
-                if (!response.ok) throw new Error((await response.json()).message || 'Failed to fetch data.');
-
+                const response = await fetch('/.netlify/functions/get-departments', { headers: { 'Authorization': headers.Authorization } });
                 const data = await response.json();
-                currentEmployeeData = data.employees;
-                renderEmployeeTable(data.employees);
-                renderPagination(data.currentPage, data.totalPages);
-                showMessage('โหลดข้อมูลพนักงานสำเร็จ', 'success');
-
+                departments = data.reduce((acc, dept) => {
+                    acc[dept.id] = dept.name;
+                    return acc;
+                }, {});
+                setupDepartmentFilter();
+                setupEditDepartmentDropdown();
             } catch (error) {
-                console.error('Error fetching employees:', error);
-                showMessage('ไม่สามารถโหลดข้อมูลพนักงานได้: ' + error.message, 'error');
-                employeeTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red;">${error.message}</td></tr>`;
+                console.error('Failed to fetch departments:', error);
             }
         }
 
-        function renderEmployeeTable(employees) {
-            employeeTableBody.innerHTML = '';
+        function setupDepartmentFilter() {
+            departmentFilter.innerHTML = '<option value="">ทุกแผนก</option>';
+            for (const id in departments) {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = departments[id];
+                departmentFilter.appendChild(option);
+            }
+        }
+
+        function setupEditDepartmentDropdown() {
+            const editDepartmentSelect = document.getElementById('edit-department');
+            editDepartmentSelect.innerHTML = '';
+            for (const id in departments) {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = departments[id];
+                editDepartmentSelect.appendChild(option);
+            }
+        }
+
+        async function fetchAndDisplayEmployees() {
+            const headers = getAuthHeader();
+            if (!headers) return;
+
+            try {
+                const response = await fetch('/.netlify/functions/get-employees', { headers: { 'Authorization': headers.Authorization } });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                allEmployees = await response.json();
+                filterEmployees();
+            } catch (error) {
+                console.error('Failed to fetch employees:', error);
+                employeeTable.innerHTML = `<tr><td colspan="6" class="text-red-500 text-center p-4">Failed to load data.</td></tr>`;
+            }
+        }
+
+        function filterEmployees() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedDept = departmentFilter.value;
+            const selectedStatus = statusFilter.value;
+
+            const filtered = allEmployees.filter(emp => {
+                const nameMatch = emp.name.toLowerCase().includes(searchTerm);
+                const idMatch = emp.employee_id.toLowerCase().includes(searchTerm);
+                const deptMatch = !selectedDept || emp.department_id === selectedDept;
+                const statusMatch = selectedStatus === "" || String(emp.is_active) === selectedStatus;
+                return (nameMatch || idMatch) && deptMatch && statusMatch;
+            });
+            displayEmployees(filtered);
+        }
+
+        function displayEmployees(employees) {
+            employeeTable.innerHTML = '';
             if (employees.length === 0) {
-                employeeTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;">ไม่พบข้อมูลพนักงาน</td></tr>`;
+                employeeTable.innerHTML = `<tr><td colspan="6" class="text-center p-4">ไม่พบข้อมูลพนักงาน</td></tr>`;
                 return;
             }
-
             employees.forEach(emp => {
                 const row = document.createElement('tr');
-                const photoUrl = emp.photo_url || `https://placehold.co/40x40/EFEFEF/AAAAAA?text=No+Img`;
                 row.innerHTML = `
-                    <td><img src="${photoUrl}" alt="${emp.name}" class="employee-photo"></td>
-                    <td>${emp.employee_id}</td>
-                    <td>${emp.name}</td>
-                    <td>${emp.department_name || 'N/A'}</td>
-                    <td><span class="${emp.is_active ? 'status-active' : 'status-inactive'}">${emp.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>
-                    <td>
-                        <button class="action-btn edit-btn" data-id="${emp.id}" data-type="${emp.employee_type}">แก้ไข</button>
-                        ${currentUserRole === 'superuser' ? 
-                            `<button class="action-btn toggle-active-btn" data-id="${emp.id}" data-current-status="${emp.is_active}">${emp.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}</button>
-                             <button class="action-btn delete-btn" data-id="${emp.id}" data-type="${emp.employee_type}">ลบ</button>` : ''}
+                    <td class="p-2"><img src="${emp.photo_url}" alt="Photo" class="w-12 h-12 rounded-full object-cover"></td>
+                    <td class="p-2">${emp.employee_id}</td>
+                    <td class="p-2">${emp.name}</td>
+                    <td class="p-2">${departments[emp.department_id] || 'N/A'}</td>
+                    <td class="p-2">${emp.is_active ? '<span class="text-green-500">ใช้งาน</span>' : '<span class="text-red-500">ไม่ใช้งาน</span>'}</td>
+                    <td class="p-2">
+                        <button onclick="openEditModal('${emp.id}', '${emp.name}', '${emp.department_id}', '${emp.employee_id}')" class="bg-yellow-500 text-white px-2 py-1 rounded text-sm">Edit</button>
+                        <button onclick="deleteEmployee('${emp.id}', '${emp.name}')" class="bg-red-500 text-white px-2 py-1 rounded text-sm">Delete</button>
                     </td>
                 `;
-                employeeTableBody.appendChild(row);
-            });
-
-            // ## FIX: Add event listeners after the table rows are created ##
-            document.querySelectorAll('.edit-btn').forEach(button => {
-                button.addEventListener('click', (e) => openEditModal(e.target.dataset.id, e.target.dataset.type));
-            });
-
-            document.querySelectorAll('.delete-btn').forEach(button => {
-                button.addEventListener('click', (e) => handleDeleteEmployee(e.target.dataset.id, e.target.dataset.type));
-            });
-
-            document.querySelectorAll('.toggle-active-btn').forEach(button => {
-                button.addEventListener('click', (e) => toggleEmployeeStatus(e.target.dataset.id, e.target.dataset.currentStatus === 'true'));
+                employeeTable.appendChild(row);
             });
         }
-        
-        function renderPagination(currentPage, totalPages) {
-            paginationControls.innerHTML = '';
-            if (totalPages <= 1) return;
 
-            let buttonsHtml = `<button id="prev-btn">ก่อนหน้า</button>`;
-            
-            buttonsHtml += `
-                <span style="margin: 0 10px;">
-                    หน้า 
-                    <input type="number" id="page-input" value="${currentPage}" min="1" max="${totalPages}"> 
-                    / ${totalPages}
-                </span>
-                <button id="go-to-page-btn">ไป</button>
-            `;
-
-            buttonsHtml += `<button id="next-btn">ถัดไป</button>`;
-            
-            paginationControls.innerHTML = buttonsHtml;
-
-            document.getElementById('prev-btn').addEventListener('click', () => goToPage(currentPage - 1));
-            document.getElementById('next-btn').addEventListener('click', () => goToPage(currentPage + 1));
-            document.getElementById('go-to-page-btn').addEventListener('click', () => {
-                const pageNum = document.getElementById('page-input').value;
-                goToPage(pageNum);
-            });
-            
-            if (currentPage === 1) document.getElementById('prev-btn').disabled = true;
-            if (currentPage === totalPages) document.getElementById('next-btn').disabled = true;
+        function openEditModal(id, name, departmentId, employeeIdDisplay) {
+            document.getElementById('edit-employee-id').value = id;
+            document.getElementById('edit-employee-id-display').value = employeeIdDisplay;
+            document.getElementById('edit-name').value = name;
+            document.getElementById('edit-department').value = departmentId;
+            editModal.style.display = 'block';
         }
 
-        function goToPage(page) {
-            const pageInput = document.getElementById('page-input');
-            const totalPages = parseInt(pageInput.max);
-            page = parseInt(page);
-
-            if (page >= 1 && page <= totalPages) {
-                currentPage = page;
-                fetchEmployees(currentPage);
-            } else {
-                alert(`กรุณากรอกเลขหน้าที่ถูกต้อง (1 - ${totalPages})`);
-                pageInput.value = currentPage;
-            }
-        }
-
-        function showMessage(message, type, duration = 3000) {
-            messageDiv.className = `message-${type}`;
-            messageDiv.textContent = message;
-            if (type !== 'info') {
-                setTimeout(() => { messageDiv.textContent = ''; messageDiv.className = 'hidden'; }, duration);
-            }
-        }
-        
-        async function openEditModal(id, type) {
-            const employee = currentEmployeeData.find(e => e.id === id);
-            if (!employee) {
-                showMessage('ไม่พบข้อมูลพนักงาน', 'error');
+        // --- FIXED DELETE FUNCTION ---
+        async function deleteEmployee(employeeId, employeeName) {
+            const headers = getAuthHeader();
+            if (!headers) {
+                alert('Authentication error. Please log in again.');
                 return;
             }
-            
-            editEmployeeIdInput.value = employee.id;
-            editEmployeeTypeInput.value = type;
-            editEmployeeIdDisplay.value = employee.employee_id;
-            editNameInput.value = employee.name;
-            editDepartmentSelect.value = employee.department_id;
-            
-            editEmployeeModal.style.display = 'flex';
+
+            if (!confirm(`Are you sure you want to delete ${employeeName}?`)) {
+                return;
+            }
+
+            try {
+                // FIX: Use POST method and send only the 'id' in the body.
+                const response = await fetch('/.netlify/functions/delete-employee', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ id: employeeId })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.message || `HTTP Error: ${response.status}`);
+                }
+                
+                alert('Employee deleted successfully.');
+                fetchAndDisplayEmployees(); // Refresh the list
+            } catch (error) {
+                console.error('Failed to delete employee:', error);
+                alert(`Error: ${error.message}`);
+            }
         }
 
-        async function handleEditFormSubmit(event) {
+        document.getElementById('edit-form').addEventListener('submit', async function(event) {
             event.preventDefault();
-            const id = editEmployeeIdInput.value;
-            const type = editEmployeeTypeInput.value; // Get the type from the hidden input
-            const name = editNameInput.value.trim();
-            const department_id = editDepartmentSelect.value;
-            
-            if (!name) {
-                return alert('กรุณากรอกชื่อ-สกุล');
-            }
-            
-            const saveBtn = editEmployeeForm.querySelector('.modal-save-btn');
-            saveBtn.disabled = true;
-
-            try {
-                const { data: { session } } = await _supabase.auth.getSession();
-                const response = await fetch(`${baseUrl}/.netlify/functions/update-employees`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-                    // FIX: Include the 'type' field in the body
-                    body: JSON.stringify({ id, type, name, department_id })
-                });
-
-                if (!response.ok) throw new Error((await response.json()).message || 'Failed to update.');
-
-                showMessage('บันทึกข้อมูลสำเร็จ', 'success');
-                editEmployeeModal.style.display = 'none';
-                fetchEmployees(currentPage);
-            } catch (error) {
-                alert('เกิดข้อผิดพลาด: ' + error.message);
-            } finally {
-                saveBtn.disabled = false;
-            }
-        }
-
-        async function handleDeleteEmployee(id, type) {
-            const employee = currentEmployeeData.find(e => e.id === id);
-            if (!employee) return;
-            
-            // FIX: Improved confirmation message
-            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบพนักงานคนนี้?\n\nรหัส: ${employee.employee_id}\nชื่อ: ${employee.name}`)) {
+            const headers = getAuthHeader();
+            if (!headers) {
+                alert('Authentication error. Please log in again.');
                 return;
             }
+
+            const employeeId = document.getElementById('edit-employee-id').value;
+            const newName = document.getElementById('edit-name').value;
+            const newDepartmentId = document.getElementById('edit-department').value;
+            
+            // FIX: Create a payload without the 'type' field.
+            const payload = {
+                id: employeeId,
+                name: newName,
+                department_id: newDepartmentId
+            };
             
             try {
-                const { data: { session } } = await _supabase.auth.getSession();
-                const response = await fetch(`${baseUrl}/.netlify/functions/delete-employee`, {
+                // FIX: Use POST method to send the update.
+                const response = await fetch('/.netlify/functions/update-employees', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-                    body: JSON.stringify({ id, type }) // Send type along with ID
+                    headers: headers,
+                    body: JSON.stringify(payload)
                 });
-
-                if (!response.ok) throw new Error((await response.json()).message || 'Failed to delete.');
-
-                showMessage('ลบพนักงานสำเร็จ', 'success');
-                fetchEmployees(currentPage);
+                
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.message || `HTTP Error: ${response.status}`);
+                }
+                
+                alert('Changes saved successfully.');
+                editModal.style.display = 'none';
+                fetchAndDisplayEmployees(); // Refresh the list
             } catch (error) {
-                showMessage('เกิดข้อผิดพลาดในการลบ: ' + error.message, 'error');
+                console.error('Failed to save changes:', error);
+                alert(`Error: ${error.message}`);
             }
-        }
-        
-        async function toggleEmployeeStatus(id, currentStatus) {
-            const newStatus = !currentStatus;
-            const employee = currentEmployeeData.find(e => e.id === id);
-            if (!employee) return;
+        });
 
-            if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการ ${newStatus ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} พนักงาน:\n\nรหัส: ${employee.employee_id}\nชื่อ: ${employee.name}`)) {
-                return;
+
+        netlifyIdentity.on('init', user => {
+            if (user) {
+                loginGate.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+                fetchDepartments().then(fetchAndDisplayEmployees);
+            } else {
+                loginGate.classList.remove('hidden');
+                mainContent.classList.add('hidden');
             }
-            
-            try {
-                const { data: { session } } = await _supabase.auth.getSession();
-                const response = await fetch(`${baseUrl}/.netlify/functions/update-employees`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-                    body: JSON.stringify({ id, type: 'regular', is_active: newStatus })
-                });
+        });
 
-                if (!response.ok) throw new Error((await response.json()).message || 'Failed to update status.');
+        netlifyIdentity.on('login', user => {
+            loginGate.classList.add('hidden');
+            mainContent.classList.remove('hidden');
+            fetchDepartments().then(fetchAndDisplayEmployees);
+            netlifyIdentity.close();
+        });
 
-                showMessage('อัปเดตสถานะสำเร็จ', 'success');
-                fetchEmployees(currentPage);
-            } catch (error) {
-                showMessage('เกิดข้อผิดพลาดในการอัปเดตสถานะ: ' + error.message, 'error');
-            }
-        }
+        netlifyIdentity.on('logout', () => {
+            loginGate.classList.remove('hidden');
+            mainContent.classList.add('hidden');
+            allEmployees = [];
+            employeeTable.innerHTML = '';
+        });
+
+        searchInput.addEventListener('input', filterEmployees);
+        departmentFilter.addEventListener('change', filterEmployees);
+        statusFilter.addEventListener('change', filterEmployees);
 
     </script>
 </body>
+
 </html>
