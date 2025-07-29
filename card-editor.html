@@ -20,14 +20,19 @@
         .card-element:hover .delete-btn { display: block; }
         .delete-btn { display: none; position: absolute; top: -10px; right: -10px; width: 20px; height: 20px; background: #e74c3c; color: white; border: none; border-radius: 50%; cursor: pointer; font-weight: bold; line-height: 20px; text-align: center; z-index: 10; }
         
-        /* Center Snapping Guideline Styles */
         .snap-guideline { position: absolute; background-color: #e74c3c; display: none; z-index: -1; }
         .snap-guideline.vertical { width: 1px; height: 100%; top: 0; left: 50%; }
         .snap-guideline.horizontal { height: 1px; width: 100%; left: 0; top: 50%; }
 
         .control-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select, button { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        input[type="text"], input[type="url"], input[type="file"], select, button { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        
+        /* --- ADDED: Styles for Radio Buttons --- */
+        .radio-group { display: flex; align-items: center; gap: 15px; border: 1px solid #ccc; border-radius: 4px; padding: 5px; }
+        .radio-group input[type="radio"] { width: auto; }
+        .radio-group label { margin-bottom: 0; font-weight: normal; }
+
         .element-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
         #save-template-btn { background-color: #28a745; color: white; font-weight: bold; margin-top: auto; }
         .view-switcher { display: flex; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
@@ -43,12 +48,15 @@
         <label for="template-name">Template Name</label>
         <input type="text" id="template-name" placeholder="e.g., Standard Employee Card">
     </div>
+    <!-- *** MODIFIED: Dropdown replaced with Radio Buttons *** -->
     <div class="control-group">
-        <label for="orientation">Orientation</label>
-        <select id="orientation">
-            <option value="landscape">Landscape</option>
-            <option value="portrait">Portrait</option>
-        </select>
+        <label>Orientation</label>
+        <div class="radio-group">
+            <input type="radio" id="orientation-landscape" name="orientation" value="landscape" checked>
+            <label for="orientation-landscape">Landscape</label>
+            <input type="radio" id="orientation-portrait" name="orientation" value="portrait">
+            <label for="orientation-portrait">Portrait</label>
+        </div>
     </div>
     <hr>
     <h3>Layout Control</h3>
@@ -103,7 +111,6 @@
     let logoUrl = '';
 
     const cardPreview = document.getElementById('card-preview');
-    const orientationSelect = document.getElementById('orientation');
     const backgroundUrlInput = document.getElementById('background-url');
     const saveBtn = document.getElementById('save-template-btn');
     const frontViewBtn = document.getElementById('front-view-btn');
@@ -139,9 +146,11 @@
         
         let content = '';
         const type = id.split('-')[0];
+        const currentLogoSrc = logoPreview.src || 'https://placehold.co/100x40/EFEFEF/AAAAAA&text=Logo';
+        
         switch(type) {
             case 'photo': content = `<img src="https://placehold.co/100x100/EFEFEF/AAAAAA&text=Photo" alt="Photo">`; break;
-            case 'logo': content = `<img src="${logoUrl || 'https://placehold.co/100x40/EFEFEF/AAAAAA&text=Logo'}" alt="Logo">`; break;
+            case 'logo': content = `<img src="${currentLogoSrc}" alt="Logo">`; break;
             case 'employee_name': content = `<span>John Doe</span>`; break;
             case 'employee_id': content = `<span>12345</span>`; break;
             case 'department_name': content = `<span>Marketing</span>`; break;
@@ -168,7 +177,6 @@
         layoutConfigs[currentSide][id].text = span.textContent;
     }
 
-    // --- MODIFIED: Snapping logic is now visual-only ---
     function makeInteractive(element) {
         const id = element.id;
         const config = layoutConfigs[currentSide][id];
@@ -189,31 +197,17 @@
                         horizontalGuide.style.display = 'block';
                     },
                     move (event) {
-                        // Update position based on drag
                         config.x += event.dx;
                         config.y += event.dy;
                         
-                        // Correctly calculate centers relative to the parent
                         const elementCenterX = config.x + (config.width / 2);
                         const elementCenterY = config.y + (config.height / 2);
                         const parentCenterX = cardPreview.offsetWidth / 2;
                         const parentCenterY = cardPreview.offsetHeight / 2;
 
-                        // Check for horizontal alignment (visual only)
-                        if (Math.abs(elementCenterX - parentCenterX) < snapThreshold) {
-                            verticalGuide.style.backgroundColor = '#28a745'; // Green
-                        } else {
-                            verticalGuide.style.backgroundColor = '#e74c3c'; // Red
-                        }
-
-                        // Check for vertical alignment (visual only)
-                        if (Math.abs(elementCenterY - parentCenterY) < snapThreshold) {
-                            horizontalGuide.style.backgroundColor = '#28a745'; // Green
-                        } else {
-                            horizontalGuide.style.backgroundColor = '#e74c3c'; // Red
-                        }
+                        verticalGuide.style.backgroundColor = Math.abs(elementCenterX - parentCenterX) < snapThreshold ? '#28a745' : '#e74c3c';
+                        horizontalGuide.style.backgroundColor = Math.abs(elementCenterY - parentCenterY) < snapThreshold ? '#28a745' : '#e74c3c';
                         
-                        // Apply the new position without locking
                         event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
                     },
                     end (event) {
@@ -221,9 +215,7 @@
                         horizontalGuide.style.display = 'none';
                     }
                 },
-                modifiers: [
-                    interact.modifiers.restrictRect({ restriction: 'parent' })
-                ]
+                modifiers: [ interact.modifiers.restrictRect({ restriction: 'parent' }) ]
             })
             .resizable({
                 edges: { left: true, right: true, bottom: true, top: true },
@@ -252,11 +244,18 @@
         const file = event.target.files[0];
         if (!file) return;
 
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            logoPreview.src = e.target.result;
+            renderElements();
+        };
+        reader.readAsDataURL(file);
+
         const fileExt = file.name.split('.').pop();
         const fileName = `template-${currentTemplateId || 'new'}-${Date.now()}.${fileExt}`;
         const filePath = `card-template-logos/${fileName}`;
         
-        showMessage('Uploading logo...', 'success');
+        showMessage('Uploading logo to server...', 'success');
         try {
             const { error: uploadError } = await _supabase.storage
                 .from('images')
@@ -267,12 +266,7 @@
                 .from('images')
                 .getPublicUrl(filePath);
             
-            const newLogoUrl = `${urlData.publicUrl}?t=${new Date().getTime()}`;
-            
-            logoUrl = newLogoUrl; 
-
-            logoPreview.src = logoUrl;
-            renderElements();
+            logoUrl = urlData.publicUrl; 
             
             showMessage('Logo uploaded successfully!', 'success');
         } catch(error) {
@@ -292,7 +286,8 @@
             const payload = {
                 id: currentTemplateId,
                 template_name: document.getElementById('template-name').value,
-                orientation: orientationSelect.value,
+                // *** MODIFIED: Get value from radio buttons ***
+                orientation: document.querySelector('input[name="orientation"]:checked').value,
                 logo_url: logoUrl,
                 background_front_url: backgroundUrls.front,
                 background_back_url: backgroundUrls.back,
@@ -333,14 +328,18 @@
             _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
 
             const { data: { session } } = await _supabase.auth.getSession();
-            if (!session) {
-                document.body.innerHTML = '<h1>Please log in to access this page.</h1>';
-                return;
-            }
+            if (!session) { document.body.innerHTML = '<h1>Please log in.</h1>'; return; }
 
             frontViewBtn.addEventListener('click', () => switchView('front'));
             backViewBtn.addEventListener('click', () => switchView('back'));
-            orientationSelect.addEventListener('change', (e) => cardPreview.className = `card-preview ${e.target.value}`);
+            
+            // *** MODIFIED: Add event listeners to radio buttons ***
+            document.querySelectorAll('input[name="orientation"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    cardPreview.className = `card-preview ${e.target.value}`;
+                });
+            });
+
             backgroundUrlInput.addEventListener('input', (e) => {
                 backgroundUrls[currentSide] = e.target.value;
                 cardPreview.style.backgroundImage = `url('${e.target.value}')`;
