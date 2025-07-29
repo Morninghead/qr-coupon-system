@@ -126,7 +126,6 @@
         updateGenerateButton();
     }
     
-    // *** THE DEFINITIVE FIX for "Select All" functionality ***
     function handleSelectAll(event) {
         const isChecked = event.target.checked;
         
@@ -136,8 +135,6 @@
 
             if (isChecked) {
                 selectedEmployeeIds.set(emp.id, emp);
-            } else {
-                selectedEmployeeIds.delete(emp.id);
             }
         });
         
@@ -154,6 +151,7 @@
         generateBtn.disabled = count === 0;
     }
 
+    // *** THE DEFINITIVE FIX for Download Error ***
     async function generatePdf() {
         if (selectedEmployeeIds.size === 0 || !selectedTemplate) return;
         
@@ -165,7 +163,10 @@
             const { data: { session } } = await _supabase.auth.getSession();
             const response = await fetch(`${baseUrl}/.netlify/functions/generate-bulk-pdf`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
                 body: JSON.stringify({
                     template: selectedTemplate,
                     employees: Array.from(selectedEmployeeIds.values())
@@ -178,15 +179,24 @@
                  catch { throw new Error(errText || 'PDF Generation Failed on Server.'); }
             }
 
-            const pdfBase64 = await response.text();
+            // 1. Get the response as a binary Blob, not text or base64.
+            const pdfBlob = await response.blob();
+
+            // 2. Create a temporary, browser-managed URL for this blob.
+            const url = window.URL.createObjectURL(pdfBlob);
+            
+            // 3. Create a temporary link element and click it to trigger the download.
             const link = document.createElement('a');
-            link.href = `data:application/pdf;base64,${pdfBase64}`;
-            link.download = `employee-cards-${Date.now()}.pdf`;
+            link.href = url;
+            link.download = `employee-cards-${Date.now()}.pdf`; // Set the desired file name
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
 
-            pdfMessageEl.textContent = 'PDF generated successfully!';
+            // 4. Clean up by removing the link and revoking the temporary URL.
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+            pdfMessageEl.textContent = 'PDF downloaded successfully!';
             pdfMessageEl.style.color = 'green';
 
         } catch (error) {
