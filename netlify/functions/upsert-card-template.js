@@ -25,15 +25,16 @@ export const handler = async (event) => {
         return { statusCode: 400, body: JSON.stringify({ message: 'Invalid JSON body.' }) };
     }
 
-    // 3. Prepare data for Supabase
+    // 3. Prepare data for Supabase, matching the new schema
     const {
-        id, // This will be null for new templates, or have a value for updates
+        id,
         template_name,
-        company_name,
         orientation,
-        background_front_url,
         logo_url,
-        layout_config
+        background_front_url,
+        background_back_url,
+        layout_config_front,
+        layout_config_back
     } = payload;
 
     if (!template_name) {
@@ -43,12 +44,13 @@ export const handler = async (event) => {
     const dataToUpsert = {
         id: id, // Pass the ID for Supabase to know if it should update
         template_name,
-        company_name,
         orientation,
-        background_front_url,
         logo_url,
-        layout_config,
-        created_by: user.id // Always stamp the user who saved it
+        background_front_url,
+        background_back_url,
+        layout_config_front,
+        layout_config_back,
+        created_by: user.id
     };
     
     // Remove id from the object if it's null, so Supabase auto-generates it on insert
@@ -58,13 +60,11 @@ export const handler = async (event) => {
 
     // 4. Perform the upsert operation
     try {
-        // Upsert will INSERT a new row if 'id' is missing or doesn't exist,
-        // and UPDATE the row if 'id' matches an existing one.
         const { data, error } = await supabaseAdmin
             .from('card_templates')
             .upsert(dataToUpsert)
-            .select() // Important: .select() returns the saved data
-            .single(); // We expect only one record back
+            .select()
+            .single();
 
         if (error) {
             console.error('Supabase upsert error:', error);
