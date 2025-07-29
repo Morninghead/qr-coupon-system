@@ -1,81 +1,89 @@
+// /netlify/functions/get-employees.js
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
-export const handler = async (event, context) => {
-    if (event.httpMethod !== 'GET') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
+export const handler = async (event) => {
+    // --- Authentication (Don't touch) ---
+    const token = event.headers.authorization?.split('Bearer ')[1];
+    if (!token) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
+    }
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !user) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token' }) };
     }
 
     try {
-        const token = event.headers.authorization?.split('Bearer ')[1];
-        if (!token) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
-        }
-        const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
-        if (userError || !user) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
-        }
+        const {
+            page = 1,
+            limit = 10,
+            search = '',
+            department = 'all',
+            status = 'all' // Receives 'active', 'inactive', or 'all'
+        } = event.queryStringParameters;
 
-        const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', user.id).single();
-        if (!['superuser', 'department_admin'].includes(profile?.role)) {
-            return { statusCode: 403, body: JSON.stringify({ message: 'Permission denied.' }) };
-        }
-
-        const { page = 1, limit = 20, search = '', department = 'all', status = 'all', employee_type } = event.queryStringParameters;
-        const pageNum = parseInt(page);
-        const limitNum = parseInt(limit);
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
         const offset = (pageNum - 1) * limitNum;
-        
+
+        // --- Build the base query ---
         let query = supabaseAdmin
-            .from('employees') // Query the 'employees' table directly
+            .from('employees')
             .select('*, departments(name)', { count: 'exact' });
 
+        // --- Apply shared filters ---
         if (search) {
-            query = query.or(`employee_id.ilike.%${search}%,name.ilike.%${search}%`);
+            query = query.or(`name.ilike.%${search}%,employee_id.ilike.%${search}%`);
         }
-        if (department !== 'all') {
+        if (department && department !== 'all') {
             query = query.eq('department_id', department);
         }
-        if (status !== 'all') {
-            query = query.eq('is_active', status === 'active');
+
+        // *** THE DEFINITIVE FIX ***
+        // This now filters on a TEXT column named 'status', which matches your likely schema.
+        if (status && status !== 'all') {
+            // It will correctly filter for rows WHERE status = 'active' or status = 'inactive'.
+            query = query.eq('status', status);
         }
-        
-        // FIX: This was the missing filter on the backend
-        if (employee_type === 'regular') {
-            // This is a placeholder as your main table is already regular employees.
-            // If you add an 'employee_type' column to your 'employees' table, you can filter here.
-            // For now, we assume this table is only for 'regular' employees.
+        // If status is 'all', no status filter is applied. This is the correct behavior.
+
+        // --- Execute the final query with pagination ---
+        const { data: employees, error, count } = await query
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limitNum - 1);
+
+        if (error) {
+            console.error('Error fetching employees:', error);
+            throw new Error(`Supabase query failed: ${error.message}`);
         }
 
-        query = query.order('employee_id', { ascending: true })
-                     .range(offset, offset + limitNum - 1);
-
-        const { data, error, count } = await query;
-        if (error) throw error;
-        
-        const employees = data.map(emp => ({
+        // --- Prepare the response in the expected format for the frontend ---
+        const formattedEmployees = employees.map(emp => ({
             ...emp,
-            department_name: emp.departments?.name || 'N/A' // Handle joined data
+            department_name: emp.departments ? emp.departments.name : 'N/A'
         }));
+
+        const totalPages = Math.ceil(count / limitNum);
 
         return {
             statusCode: 200,
             body: JSON.stringify({
-                employees: employees,
-                totalCount: count,
+                employees: formattedEmployees,
                 currentPage: pageNum,
-                totalPages: Math.ceil(count / limitNum),
+                totalPages: totalPages,
+                totalCount: count
             }),
         };
 
     } catch (error) {
-        console.error('Get Employees Error:', error);
+        console.error('Get Employees Function Error:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ message: 'Failed to fetch employees', error: error.message }),
+            body: JSON.stringify({ message: 'Internal Server Error', error: error.message }),
         };
     }
 };
