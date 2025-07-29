@@ -20,8 +20,8 @@
         .card-element:hover .delete-btn { display: block; }
         .delete-btn { display: none; position: absolute; top: -10px; right: -10px; width: 20px; height: 20px; background: #e74c3c; color: white; border: none; border-radius: 50%; cursor: pointer; font-weight: bold; line-height: 20px; text-align: center; z-index: 10; }
         
-        /* --- ADDED: Center Snapping Guideline Styles --- */
-        .snap-guideline { position: absolute; background-color: #e74c3c; display: none; }
+        /* Center Snapping Guideline Styles */
+        .snap-guideline { position: absolute; background-color: #e74c3c; display: none; z-index: -1; }
         .snap-guideline.vertical { width: 1px; height: 100%; top: 0; left: 50%; }
         .snap-guideline.horizontal { height: 1px; width: 100%; left: 0; top: 50%; }
 
@@ -29,7 +29,7 @@
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input, select, button { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
         .element-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        #save-template-btn { background-color: #28a745; color: white; font-weight: bold; margin-top: auto; } /* Push to bottom */
+        #save-template-btn { background-color: #28a745; color: white; font-weight: bold; margin-top: auto; }
         .view-switcher { display: flex; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
         .view-switcher button { width: 50%; border: none; background: #fff; cursor: pointer; border-radius: 0; }
         .view-switcher button.active { background: var(--primary); color: white; }
@@ -102,7 +102,6 @@
     let backgroundUrls = { front: '', back: '' };
     let logoUrl = '';
 
-    // --- DOM Elements ---
     const cardPreview = document.getElementById('card-preview');
     const orientationSelect = document.getElementById('orientation');
     const backgroundUrlInput = document.getElementById('background-url');
@@ -122,9 +121,7 @@
     }
     
     function renderElements() {
-        cardPreview.innerHTML = ''; // Clear previous elements
-        
-        // --- ADDED: Re-add snap guidelines every render ---
+        cardPreview.innerHTML = '';
         cardPreview.innerHTML += '<div id="vertical-guide" class="snap-guideline vertical"></div><div id="horizontal-guide" class="snap-guideline horizontal"></div>';
 
         const config = layoutConfigs[currentSide];
@@ -171,6 +168,7 @@
         layoutConfigs[currentSide][id].text = span.textContent;
     }
 
+    // --- MODIFIED: Snapping logic is now visual-only ---
     function makeInteractive(element) {
         const id = element.id;
         const config = layoutConfigs[currentSide][id];
@@ -179,7 +177,6 @@
         element.style.height = `${config.height}px`;
         element.style.transform = `translate(${config.x}px, ${config.y}px)`;
 
-        // --- ADDED: Center Snapping Logic ---
         const verticalGuide = document.getElementById('vertical-guide');
         const horizontalGuide = document.getElementById('horizontal-guide');
         const snapThreshold = 5;
@@ -192,34 +189,31 @@
                         horizontalGuide.style.display = 'block';
                     },
                     move (event) {
+                        // Update position based on drag
                         config.x += event.dx;
                         config.y += event.dy;
                         
-                        const elementRect = event.target.getBoundingClientRect();
-                        const parentRect = cardPreview.getBoundingClientRect();
+                        // Correctly calculate centers relative to the parent
+                        const elementCenterX = config.x + (config.width / 2);
+                        const elementCenterY = config.y + (config.height / 2);
+                        const parentCenterX = cardPreview.offsetWidth / 2;
+                        const parentCenterY = cardPreview.offsetHeight / 2;
 
-                        const elementCenterX = elementRect.left - parentRect.left + (elementRect.width / 2);
-                        const elementCenterY = elementRect.top - parentRect.top + (elementRect.height / 2);
-
-                        const parentCenterX = parentRect.width / 2;
-                        const parentCenterY = parentRect.height / 2;
-
-                        // Horizontal snapping
+                        // Check for horizontal alignment (visual only)
                         if (Math.abs(elementCenterX - parentCenterX) < snapThreshold) {
-                            config.x = parentCenterX - (config.width / 2);
                             verticalGuide.style.backgroundColor = '#28a745'; // Green
                         } else {
                             verticalGuide.style.backgroundColor = '#e74c3c'; // Red
                         }
 
-                        // Vertical snapping
+                        // Check for vertical alignment (visual only)
                         if (Math.abs(elementCenterY - parentCenterY) < snapThreshold) {
-                             config.y = parentCenterY - (config.height / 2);
                             horizontalGuide.style.backgroundColor = '#28a745'; // Green
                         } else {
                             horizontalGuide.style.backgroundColor = '#e74c3c'; // Red
                         }
-
+                        
+                        // Apply the new position without locking
                         event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
                     },
                     end (event) {
@@ -258,20 +252,27 @@
         const file = event.target.files[0];
         if (!file) return;
 
-        const fileName = currentTemplateId ? `template-${currentTemplateId}-logo` : `temp-logo-${Date.now()}`;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `template-${currentTemplateId || 'new'}-${Date.now()}.${fileExt}`;
         const filePath = `card-template-logos/${fileName}`;
         
         showMessage('Uploading logo...', 'success');
         try {
-            const { error } = await _supabase.storage.from('images').upload(filePath, file, { upsert: true });
-            if (error) throw error;
+            const { error: uploadError } = await _supabase.storage
+                .from('images')
+                .upload(filePath, file, { upsert: true });
+            if (uploadError) throw uploadError;
             
-            const { data } = _supabase.storage.from('images').getPublicUrl(filePath);
-            logoUrl = data.publicUrl;
+            const { data: urlData } = _supabase.storage
+                .from('images')
+                .getPublicUrl(filePath);
+            
+            const newLogoUrl = `${urlData.publicUrl}?t=${new Date().getTime()}`;
+            
+            logoUrl = newLogoUrl; 
 
-            // --- FIXED: Update preview and re-render elements ---
             logoPreview.src = logoUrl;
-            renderElements(); // Re-render to update logo on card
+            renderElements();
             
             showMessage('Logo uploaded successfully!', 'success');
         } catch(error) {
@@ -280,11 +281,52 @@
         }
     }
 
-    async function saveTemplate() { /* ... function remains the same ... */ }
+    async function saveTemplate() {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        
+        try {
+            const { data: { session } } = await _supabase.auth.getSession();
+            if (!session) throw new Error('You must be logged in to save.');
 
-    // --- Initialization and other functions remain the same ---
+            const payload = {
+                id: currentTemplateId,
+                template_name: document.getElementById('template-name').value,
+                orientation: orientationSelect.value,
+                logo_url: logoUrl,
+                background_front_url: backgroundUrls.front,
+                background_back_url: backgroundUrls.back,
+                layout_config_front: layoutConfigs.front,
+                layout_config_back: layoutConfigs.back
+            };
+
+            const response = await fetch(`${baseUrl}/.netlify/functions/upsert-card-template`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message || 'Failed to save.');
+            }
+            
+            const savedTemplate = await response.json();
+            if (!currentTemplateId) {
+                currentTemplateId = savedTemplate.id;
+                window.history.pushState({}, '', `?template_id=${currentTemplateId}`);
+            }
+            showMessage('Template saved successfully!', 'success');
+
+        } catch (error) {
+            showMessage(error.message, 'error');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Template';
+        }
+    }
+
      document.addEventListener('DOMContentLoaded', async () => {
-        // Initialize Supabase and check session...
         try {
             const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
             const config = await response.json();
@@ -314,6 +356,7 @@
 
     function showMessage(msg, type) {
         const messageEl = document.getElementById('message');
+        if(!messageEl) return;
         messageEl.textContent = msg;
         messageEl.style.color = type === 'error' ? '#721c24' : '#155724';
         messageEl.style.backgroundColor = type === 'error' ? '#f8d7da' : '#d4edda';
