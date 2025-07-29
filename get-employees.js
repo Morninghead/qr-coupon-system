@@ -30,10 +30,12 @@ export const handler = async (event) => {
         const limitNum = parseInt(limit, 10);
         const offset = (pageNum - 1) * limitNum;
 
+        // Query from the view you provided
         let query = supabaseAdmin
             .from('combined_employees_view')
             .select('*', { count: 'exact' });
 
+        // Apply filters
         if (search) {
             query = query.or(`name.ilike.%${search}%,employee_id.ilike.%${search}%`);
         }
@@ -47,9 +49,9 @@ export const handler = async (event) => {
         }
 
         // --- Execute the final query with pagination ---
-        // *** THE DEFINITIVE FIX: Order by a column that is guaranteed to exist, like 'name' ***
+        // *** THE DEFINITIVE FIX: Order by 'name', a column that exists in your view, instead of 'created_at' ***
         const { data: employees, error, count } = await query
-            .order('name', { ascending: true }) // Changed from 'created_at' to 'name'
+            .order('name', { ascending: true }) // Corrected ordering column
             .range(offset, offset + limitNum - 1);
 
         if (error) {
@@ -57,14 +59,12 @@ export const handler = async (event) => {
             throw new Error(`Supabase query failed: ${error.message}`);
         }
 
-        // The view already provides all necessary columns, so we can just return the data.
-        // No complex mapping is needed if the view structure is correct.
         const totalPages = Math.ceil(count / limitNum);
 
         return {
             statusCode: 200,
             body: JSON.stringify({
-                employees: employees, // Return the data directly from the view
+                employees: employees, // The view provides all necessary columns
                 currentPage: pageNum,
                 totalPages: totalPages,
                 totalCount: count
