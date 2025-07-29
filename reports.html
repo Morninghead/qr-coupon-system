@@ -16,6 +16,7 @@
             --text-gray: #4B5563;
             --success-color: #10B981;
             --warning-color: #F59E0B;
+            --error-color: #EF4444; /* Added for OT color */
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -23,32 +24,11 @@
             margin: 0;
         }
         .hidden { display: none !important; }
-        .unauthorized-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            width: 100%;
-            position: fixed; top: 0; left: 0;
-            background-color: var(--light-gray);
-        }
-        .unauthorized-box {
-            background: white;
-            padding: 40px 48px;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            max-width: 450px;
-        }
+        .unauthorized-container { display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; background-color: var(--light-gray); }
+        .unauthorized-box { background: white; padding: 40px 48px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); text-align: center; max-width: 450px; }
         .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
         .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
-        .unauthorized-button {
-            display: inline-block; width: 100%; padding: 12px;
-            font-size: 16px; font-weight: 600; color: white;
-            background-color: var(--primary-color);
-            border: none; border-radius: 8px; cursor: pointer;
-            text-decoration: none; transition: background-color 0.2s;
-        }
+        .unauthorized-button { display: inline-block; width: 100%; padding: 12px; font-size: 16px; font-weight: 600; color: white; background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; text-decoration: none; transition: background-color 0.2s; }
         .unauthorized-button:hover { background-color: #4F46E5; }
         .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
@@ -59,18 +39,18 @@
         .filter-group label { margin-bottom: 8px; font-weight: 600; color: var(--dark-gray); }
         .filter-group select, .filter-group input { padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; }
         .filter-group button { padding: 10px 20px; font-size: 16px; font-weight: 600; color: white; background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; }
-        .report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 32px; } /* Changed grid-template-columns for better fit */
-        .chart-card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
-        .chart-card h2 { margin-top: 0; color: var(--dark-gray); border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
+        .report-section { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 32px; }
+        .report-section h2 { margin-top: 0; color: var(--dark-gray); border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 32px; margin-top: 24px; }
+        .chart-card h3 { text-align: center; margin-top: 0; margin-bottom: 16px; color: var(--text-gray); font-weight: 600; }
         .chart-card canvas { filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); }
-        .summary-card { grid-column: 1 / -1; background: var(--dark-gray); color: white; padding: 32px; border-radius: 16px; text-align: center; }
+        .summary-card { grid-column: 1 / -1; background: var(--dark-gray); color: white; padding: 32px; border-radius: 16px; text-align: center; margin-top: 32px; }
         .summary-card .summary-title { font-size: 18px; font-weight: 500; opacity: 0.7; margin: 0 0 24px 0; }
         .summary-card h2 { margin-top: 0; font-size: 20px; opacity: 0.9; margin-bottom: 8px; }
         .summary-card .total-amount { font-size: 48px; font-weight: 700; color: var(--success-color); margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.2); }
-        .summary-details { display: flex; flex-wrap: wrap; justify-content: center; gap: 32px; margin-bottom: 24px; } /* Adjusted gap */
-        .summary-details h3 { margin: 0 0 8px 0; font-size: 16px; opacity: 0.7; font-weight: 500; }
-        .summary-details p { margin: 0; font-size: 28px; font-weight: 600; color: var(--success-color); }
-        @media (max-width: 900px) { .report-grid { grid-template-columns: 1fr; } }
+        .summary-details { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 32px; margin-bottom: 24px; text-align: left; }
+        .summary-details div h3 { margin: 0 0 8px 0; font-size: 16px; opacity: 0.7; font-weight: 500; }
+        .summary-details div p { margin: 0; font-size: 28px; font-weight: 600; color: var(--success-color); }
     </style>
 </head>
 <body>
@@ -81,7 +61,6 @@
             <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
     </div>
-
 
     <div id="main-content" class="hidden">
         <div class="container">
@@ -104,44 +83,60 @@
                     <button id="show-report-btn">แสดงรายงาน</button>
                 </div>
             </div>
-            <div class="report-grid">
-                <div class="chart-card">
-                    <h2>คูปองอาหารกลางวัน (Normal)</h2>
-                    <canvas id="normal-chart"></canvas>
-                </div>
-                <div class="chart-card">
-                    <h2>คูปองอาหารโอที (OT)</h2>
-                    <canvas id="ot-chart"></canvas>
-                </div>
-                <!-- FIX: Added new chart card for Temporary Coupons -->
-                <div class="chart-card">
-                    <h2>คูปองชั่วคราว (Temp)</h2>
-                    <canvas id="temp-chart"></canvas>
-                </div>
-                <div class="summary-card">
-                    <p class="summary-title" id="summary-title"></p>
-                    <div class="summary-details">
-                        <div>
-                            <h3>ยอดรวมค่าอาหารกลางวัน</h3>
-                            <p id="normal-summary-amount">฿ 0.00</p>
-                        </div>
-                        <div>
-                            <h3>ยอดรวมค่าอาหารโอที</h3>
-                            <p id="ot-summary-amount">฿ 0.00</p>
-                        </div>
-                        <!-- FIX: Added new summary display for Temporary Coupons -->
-                        <div>
-                            <h3>ยอดรวมค่าอาหารชั่วคราว</h3>
-                            <p id="temp-summary-amount">฿ 0.00</p>
-                        </div>
+
+            <div class="report-section">
+                <h2>คูปองปกติ (Regular Coupon)</h2>
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>อาหารกลางวัน (Normal)</h3>
+                        <canvas id="regular-normal-chart"></canvas>
                     </div>
-                    <h2>สรุปยอดเงินรวมทั้งหมด</h2>
-                    <p class="total-amount" id="total-amount">฿ 0.00</p>
+                    <div class="chart-card">
+                        <h3>อาหารโอที (OT)</h3>
+                        <canvas id="regular-ot-chart"></canvas>
+                    </div>
                 </div>
+            </div>
+
+            <div class="report-section">
+                <h2>คูปองชั่วคราว (Temporary Coupon)</h2>
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>อาหารกลางวัน (Normal)</h3>
+                        <canvas id="temp-normal-chart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>อาหารโอที (OT)</h3>
+                        <canvas id="temp-ot-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="summary-card">
+                <p class="summary-title" id="summary-title"></p>
+                <div class="summary-details">
+                    <div>
+                        <h3>ปกติ (กลางวัน)</h3>
+                        <p id="regular-normal-summary-amount">฿ 0.00</p>
+                    </div>
+                    <div>
+                        <h3>ปกติ (โอที)</h3>
+                        <p id="regular-ot-summary-amount">฿ 0.00</p>
+                    </div>
+                    <div>
+                        <h3>ชั่วคราว (กลางวัน)</h3>
+                        <p id="temp-normal-summary-amount">฿ 0.00</p>
+                    </div>
+                    <div>
+                        <h3>ชั่วคราว (โอที)</h3>
+                        <p id="temp-ot-summary-amount">฿ 0.00</p>
+                    </div>
+                </div>
+                <h2>สรุปยอดเงินรวมทั้งหมด</h2>
+                <p class="total-amount" id="total-amount">฿ 0.00</p>
             </div>
         </div>
     </div>
-
 
     <script>
         const mainContent = document.getElementById('main-content');
@@ -151,101 +146,82 @@
         const baseUrl = window.location.origin;
         const departmentSelect = document.getElementById('department-select');
 
-
         const centerTextPlugin = {
             id: 'centerText',
             afterDraw: (chart) => {
                 const total = chart.config.options.plugins.centerText.total;
                 if (total === undefined || total === null) return;
-
-
                 const ctx = chart.ctx;
                 const { width, height } = chart;
                 ctx.restore();
-                
                 const textY = height / 2;
                 const subText = 'สิทธิ์ทั้งหมด';
-                const subFontSize = Math.max(12, (height / 30)); 
-                ctx.font = `bold ${subFontSize}px sans-serif`; 
+                const subFontSize = Math.max(12, (height / 30));
+                ctx.font = `bold ${subFontSize}px sans-serif`;
                 ctx.textBaseline = 'middle';
                 const subTextWidth = ctx.measureText(subText).width;
                 const subTextX = (width - subTextWidth) / 2;
                 ctx.fillStyle = '#6B7280';
-                ctx.fillText(subText, subTextX, textY - (subFontSize * 0.8)); 
-
-
+                ctx.fillText(subText, subTextX, textY - (subFontSize * 0.8));
                 const totalText = total.toLocaleString('th-TH');
-                const fontSize = Math.max(24, (height / 80)); 
-                ctx.font = `bold ${fontSize}px sans-serif`; 
+                const fontSize = Math.max(24, (height / 80));
+                ctx.font = `bold ${fontSize}px sans-serif`;
                 const totalTextWidth = ctx.measureText(totalText).width;
                 const totalTextX = (width - totalTextWidth) / 2;
                 ctx.fillStyle = '#1F2937';
-                ctx.fillText(totalText, totalTextX, textY + (fontSize * 0.4)); 
-
-
+                ctx.fillText(totalText, totalTextX, textY + (fontSize * 0.4));
                 ctx.save();
             }
         };
 
-
         function createDoughnutChart(canvasId, data) {
             const ctx = document.getElementById(canvasId).getContext('2d');
-            const notUsed = Math.max(0, data.totalGranted - data.totalUsed); 
-
-
+            const notUsed = Math.max(0, data.totalGranted - data.totalUsed);
             let chartData = [];
             let chartLabels = [];
             let backgroundColors = [];
             let borderColors = ['#ffffff'];
-            let offsets = [0, 10]; 
-
-
-            if (data.totalGranted === 0 && data.totalUsed === 0) { // If absolutely no data
-                chartData = [1]; 
+            let offsets = [0, 10];
+            
+            if (data.totalGranted === 0 && data.totalUsed === 0) {
+                chartData = [1];
                 chartLabels = ['ไม่มีสิทธิ์'];
-                backgroundColors = ['#D1D5DB']; 
-                offsets = [0]; 
+                backgroundColors = ['#D1D5DB'];
+                offsets = [0];
             } else {
-                // Determine raw values for chart slices
                 const usedRaw = data.totalUsed;
                 const notUsedRaw = notUsed;
-
-
                 chartLabels = [`ใช้สิทธิ์ (${usedRaw})`, `ไม่ใช้สิทธิ์ (${notUsedRaw})`];
-                // Use different colors for the 'Used' slice based on chart type
-                const usedColor = canvasId === 'temp-chart' ? 'rgba(234, 179, 8, 0.8)' : 'rgba(16, 185, 129, 0.8)';
-                backgroundColors = [usedColor, 'rgba(245, 158, 11, 0.8)'];
+                
+                // *** FIX: Corrected color logic ***
+                // Color is now based on coupon type (Normal/OT), not on whether it's temp or regular.
+                let usedColor;
+                if (canvasId.toLowerCase().includes('ot')) {
+                    usedColor = 'rgba(239, 68, 68, 0.8)'; // Red for all OT charts
+                } else {
+                    usedColor = 'rgba(16, 185, 129, 0.8)'; // Green for all Normal charts
+                }
+                const notUsedColor = 'rgba(245, 158, 11, 0.8)'; // Orange for "Not Used" slice
 
-
-                // Ensure slices are visible even if value is 0
+                backgroundColors = [usedColor, notUsedColor];
+                
                 const usedSliceValue = usedRaw > 0 ? usedRaw : 0.001;
                 const notUsedSliceValue = notUsedRaw > 0 ? notUsedRaw : 0.001;
-
-
                 chartData = [usedSliceValue, notUsedSliceValue];
             }
-
-
-
+            
             if (window[canvasId + '_chart']) {
                 window[canvasId + '_chart'].destroy();
             }
-
-
+            
             window[canvasId + '_chart'] = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels: chartLabels,
-                    datasets: [{
-                        data: chartData,
-                        backgroundColor: backgroundColors,
-                        borderColor: borderColors, 
-                        borderWidth: 4, 
-                        offset: offsets 
-                    }]
+                    datasets: [{ data: chartData, backgroundColor: backgroundColors, borderColor: borderColors, borderWidth: 4, offset: offsets }]
                 },
                 options: {
-                    responsive: true, 
+                    responsive: true,
                     cutout: '60%',
                     plugins: {
                         centerText: { total: data.totalGranted },
@@ -254,23 +230,16 @@
                             callbacks: {
                                 label: function(context) {
                                     let label = context.label || '';
-                                    
                                     let rawValue = 0;
-                                    // Determine the actual raw value for the tooltip based on the slice index
                                     if (data.totalGranted === 0 && data.totalUsed === 0) {
                                         rawValue = 0;
-                                    } else if (context.dataIndex === 0) { // First slice is "Used"
+                                    } else if (context.dataIndex === 0) {
                                         rawValue = data.totalUsed;
-                                    } else { // Second slice is "Not Used"
+                                    } else {
                                         rawValue = notUsed;
                                     }
-
-
                                     const totalForPercentage = data.totalGranted > 0 ? data.totalGranted : (data.totalUsed + notUsed > 0 ? (data.totalUsed + notUsed) : 1);
                                     const percentage = (rawValue / totalForPercentage * 100).toFixed(1);
-
-
-                                    // Ensure label shows actual count, not 0.001
                                     label = `${context.label.split('(')[0].trim()}: ${rawValue} คน (${percentage}%)`;
                                     return label;
                                 }
@@ -282,21 +251,21 @@
             });
         }
 
-
         function updateSummary(reportData) {
-            const normalAmount = (reportData.normalData?.totalUsed || 0) * 45;
-            const otAmount = (reportData.otData?.totalUsed || 0) * 45;
-            const tempAmount = (reportData.tempData?.totalUsed || 0) * 45; // FIX: Calculate temp amount
-            const totalAmount = normalAmount + otAmount + tempAmount; // FIX: Include temp amount in total
+            const regularNormalAmount = (reportData.regularNormalData?.totalUsed || 0) * 45;
+            const regularOtAmount = (reportData.regularOtData?.totalUsed || 0) * 45;
+            const tempNormalAmount = (reportData.tempNormalData?.totalUsed || 0) * 45;
+            const tempOtAmount = (reportData.tempOtData?.totalUsed || 0) * 45;
+            const totalAmount = regularNormalAmount + regularOtAmount + tempNormalAmount + tempOtAmount;
             const formatCurrency = (amount) => `฿ ${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
             
-            document.getElementById('normal-summary-amount').textContent = formatCurrency(normalAmount);
-            document.getElementById('ot-summary-amount').textContent = formatCurrency(otAmount);
-            document.getElementById('temp-summary-amount').textContent = formatCurrency(tempAmount); // FIX: Update temp amount display
+            document.getElementById('regular-normal-summary-amount').textContent = formatCurrency(regularNormalAmount);
+            document.getElementById('regular-ot-summary-amount').textContent = formatCurrency(regularOtAmount);
+            document.getElementById('temp-normal-summary-amount').textContent = formatCurrency(tempNormalAmount);
+            document.getElementById('temp-ot-summary-amount').textContent = formatCurrency(tempOtAmount);
             document.getElementById('total-amount').textContent = formatCurrency(totalAmount);
             updateSummaryTitle();
         }
-
 
         function updateSummaryTitle() {
             const datePickerInput = document.getElementById('date-picker').value;
@@ -306,13 +275,10 @@
             document.getElementById('summary-title').textContent = `รายงานสรุปยอด ${timeText} | แผนก: ${departmentText}`;
         }
 
-
         async function fetchReportData() {
             const showReportBtn = document.getElementById('show-report-btn');
             showReportBtn.disabled = true;
             showReportBtn.textContent = 'กำลังโหลด...';
-
-
             const dateRange = datePicker.selectedDates;
             if (dateRange.length < 2) {
                 console.log('Please select a date range.');
@@ -320,24 +286,17 @@
                 showReportBtn.textContent = 'แสดงรายงาน';
                 return;
             }
-
-
             const startDate = dateRange[0].toISOString().split('T')[0];
             const endDate = dateRange[1].toISOString().split('T')[0];
             const departmentId = departmentSelect.value;
             const { data: { session } } = await _supabase.auth.getSession();
-
-
             if (!session) {
                 console.error("No active session to fetch report data.");
                 showReportBtn.disabled = false;
                 showReportBtn.textContent = 'แสดงรายงาน';
                 return;
             }
-
-
             const endpoint = `${baseUrl}/.netlify/functions/get-report-data?startDate=${startDate}&endDate=${endDate}&departmentId=${departmentId}`;
-            
             try {
                 const response = await fetch(endpoint, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
@@ -348,14 +307,11 @@
                 }
                 const data = await response.json();
 
-
-                // FIX: Call chart creation for all three data types
-                createDoughnutChart('normal-chart', data.normalData || { totalGranted: 0, totalUsed: 0 });
-                createDoughnutChart('ot-chart', data.otData || { totalGranted: 0, totalUsed: 0 });
-                createDoughnutChart('temp-chart', data.tempData || { totalGranted: 0, totalUsed: 0 });
+                createDoughnutChart('regular-normal-chart', data.regularNormalData || { totalGranted: 0, totalUsed: 0 });
+                createDoughnutChart('regular-ot-chart', data.regularOtData || { totalGranted: 0, totalUsed: 0 });
+                createDoughnutChart('temp-normal-chart', data.tempNormalData || { totalGranted: 0, totalUsed: 0 });
+                createDoughnutChart('temp-ot-chart', data.tempOtData || { totalGranted: 0, totalUsed: 0 });
                 updateSummary(data);
-
-
             } catch (e) {
                 console.error(`Error fetching report data: ${e.message}`);
             } finally {
@@ -363,13 +319,10 @@
                 showReportBtn.textContent = 'แสดงรายงาน';
             }
         }
-
-
+        
         async function loadDepartments() {
             const DEPARTMENTS_CACHE_KEY = 'departments_cache';
-            const DEPARTMENTS_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ชั่วโมง
-
-
+            const DEPARTMENTS_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000;
             try {
                 const cachedData = localStorage.getItem(DEPARTMENTS_CACHE_KEY);
                 if (cachedData) {
@@ -383,36 +336,25 @@
                         localStorage.removeItem(DEPARTMENTS_CACHE_KEY);
                     }
                 }
-
-
                 const { data: { session } } = await _supabase.auth.getSession();
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
-
-
                 if (!response.ok) throw new Error('Failed to load departments');
-                
                 const departments = await response.json();
-                
                 localStorage.setItem(DEPARTMENTS_CACHE_KEY, JSON.stringify({
                     departments,
                     timestamp: Date.now()
                 }));
-
-
                 renderDepartmentOptions(departments);
                 console.log('Departments loaded from server and cached.');
-
-
             } catch (error) {
                 console.error("Failed to load departments:", error);
             }
         }
-
-
+        
         function renderDepartmentOptions(departments) {
-            departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>'; 
+            departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>';
             departments.forEach(dept => {
                 const option = document.createElement('option');
                 option.value = dept.id;
@@ -420,33 +362,24 @@
                 departmentSelect.appendChild(option);
             });
         }
-
-
+        
         async function initializeApp() {
             try {
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
                 const config = await response.json();
-                
                 const { createClient } = supabase;
                 _supabase = createClient(config.supabaseUrl, config.supabaseKey);
-
-
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    
                     datePicker = flatpickr("#date-picker", {
                         mode: "range",
                         dateFormat: "Y-m-d",
                         defaultDate: [new Date(), new Date()]
                     });
-
-
                     await loadDepartments();
-                    await fetchReportData(); 
+                    await fetchReportData();
                     document.getElementById('show-report-btn').addEventListener('click', fetchReportData);
-
-
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
