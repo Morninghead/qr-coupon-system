@@ -97,9 +97,9 @@
         }
         .employee-card .background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
         .employee-card .card-content { position: relative; z-index: 1; width: 100%; height: 100%; }
-        .employee-card .card-element { position: absolute; box-sizing: border-box; }
+        .employee-card .card-element { position: absolute; box-sizing: border-box; display: flex; align-items: center; }
         .employee-card .card-element.img { background-color: transparent; border: none; padding: 0; }
-        .employee-card .card-element.qr { display: flex; justify-content: center; align-items: center; }
+        .employee-card .card-element.qr { justify-content: center; }
         .employee-card .card-element.qr canvas { width: 100% !important; height: 100% !important; }
 
     </style>
@@ -183,7 +183,6 @@
         let _supabase;
         const baseUrl = window.location.origin;
 
-        // --- DOM Elements ---
         const templateSelect = document.getElementById('template-select');
         const searchInput = document.getElementById('search-input');
         const departmentFilter = document.getElementById('department-filter');
@@ -198,16 +197,13 @@
         const pdfGenerationProgress = document.getElementById('pdf-generation-progress');
         const selectedCountSpan = document.getElementById('selected-count');
 
-        // --- State Variables ---
         let allTemplates = [];
-        let currentEmployees = []; // Store employees of the current page
+        let currentEmployees = [];
         let selectedTemplate = null;
         let currentPage = 1;
         const itemsPerPage = 10;
         let selectedEmployeeIds = new Map();
 
-        // --- Placeholder URL ---
-        // *** FIX: Changed to a reliable placeholder service ***
         const PLACEHOLDER_IMG_URL_40 = 'https://placehold.co/40x40/EEE/31343C?text=N/A';
 
         async function initializeApp() {
@@ -295,7 +291,7 @@
                 }
 
                 const data = await response.json();
-                currentEmployees = data.employees; // Store current page's employees
+                currentEmployees = data.employees;
                 renderEmployeeTable(currentEmployees);
                 renderPagination(data.currentPage, data.totalPages, data.totalCount);
                 showMessage(currentEmployees.length > 0 ? `พบ ${data.totalCount} รายการ` : 'ไม่พบข้อมูลพนักงาน', 'success');
@@ -427,26 +423,50 @@
             }
         }
 
+        // *** THE DEFINITIVE FIX FOR CARD PREVIEW ***
         async function generateCardHtml(employee, template) {
             let elementsHtml = '';
             const layout = template.layout_config || {};
+
             for (const key in layout) {
                 const style = layout[key];
+                if (!style) continue; // Skip if style for a key is missing
+
+                // Build a robust style string
+                let styleStr = `left: ${style.x || 0}px; top: ${style.y || 0}px; width: ${style.width || 'auto'}px; height: ${style.height || 'auto'}px;`;
+                if (style.color) styleStr += ` color: ${style.color};`;
+                if (style.fontSize) styleStr += ` font-size: ${style.fontSize}px;`;
+                if (style.textAlign) styleStr += ` text-align: ${style.textAlign};`;
+                if (style.fontFamily) styleStr += ` font-family: ${style.fontFamily}, sans-serif;`;
+                
                 let content = '';
                 let className = `card-element ${key}`;
-                let styleStr = `left:${style.x}; top:${style.y}; width:${style.width}; height:${style.height}; color:${style.color}; font-size:${style.fontSize}; text-align:${style.textAlign}; font-family:${style.fontFamily || 'sans-serif'};`;
 
-                let textContent = '';
                 switch (key) {
-                    case 'photo': content = `<img src="${employee.photo_url || PLACEHOLDER_IMG_URL_40}" style="width:100%; height:100%; object-fit:cover; border-radius: ${style.borderRadius || '0'};">`; break;
-                    case 'logo': content = `<img src="${template.logo_url || ''}" style="width:100%; height:100%; object-fit:contain;">`; break;
-                    case 'qr_code': className += ' qr'; content = `<div class="qr-placeholder" style="width:100%; height:100%;"></div>`; break;
-                    case 'employee_name': textContent = employee.name; break;
-                    case 'employee_id': textContent = `ID: ${employee.employee_id}`; break;
-                    case 'department_name': textContent = employee.department_name || ''; break;
-                    default: textContent = style.text || '';
+                    case 'photo':
+                        content = `<img src="${employee.photo_url || PLACEHOLDER_IMG_URL_40}" style="width:100%; height:100%; object-fit:cover; border-radius: ${style.borderRadius || '0'};">`;
+                        break;
+                    case 'logo':
+                        content = `<img src="${template.logo_url || ''}" style="width:100%; height:100%; object-fit:contain;">`;
+                        break;
+                    case 'qr_code':
+                        className += ' qr';
+                        content = `<div class="qr-placeholder" style="width:100%; height:100%;"></div>`;
+                        break;
+                    case 'employee_name':
+                        content = `<span>${employee.name || ''}</span>`;
+                        break;
+                    case 'employee_id':
+                        content = `<span>${employee.employee_id || ''}</span>`;
+                        break;
+                    case 'department_name':
+                        content = `<span>${employee.department_name || ''}</span>`;
+                        break;
+                    default: // For custom text fields like 'position', 'company_name'
+                        content = `<span>${style.text || ''}</span>`;
+                        break;
                 }
-                if (textContent) content = `<span style="display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${textContent}</span>`;
+                
                 elementsHtml += `<div class="${className}" style="${styleStr}">${content}</div>`;
             }
 
