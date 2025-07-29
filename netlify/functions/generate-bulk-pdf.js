@@ -5,6 +5,7 @@ const fontkit = require('@pdf-lib/fontkit');
 const fs = require('fs/promises');
 const path = require('path');
 const fetch = require('node-fetch');
+const QRCode = require('qrcode');
 
 const pt = (px) => (px * 72) / 96;
 
@@ -19,11 +20,49 @@ const fetchImage = async (url) => {
     }
 };
 
+const drawElements = async (page, layoutConfig, assets, employee) => {
+    const { pdfDoc, thaiFont, imageAssetMap } = assets;
+
+    for (const id in layoutConfig) {
+        const config = layoutConfig[id];
+        const type = id.split('-')[0];
+        
+        let text = '';
+        let imageBuffer;
+
+        switch (type) {
+            case 'employee_name': text = employee.name || ''; break;
+            case 'employee_id': text = employee.employee_id || ''; break;
+            case 'department_name': text = employee.department_name || ''; break;
+            case 'text': text = config.text || ''; break;
+            case 'logo': imageBuffer = imageAssetMap.get(assets.template.logo_url); break;
+            case 'photo': imageBuffer = imageAssetMap.get(employee.photo_url); break;
+            case 'qr_code':
+                const qrData = employee.employee_id || 'no-id'; // Use employee ID for QR code
+                const qrImageBuffer = await QRCode.toBuffer(qrData, { type: 'png' });
+                imageBuffer = { image: await pdfDoc.embedPng(qrImageBuffer), isQr: true };
+                break;
+        }
+        
+        const x = pt(config.x);
+        const y = page.getHeight() - pt(config.y);
+
+        if (imageBuffer) {
+            const image = imageBuffer.isQr ? imageBuffer.image : imageBuffer;
+            if (image) {
+                 page.drawImage(image, { x, y: y - pt(config.height), width: pt(config.width), height: pt(config.height) });
+            }
+        } else if (text) {
+             const fontSize = pt(config.fontSize || 12);
+             page.drawText(text, { x, y: y - fontSize, font: thaiFont, size: fontSize, color: rgb(0, 0, 0) });
+        }
+    }
+};
+
+
 exports.handler = async (event) => {
-    // Your authentication logic here...
-    
     const { template, employees } = JSON.parse(event.body);
-    if (!template || !employees || employees.length === 0) {
+    if (!template || !employees || !employees.length) {
         return { statusCode: 400, body: JSON.stringify({ message: 'Missing data.' }) };
     }
 
@@ -31,15 +70,14 @@ exports.handler = async (event) => {
         const pdfDoc = await PDFDocument.create();
         pdfDoc.registerFontkit(fontkit);
 
-        // *** THE DEFINITIVE FIX: Updated the font path to match your exact directory structure ***
         const fontPath = path.resolve(process.cwd(), 'fonts/Noto_Sans_Thai/noto-sans-thai-latin-ext-400-normal.woff');
-        
         const fontBytes = await fs.readFile(fontPath);
         const thaiFont = await pdfDoc.embedFont(fontBytes);
 
         const imageUrls = new Set();
         if (template.logo_url) imageUrls.add(template.logo_url);
         if (template.background_front_url) imageUrls.add(template.background_front_url);
+        if (template.background_back_url) imageUrls.add(template.background_back_url);
         employees.forEach(emp => { if (emp.photo_url) imageUrls.add(emp.photo_url); });
 
         const imagePromises = Array.from(imageUrls).map(url => fetchImage(url).then(bytes => ({ url, bytes })));
@@ -51,47 +89,26 @@ exports.handler = async (event) => {
                 try {
                     const image = await pdfDoc.embedPng(bytes).catch(() => pdfDoc.embedJpg(bytes));
                     imageAssetMap.set(url, image);
-                } catch (e) {
-                    console.warn(`Failed to embed image from ${url}: ${e.message}`);
-                }
+                } catch (e) { console.warn(`Failed to embed image from ${url}`); }
             }
         }
 
+        const assets = { pdfDoc, thaiFont, imageAssetMap, template };
+        const cardWidth = pt(template.orientation === 'landscape' ? 405 : 255);
+        const cardHeight = pt(template.orientation === 'landscape' ? 255 : 405);
+
         for (const employee of employees) {
-            const cardWidth = pt(template.orientation === 'landscape' ? 405 : 255);
-            const cardHeight = pt(template.orientation === 'landscape' ? 255 : 405);
-            
+            // --- Draw Front Page ---
             const pageFront = pdfDoc.addPage([cardWidth, cardHeight]);
             const bgFront = imageAssetMap.get(template.background_front_url);
-            if (bgFront) {
-                pageFront.drawImage(bgFront, { x: 0, y: 0, width: pageFront.getWidth(), height: pageFront.getHeight() });
-            }
+            if (bgFront) pageFront.drawImage(bgFront, { x: 0, y: 0, width: cardWidth, height: cardHeight });
+            await drawElements(pageFront, template.layout_config_front, assets, employee);
 
-            for (const id in template.layout_config_front) {
-                const config = template.layout_config_front[id];
-                const type = id.split('-')[0];
-                
-                let text = '';
-                let image;
-
-                switch (type) {
-                    case 'employee_name': text = employee.name || ''; break;
-                    case 'employee_id': text = employee.employee_id || ''; break;
-                    case 'department_name': text = employee.department_name || ''; break;
-                    case 'text': text = config.text || ''; break;
-                    case 'logo': image = imageAssetMap.get(template.logo_url); break;
-                    case 'photo': image = imageAssetMap.get(employee.photo_url); break;
-                }
-                
-                const x = pt(config.x);
-                const y = pageFront.getHeight() - pt(config.y);
-
-                if (image) {
-                    pageFront.drawImage(image, { x, y: y - pt(config.height), width: pt(config.width), height: pt(config.height) });
-                } else if (text) {
-                     pageFront.drawText(text, { x, y: y - pt(config.fontSize || 12), font: thaiFont, size: pt(config.fontSize || 12), color: rgb(0, 0, 0) });
-                }
-            }
+            // --- Draw Back Page ---
+            const pageBack = pdfDoc.addPage([cardWidth, cardHeight]);
+            const bgBack = imageAssetMap.get(template.background_back_url);
+            if (bgBack) pageBack.drawImage(bgBack, { x: 0, y: 0, width: cardWidth, height: cardHeight });
+            await drawElements(pageBack, template.layout_config_back, assets, employee);
         }
 
         const pdfBytes = await pdfDoc.save();
