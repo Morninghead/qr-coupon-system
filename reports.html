@@ -59,7 +59,7 @@
         .filter-group label { margin-bottom: 8px; font-weight: 600; color: var(--dark-gray); }
         .filter-group select, .filter-group input { padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; }
         .filter-group button { padding: 10px 20px; font-size: 16px; font-weight: 600; color: white; background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; }
-        .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+        .report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 32px; } /* Changed grid-template-columns for better fit */
         .chart-card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
         .chart-card h2 { margin-top: 0; color: var(--dark-gray); border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
         .chart-card canvas { filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); }
@@ -67,7 +67,7 @@
         .summary-card .summary-title { font-size: 18px; font-weight: 500; opacity: 0.7; margin: 0 0 24px 0; }
         .summary-card h2 { margin-top: 0; font-size: 20px; opacity: 0.9; margin-bottom: 8px; }
         .summary-card .total-amount { font-size: 48px; font-weight: 700; color: var(--success-color); margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.2); }
-        .summary-details { display: flex; justify-content: center; gap: 48px; margin-bottom: 24px; }
+        .summary-details { display: flex; flex-wrap: wrap; justify-content: center; gap: 32px; margin-bottom: 24px; } /* Adjusted gap */
         .summary-details h3 { margin: 0 0 8px 0; font-size: 16px; opacity: 0.7; font-weight: 500; }
         .summary-details p { margin: 0; font-size: 28px; font-weight: 600; color: var(--success-color); }
         @media (max-width: 900px) { .report-grid { grid-template-columns: 1fr; } }
@@ -81,6 +81,7 @@
             <a href="/index.html" class="unauthorized-button">ไปที่หน้าลงชื่อเข้าใช้</a>
         </div>
     </div>
+
 
     <div id="main-content" class="hidden">
         <div class="container">
@@ -112,6 +113,11 @@
                     <h2>คูปองอาหารโอที (OT)</h2>
                     <canvas id="ot-chart"></canvas>
                 </div>
+                <!-- FIX: Added new chart card for Temporary Coupons -->
+                <div class="chart-card">
+                    <h2>คูปองชั่วคราว (Temp)</h2>
+                    <canvas id="temp-chart"></canvas>
+                </div>
                 <div class="summary-card">
                     <p class="summary-title" id="summary-title"></p>
                     <div class="summary-details">
@@ -123,6 +129,11 @@
                             <h3>ยอดรวมค่าอาหารโอที</h3>
                             <p id="ot-summary-amount">฿ 0.00</p>
                         </div>
+                        <!-- FIX: Added new summary display for Temporary Coupons -->
+                        <div>
+                            <h3>ยอดรวมค่าอาหารชั่วคราว</h3>
+                            <p id="temp-summary-amount">฿ 0.00</p>
+                        </div>
                     </div>
                     <h2>สรุปยอดเงินรวมทั้งหมด</h2>
                     <p class="total-amount" id="total-amount">฿ 0.00</p>
@@ -130,6 +141,7 @@
             </div>
         </div>
     </div>
+
 
     <script>
         const mainContent = document.getElementById('main-content');
@@ -139,11 +151,13 @@
         const baseUrl = window.location.origin;
         const departmentSelect = document.getElementById('department-select');
 
+
         const centerTextPlugin = {
             id: 'centerText',
             afterDraw: (chart) => {
                 const total = chart.config.options.plugins.centerText.total;
                 if (total === undefined || total === null) return;
+
 
                 const ctx = chart.ctx;
                 const { width, height } = chart;
@@ -159,6 +173,7 @@
                 ctx.fillStyle = '#6B7280';
                 ctx.fillText(subText, subTextX, textY - (subFontSize * 0.8)); 
 
+
                 const totalText = total.toLocaleString('th-TH');
                 const fontSize = Math.max(24, (height / 80)); 
                 ctx.font = `bold ${fontSize}px sans-serif`; 
@@ -167,19 +182,23 @@
                 ctx.fillStyle = '#1F2937';
                 ctx.fillText(totalText, totalTextX, textY + (fontSize * 0.4)); 
 
+
                 ctx.save();
             }
         };
 
+
         function createDoughnutChart(canvasId, data) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             const notUsed = Math.max(0, data.totalGranted - data.totalUsed); 
+
 
             let chartData = [];
             let chartLabels = [];
             let backgroundColors = [];
             let borderColors = ['#ffffff'];
             let offsets = [0, 10]; 
+
 
             if (data.totalGranted === 0 && data.totalUsed === 0) { // If absolutely no data
                 chartData = [1]; 
@@ -191,20 +210,27 @@
                 const usedRaw = data.totalUsed;
                 const notUsedRaw = notUsed;
 
+
                 chartLabels = [`ใช้สิทธิ์ (${usedRaw})`, `ไม่ใช้สิทธิ์ (${notUsedRaw})`];
-                backgroundColors = ['rgba(16, 185, 129, 0.8)', 'rgba(245, 158, 11, 0.8)'];
+                // Use different colors for the 'Used' slice based on chart type
+                const usedColor = canvasId === 'temp-chart' ? 'rgba(234, 179, 8, 0.8)' : 'rgba(16, 185, 129, 0.8)';
+                backgroundColors = [usedColor, 'rgba(245, 158, 11, 0.8)'];
+
 
                 // Ensure slices are visible even if value is 0
                 const usedSliceValue = usedRaw > 0 ? usedRaw : 0.001;
                 const notUsedSliceValue = notUsedRaw > 0 ? notUsedRaw : 0.001;
 
+
                 chartData = [usedSliceValue, notUsedSliceValue];
             }
+
 
 
             if (window[canvasId + '_chart']) {
                 window[canvasId + '_chart'].destroy();
             }
+
 
             window[canvasId + '_chart'] = new Chart(ctx, {
                 type: 'doughnut',
@@ -239,8 +265,10 @@
                                         rawValue = notUsed;
                                     }
 
-                                    const totalForPercentage = data.totalGranted > 0 ? data.totalGranted : (usedRaw + notUsedRaw > 0 ? (usedRaw + notUsedRaw) : 1); // Handle case where totalGranted is 0 but used/notUsed have values (due to tiny slices)
+
+                                    const totalForPercentage = data.totalGranted > 0 ? data.totalGranted : (data.totalUsed + notUsed > 0 ? (data.totalUsed + notUsed) : 1);
                                     const percentage = (rawValue / totalForPercentage * 100).toFixed(1);
+
 
                                     // Ensure label shows actual count, not 0.001
                                     label = `${context.label.split('(')[0].trim()}: ${rawValue} คน (${percentage}%)`;
@@ -254,17 +282,21 @@
             });
         }
 
+
         function updateSummary(reportData) {
             const normalAmount = (reportData.normalData?.totalUsed || 0) * 45;
             const otAmount = (reportData.otData?.totalUsed || 0) * 45;
-            const totalAmount = normalAmount + otAmount;
+            const tempAmount = (reportData.tempData?.totalUsed || 0) * 45; // FIX: Calculate temp amount
+            const totalAmount = normalAmount + otAmount + tempAmount; // FIX: Include temp amount in total
             const formatCurrency = (amount) => `฿ ${amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
             
             document.getElementById('normal-summary-amount').textContent = formatCurrency(normalAmount);
             document.getElementById('ot-summary-amount').textContent = formatCurrency(otAmount);
+            document.getElementById('temp-summary-amount').textContent = formatCurrency(tempAmount); // FIX: Update temp amount display
             document.getElementById('total-amount').textContent = formatCurrency(totalAmount);
             updateSummaryTitle();
         }
+
 
         function updateSummaryTitle() {
             const datePickerInput = document.getElementById('date-picker').value;
@@ -274,10 +306,12 @@
             document.getElementById('summary-title').textContent = `รายงานสรุปยอด ${timeText} | แผนก: ${departmentText}`;
         }
 
+
         async function fetchReportData() {
             const showReportBtn = document.getElementById('show-report-btn');
             showReportBtn.disabled = true;
             showReportBtn.textContent = 'กำลังโหลด...';
+
 
             const dateRange = datePicker.selectedDates;
             if (dateRange.length < 2) {
@@ -287,10 +321,12 @@
                 return;
             }
 
+
             const startDate = dateRange[0].toISOString().split('T')[0];
             const endDate = dateRange[1].toISOString().split('T')[0];
             const departmentId = departmentSelect.value;
             const { data: { session } } = await _supabase.auth.getSession();
+
 
             if (!session) {
                 console.error("No active session to fetch report data.");
@@ -298,6 +334,7 @@
                 showReportBtn.textContent = 'แสดงรายงาน';
                 return;
             }
+
 
             const endpoint = `${baseUrl}/.netlify/functions/get-report-data?startDate=${startDate}&endDate=${endDate}&departmentId=${departmentId}`;
             
@@ -309,12 +346,15 @@
                     const errorResult = await response.json();
                     throw new Error(errorResult.message || "Failed to load report data");
                 }
-                const data = await response.json(); // Renamed to 'data' to avoid conflict with 'report' in general.
+                const data = await response.json();
 
-                // Pass the report data directly to the chart creation function
+
+                // FIX: Call chart creation for all three data types
                 createDoughnutChart('normal-chart', data.normalData || { totalGranted: 0, totalUsed: 0 });
                 createDoughnutChart('ot-chart', data.otData || { totalGranted: 0, totalUsed: 0 });
-                updateSummary(data); // Pass the raw data object to update summary
+                createDoughnutChart('temp-chart', data.tempData || { totalGranted: 0, totalUsed: 0 });
+                updateSummary(data);
+
 
             } catch (e) {
                 console.error(`Error fetching report data: ${e.message}`);
@@ -324,9 +364,11 @@
             }
         }
 
+
         async function loadDepartments() {
             const DEPARTMENTS_CACHE_KEY = 'departments_cache';
             const DEPARTMENTS_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ชั่วโมง
+
 
             try {
                 const cachedData = localStorage.getItem(DEPARTMENTS_CACHE_KEY);
@@ -342,10 +384,12 @@
                     }
                 }
 
+
                 const { data: { session } } = await _supabase.auth.getSession();
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-departments`, {
                     headers: { 'Authorization': `Bearer ${session.access_token}` }
                 });
+
 
                 if (!response.ok) throw new Error('Failed to load departments');
                 
@@ -356,13 +400,16 @@
                     timestamp: Date.now()
                 }));
 
+
                 renderDepartmentOptions(departments);
                 console.log('Departments loaded from server and cached.');
+
 
             } catch (error) {
                 console.error("Failed to load departments:", error);
             }
         }
+
 
         function renderDepartmentOptions(departments) {
             departmentSelect.innerHTML = '<option value="all">ทุกแผนก</option>'; 
@@ -374,6 +421,7 @@
             });
         }
 
+
         async function initializeApp() {
             try {
                 const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
@@ -381,6 +429,7 @@
                 
                 const { createClient } = supabase;
                 _supabase = createClient(config.supabaseUrl, config.supabaseKey);
+
 
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
@@ -392,9 +441,11 @@
                         defaultDate: [new Date(), new Date()]
                     });
 
+
                     await loadDepartments();
                     await fetchReportData(); 
                     document.getElementById('show-report-btn').addEventListener('click', fetchReportData);
+
 
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
