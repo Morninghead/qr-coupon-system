@@ -200,10 +200,15 @@
 
         // --- State Variables ---
         let allTemplates = [];
+        let currentEmployees = []; // Store employees of the current page
         let selectedTemplate = null;
         let currentPage = 1;
         const itemsPerPage = 10;
         let selectedEmployeeIds = new Map();
+
+        // --- Placeholder URL ---
+        // *** FIX: Changed to a reliable placeholder service ***
+        const PLACEHOLDER_IMG_URL_40 = 'https://placehold.co/40x40/EEE/31343C?text=N/A';
 
         async function initializeApp() {
             try {
@@ -220,10 +225,9 @@
                 await Promise.all([
                     loadDepartments(),
                     loadCardTemplates(),
-                    fetchEmployees(currentPage)
                 ]);
+                await fetchEmployees(currentPage);
 
-                // --- Event Listeners ---
                 applyFiltersBtn.addEventListener('click', () => {
                     currentPage = 1;
                     fetchEmployees(currentPage);
@@ -237,8 +241,20 @@
                 showMessage('เกิดข้อผิดพลาดในการโหลดระบบ: ' + error.message, 'error');
             }
         }
+        
+        async function loadDepartments() {
+            try {
+                const { data, error } = await _supabase.from('departments').select('*').order('name');
+                if (error) throw error;
+                departmentFilter.innerHTML = '<option value="all">ทุกแผนก</option>';
+                data.forEach(d => {
+                    departmentFilter.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                });
+            } catch (error) {
+                console.error("Failed to load departments:", error);
+            }
+        }
 
-        async function loadDepartments() { /* ... unchanged ... */ }
         async function loadCardTemplates() {
             try {
                 const { data, error } = await _supabase.from('card_templates').select('*');
@@ -279,14 +295,16 @@
                 }
 
                 const data = await response.json();
-                renderEmployeeTable(data.employees);
-                renderPagination(data.currentPage, data.totalPages);
-                showMessage(data.employees.length > 0 ? 'โหลดข้อมูลสำเร็จ' : 'ไม่พบข้อมูลพนักงาน', 'success');
+                currentEmployees = data.employees; // Store current page's employees
+                renderEmployeeTable(currentEmployees);
+                renderPagination(data.currentPage, data.totalPages, data.totalCount);
+                showMessage(currentEmployees.length > 0 ? `พบ ${data.totalCount} รายการ` : 'ไม่พบข้อมูลพนักงาน', 'success');
 
             } catch (error) {
                 console.error('Error fetching employees:', error);
                 showMessage(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
                 employeeTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--error-color);">${error.message}</td></tr>`;
+                paginationControls.innerHTML = '';
             }
         }
 
@@ -302,11 +320,11 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><input type="checkbox" data-id="${emp.id}" ${isChecked ? 'checked' : ''}></td>
-                    <td><img src="${emp.photo_url || 'https://via.placeholder.com/40'}" class="employee-photo-thumb" onerror="this.src='https://via.placeholder.com/40'"></td>
+                    <td><img src="${emp.photo_url || PLACEHOLDER_IMG_URL_40}" class="employee-photo-thumb" onerror="this.src='${PLACEHOLDER_IMG_URL_40}'"></td>
                     <td>${emp.employee_id}</td>
                     <td>${emp.name}</td>
                     <td>${emp.department_name || 'N/A'}</td>
-                    <td>${emp.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน'}</td>
+                    <td><span style="color: ${emp.is_active ? 'var(--success-color)' : 'var(--error-color)'}; font-weight: 600;">${emp.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน'}</span></td>
                 `;
                 row.querySelector('input[type="checkbox"]').addEventListener('change', (e) => handleCheckboxChange(e, emp));
                 employeeTableBody.appendChild(row);
@@ -314,8 +332,23 @@
             updateSelectAllCheckboxState();
         }
 
-        function renderPagination(page, totalPages) { /* ... unchanged ... */ }
-        function showMessage(message, type) { /* ... unchanged ... */ }
+        function renderPagination(page, totalPages, totalCount) {
+             paginationControls.innerHTML = '';
+            if (totalPages <= 1) return;
+
+            paginationControls.innerHTML = `
+                <button id="prev-page-btn" ${page === 1 ? 'disabled' : ''}>ก่อนหน้า</button>
+                <span>หน้า ${page} / ${totalPages} (ทั้งหมด ${totalCount} รายการ)</span>
+                <button id="next-page-btn" ${page >= totalPages ? 'disabled' : ''}>ถัดไป</button>
+            `;
+            document.getElementById('prev-page-btn').addEventListener('click', () => fetchEmployees(currentPage - 1));
+            document.getElementById('next-page-btn').addEventListener('click', () => fetchEmployees(currentPage + 1));
+        }
+        
+        function showMessage(message, type) {
+            messageDiv.className = `message message-${type}`;
+            messageDiv.textContent = message;
+        }
 
         function handleCheckboxChange(event, employee) {
             if (event.target.checked) {
@@ -323,25 +356,43 @@
             } else {
                 selectedEmployeeIds.delete(employee.id);
             }
+            updateSelectAllCheckboxState();
             updateUI();
         }
         
         function handleSelectAll(event) {
             const isChecked = event.target.checked;
-            employeeTableBody.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-                checkbox.checked = isChecked;
-                const empId = parseInt(checkbox.dataset.id);
-                const empData = /* Find employee data from a local array if needed */{};
-                if(isChecked) {
-                     // This part needs the full employee object, you might need to fetch it or have it stored
+            currentEmployees.forEach(emp => {
+                const checkbox = employeeTableBody.querySelector(`input[data-id="${emp.id}"]`);
+                if (checkbox) checkbox.checked = isChecked;
+                if (isChecked) {
+                    selectedEmployeeIds.set(emp.id, emp);
                 } else {
-                    selectedEmployeeIds.delete(empId);
+                    selectedEmployeeIds.delete(emp.id);
                 }
             });
-            // Simplified: you'd need to rebuild the selectedEmployeeIds map fully here
-            // This is a known complexity with pagination and select-all
-            // For now, it will only affect the current page.
-             updateUI();
+            updateUI();
+        }
+        
+        function updateSelectAllCheckboxState() {
+            const allCheckboxes = employeeTableBody.querySelectorAll('input[type="checkbox"]');
+            if(allCheckboxes.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+                return;
+            }
+            const checkedCount = Array.from(allCheckboxes).filter(cb => cb.checked).length;
+            
+            if(checkedCount === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (checkedCount === allCheckboxes.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            }
         }
 
         function handleTemplateChange() {
@@ -371,7 +422,7 @@
 
                 const qrEl = cardDiv.querySelector('.qr-placeholder');
                 if (qrEl && employee.permanent_token && window.QRCode) {
-                    new QRCode(qrEl, { text: `${baseUrl}/scanner?token=${employee.permanent_token}`, width: qrEl.offsetWidth, height: qrEl.offsetHeight });
+                    new QRCode(qrEl, { text: `${baseUrl}/scanner?token=${employee.permanent_token}`, width: qrEl.offsetWidth || 50, height: qrEl.offsetHeight || 50, colorLight: '#ffffff', colorDark: '#000000', correctLevel: QRCode.CorrectLevel.H });
                 }
             }
         }
@@ -383,18 +434,19 @@
                 const style = layout[key];
                 let content = '';
                 let className = `card-element ${key}`;
-                let styleStr = `left:${style.x}; top:${style.y}; width:${style.width}; height:${style.height}; color:${style.color}; font-size:${style.fontSize}; text-align:${style.textAlign};`;
+                let styleStr = `left:${style.x}; top:${style.y}; width:${style.width}; height:${style.height}; color:${style.color}; font-size:${style.fontSize}; text-align:${style.textAlign}; font-family:${style.fontFamily || 'sans-serif'};`;
 
                 let textContent = '';
                 switch (key) {
-                    case 'photo': content = `<img src="${employee.photo_url || ''}" style="width:100%; height:100%; object-fit:cover;">`; break;
+                    case 'photo': content = `<img src="${employee.photo_url || PLACEHOLDER_IMG_URL_40}" style="width:100%; height:100%; object-fit:cover; border-radius: ${style.borderRadius || '0'};">`; break;
                     case 'logo': content = `<img src="${template.logo_url || ''}" style="width:100%; height:100%; object-fit:contain;">`; break;
                     case 'qr_code': className += ' qr'; content = `<div class="qr-placeholder" style="width:100%; height:100%;"></div>`; break;
                     case 'employee_name': textContent = employee.name; break;
                     case 'employee_id': textContent = `ID: ${employee.employee_id}`; break;
+                    case 'department_name': textContent = employee.department_name || ''; break;
                     default: textContent = style.text || '';
                 }
-                if (textContent) content = `<span>${textContent}</span>`;
+                if (textContent) content = `<span style="display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${textContent}</span>`;
                 elementsHtml += `<div class="${className}" style="${styleStr}">${content}</div>`;
             }
 
@@ -403,8 +455,36 @@
         }
         
         async function generatePdfForSelectedCards() {
-             // This is a placeholder for your backend call
-            alert(`กำลังจะสร้าง PDF สำหรับพนักงาน ${selectedEmployeeIds.size} คน โดยใช้ Template: ${selectedTemplate.template_name}`);
+             pdfGenerationProgress.textContent = `กำลังเตรียมสร้าง PDF สำหรับ ${selectedEmployeeIds.size} คน...`;
+             pdfGenerationProgress.classList.remove('hidden');
+             printSelectedCardsBtn.disabled = true;
+
+             try {
+                const employeesToPrint = Array.from(selectedEmployeeIds.values());
+                const { data: { session } } = await _supabase.auth.getSession();
+                const response = await fetch(`${baseUrl}/.netlify/functions/generate-print-pdf`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                    body: JSON.stringify({ employees: employeesToPrint, template: selectedTemplate })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.message || 'Server error during PDF generation.');
+                }
+                const result = await response.json();
+                const link = document.createElement('a');
+                link.href = result.pdfData;
+                link.download = `employee-cards-${Date.now()}.pdf`;
+                link.click();
+                showMessage('สร้างไฟล์ PDF สำเร็จ!', 'success');
+             } catch(error) {
+                console.error('PDF Generation Error:', error);
+                showMessage(`เกิดข้อผิดพลาดในการสร้าง PDF: ${error.message}`, 'error');
+             } finally {
+                pdfGenerationProgress.classList.add('hidden');
+                printSelectedCardsBtn.disabled = false;
+             }
         }
 
         document.addEventListener('DOMContentLoaded', initializeApp);
