@@ -1,6 +1,5 @@
 // /netlify/functions/generate-bulk-pdf.js
 
-// *** THE DEFINITIVE FIX: Changed all 'import' to 'require' for Netlify compatibility ***
 const { PDFDocument, rgb } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
 const fs = require('fs/promises');
@@ -32,7 +31,9 @@ exports.handler = async (event) => {
         const pdfDoc = await PDFDocument.create();
         pdfDoc.registerFontkit(fontkit);
 
-        const fontPath = path.resolve(process.cwd(), 'fonts/noto-sans-thai-latin-ext-400-normal.woff');
+        // *** THE DEFINITIVE FIX: Updated the font path to match your directory structure ***
+        const fontPath = path.resolve(process.cwd(), 'fonts/Noto_Sans_Thai/noto-sans-thai-latin-ext-400-normal.woff');
+        
         const fontBytes = await fs.readFile(fontPath);
         const thaiFont = await pdfDoc.embedFont(fontBytes);
 
