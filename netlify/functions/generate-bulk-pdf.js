@@ -5,7 +5,6 @@ const path = require('path');
 const fetch = require('node-fetch');
 const QRCode = require('qrcode');
 
-// Helper mm → pt
 const pt = mm => (mm * 72) / 25.4;
 
 const PAPER_SPECS = {
@@ -55,31 +54,30 @@ const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, asse
   }
 };
 
-// ====== Crop Mark Utils ========
+// วาด crop mark (tick 4 มุม)
 function drawCropMarks(page, absX, absY, w_mm, h_mm, color) {
-  // จุดมาร์กยาว 3mm (หรือเท่าไรก็ได้)
   const markLen = 3;
   const markW = pt(markLen);
-
   const x0 = pt(absX);
   const x1 = pt(absX + w_mm);
   const y0 = page.getHeight() - pt(absY);
   const y1 = page.getHeight() - pt(absY + h_mm);
 
-  // Left top
+  // Top-left
   page.drawLine({ start: { x: x0, y: y0 }, end: { x: x0 + markW, y: y0 }, thickness: 0.35, color });
   page.drawLine({ start: { x: x0, y: y0 }, end: { x: x0, y: y0 - markW }, thickness: 0.35, color });
-  // Right top
+  // Top-right
   page.drawLine({ start: { x: x1 - markW, y: y0 }, end: { x: x1, y: y0 }, thickness: 0.35, color });
   page.drawLine({ start: { x: x1, y: y0 }, end: { x: x1, y: y0 - markW }, thickness: 0.35, color });
-  // Left bottom
-  page.drawLine({ start: { x: x0, y: y1 + markW }, end: { x: x0, y: y1 }, thickness: 0.35, color });
+  // Bottom-left
   page.drawLine({ start: { x: x0, y: y1 }, end: { x: x0 + markW, y: y1 }, thickness: 0.35, color });
-  // Right bottom
-  page.drawLine({ start: { x: x1, y: y1 + markW }, end: { x: x1, y: y1 }, thickness: 0.35, color });
+  page.drawLine({ start: { x: x0, y: y1 + markW }, end: { x: x0, y: y1 }, thickness: 0.35, color });
+  // Bottom-right
   page.drawLine({ start: { x: x1 - markW, y: y1 }, end: { x: x1, y: y1 }, thickness: 0.35, color });
+  page.drawLine({ start: { x: x1, y: y1 + markW }, end: { x: x1, y: y1 }, thickness: 0.35, color });
 }
 
+// วาด rectangle border รอบบัตร
 function drawCardBorder(page, absX, absY, w_mm, h_mm, color) {
   page.drawRectangle({
     x: pt(absX),
@@ -92,7 +90,6 @@ function drawCardBorder(page, absX, absY, w_mm, h_mm, color) {
   });
 }
 
-// ====== MAIN HANDLER ======
 exports.handler = async (event) => {
   const { template, employees, paperSize = "A4", guideType = "border" } = JSON.parse(event.body);
 
@@ -115,7 +112,7 @@ exports.handler = async (event) => {
     const fontBytes = await fs.readFile(fontPath);
     const thaiFont = await pdfDoc.embedFont(fontBytes);
 
-    // Preload images
+    // โหลด assets
     const imageUrls = new Set();
     if (template.logo_url) imageUrls.add(template.logo_url);
     if (template.background_front_url) imageUrls.add(template.background_front_url);
@@ -132,9 +129,9 @@ exports.handler = async (event) => {
       }
     }
     const assets = { pdfDoc, thaiFont, imageAssetMap, template };
-    const guideColor = rgb(0.7, 0.7, 0.7);
 
     let i = 0;
+    const borderColor = rgb(0.75, 0.75, 0.75); // สีเทาอ่อน
     while (i < employees.length) {
       const page = pdfDoc.addPage([pt(spec.width), pt(spec.height)]);
       const bg = imageAssetMap.get(template.background_front_url);
@@ -146,18 +143,20 @@ exports.handler = async (event) => {
           const offsetX = spec.safeMargin + col * PAIR_WIDTH;
           const offsetY = spec.safeMargin + row * PAIR_HEIGHT;
 
-          // --- วาดบัตรหน้า (ซ้าย)
+          // วาด "หน้า"
           await drawElements(page, template.layout_config_front, offsetX, offsetY, scaleX, scaleY, assets, employees[i]);
-          // --- วาดบัตรหลัง (ขวา)
+          // วาด "หลัง"
           await drawElements(page, template.layout_config_back, offsetX + card_w, offsetY, scaleX, scaleY, assets, employees[i]);
 
-          // --- วาดกรอบ/mark สำหรับบัตรหน้า-หลัง (ตามตัวเลือก)
+          // === วาด guide ===
           if (guideType === "border") {
-            drawCardBorder(page, offsetX, offsetY, card_w, card_h, guideColor);            // กรอบหน้าบัตร
-            drawCardBorder(page, offsetX + card_w, offsetY, card_w, card_h, guideColor);  // กรอบหลังบัตร
+            // Guideline: กรอบบางสีเทารอบบัตร
+            drawCardBorder(page, offsetX, offsetY, card_w, card_h, borderColor);        // front (left)
+            drawCardBorder(page, offsetX + card_w, offsetY, card_w, card_h, borderColor); // back (right)
           } else if (guideType === "cropmark") {
-            drawCropMarks(page, offsetX, offsetY, card_w, card_h, guideColor);            // crop mark หน้าบัตร
-            drawCropMarks(page, offsetX + card_w, offsetY, card_w, card_h, guideColor);   // crop mark หลังบัตร
+            // Guideline: tick 4 มุม (cropmark)
+            drawCropMarks(page, offsetX, offsetY, card_w, card_h, borderColor);
+            drawCropMarks(page, offsetX + card_w, offsetY, card_w, card_h, borderColor);
           }
           i++;
         }
