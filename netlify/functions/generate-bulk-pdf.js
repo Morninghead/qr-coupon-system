@@ -11,7 +11,6 @@ const PAPER_SPECS = {
   A3: { width: 297, height: 420, usableWidth: 287, usableHeight: 410, safeMargin: 5 }
 };
 
-// guide (กรอบ/crop mark) helpers
 function drawCropMarks(page, absX, absY, card_w, card_h, color) {
   const markLen = 3;
   const markW = pt(markLen);
@@ -76,21 +75,13 @@ const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, asse
 
 exports.handler = async (event) => {
   let data;
-  try {
-    data = JSON.parse(event.body);
-  } catch (error) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ message: 'Invalid or empty JSON body.', error: error.message })
-    };
+  try { data = JSON.parse(event.body); }
+  catch (error) {
+    return { statusCode: 400, body: JSON.stringify({ message: 'Invalid or empty JSON body.', error: error.message }) };
   }
-
   const { template, employees, paperSize = "A4", guideType = "border" } = data || {};
   if (!template || !employees || employees.length === 0) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ message: 'Missing required fields: template or employees.' })
-    };
+    return { statusCode: 400, body: JSON.stringify({ message: 'Missing required fields: template or employees.' }) };
   }
 
   const spec = PAPER_SPECS[paperSize] || PAPER_SPECS.A4;
@@ -99,12 +90,13 @@ exports.handler = async (event) => {
   const isPortrait = template.orientation === 'portrait';
   const card_w = isPortrait ? 54 : 85.6, card_h = isPortrait ? 85.6 : 54;
   const scaleX = card_w / cpx, scaleY = card_h / cpy;
-  const maxPairCol = 3; // 3 คู่/บล็อค
-  const blockW = card_w * 2 * maxPairCol;
+
+  // 1 block มี 3 คู่ (6 ใบ) วางซ้าย→ขวา block ต่อ block(2 block ใน 1 row => 6 คู่/row)
+  const maxPairCol = 3;
+  const blockW = card_w * 2 * maxPairCol; // ความกว้าง 1 block (3 คู่)
   const blockH = card_h;
   const blocksPerRow = Math.floor((spec.usableWidth) / blockW);
   const maxRow = Math.floor(spec.usableHeight / blockH);
-  const borderColor = rgb(0.7, 0.7, 0.7);
 
   try {
     const pdfDoc = await PDFDocument.create();
@@ -126,12 +118,11 @@ exports.handler = async (event) => {
         try {
           const image = await pdfDoc.embedPng(bytes).catch(() => pdfDoc.embedJpg(bytes));
           imageAssetMap.set(url, image);
-        } catch (err) {
-          console.error(`Error embedding image for URL ${url}:`, err);
-        }
+        } catch {}
       }
     }
     const assets = { pdfDoc, thaiFont, imageAssetMap, template };
+    const borderColor = rgb(0.7, 0.7, 0.7); // สีกรอบ/mark อ่อน
 
     let i = 0;
     while (i < employees.length) {
@@ -141,32 +132,19 @@ exports.handler = async (event) => {
 
       for (let row = 0; row < maxRow; row++) {
         for (let block = 0; block < blocksPerRow; block++) {
+          // แต่ละ block = 3 คู่ (6 ใบ) วางซ้ายไปขวา
           for (let pairCol = 0; pairCol < maxPairCol; pairCol++) {
             if (i >= employees.length) break;
             const baseX = spec.safeMargin + block * blockW + pairCol * 2 * card_w;
             const baseY = spec.safeMargin + row * blockH;
-            try {
-              // วาดหน้าบัตร
-              await drawElements(page, template.layout_config_front, baseX, baseY, scaleX, scaleY, assets, employees[i]);
-              // วาดหลังบัตร
-              await drawElements(page, template.layout_config_back, baseX + card_w, baseY, scaleX, scaleY, assets, employees[i]);
-              // วาดไกด์
-              if (guideType === "border") {
-                drawCardBorder(page, baseX, baseY, card_w, card_h, borderColor);
-                drawCardBorder(page, baseX + card_w, baseY, card_w, card_h, borderColor);
-              } else if (guideType === "cropmark") {
-                drawCropMarks(page, baseX, baseY, card_w, card_h, borderColor);
-                drawCropMarks(page, baseX + card_w, baseY, card_w, card_h, borderColor);
-              }
-            } catch (innerError) {
-              console.error('Draw cell error:', innerError, {
-                empName: employees[i]?.name,
-                empID: employees[i]?.employee_id,
-                block,
-                row,
-                pairCol
-              });
-              throw innerError;
+            await drawElements(page, template.layout_config_front, baseX, baseY, scaleX, scaleY, assets, employees[i]);
+            await drawElements(page, template.layout_config_back, baseX + card_w, baseY, scaleX, scaleY, assets, employees[i]);
+            if (guideType === "border") {
+              drawCardBorder(page, baseX, baseY, card_w, card_h, borderColor);
+              drawCardBorder(page, baseX + card_w, baseY, card_w, card_h, borderColor);
+            } else if (guideType === "cropmark") {
+              drawCropMarks(page, baseX, baseY, card_w, card_h, borderColor);
+              drawCropMarks(page, baseX + card_w, baseY, card_w, card_h, borderColor);
             }
             i++;
           }
@@ -181,10 +159,6 @@ exports.handler = async (event) => {
       isBase64Encoded: true
     };
   } catch (error) {
-    console.error('PDF generate error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: "Error generating PDF: " + error.message, stack: error.stack })
-    };
+    return { statusCode: 500, body: JSON.stringify({ message: `Error generating PDF: ${error.message}` }) };
   }
 };
