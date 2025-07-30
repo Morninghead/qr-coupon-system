@@ -6,32 +6,27 @@ const fetch = require('node-fetch');
 const QRCode = require('qrcode');
 
 const pt = mm => (mm * 72) / 25.4;
-
 const PAPER_SPECS = {
   A4: { width: 210, height: 297, usableWidth: 200, usableHeight: 287, safeMargin: 5 },
   A3: { width: 297, height: 420, usableWidth: 287, usableHeight: 410, safeMargin: 5 }
 };
 
+// guide (กรอบ/crop mark) helpers
 function drawCropMarks(page, absX, absY, card_w, card_h, color) {
   const markLen = 3;
   const markW = pt(markLen);
   const x0 = pt(absX), x1 = pt(absX + card_w);
   const y0 = page.getHeight() - pt(absY);
   const y1 = page.getHeight() - pt(absY + card_h);
-  // top left
   page.drawLine({ start: { x: x0, y: y0 }, end: { x: x0 + markW, y: y0 }, thickness: 0.35, color });
   page.drawLine({ start: { x: x0, y: y0 }, end: { x: x0, y: y0 - markW }, thickness: 0.35, color });
-  // top right
   page.drawLine({ start: { x: x1 - markW, y: y0 }, end: { x: x1, y: y0 }, thickness: 0.35, color });
   page.drawLine({ start: { x: x1, y: y0 }, end: { x: x1, y: y0 - markW }, thickness: 0.35, color });
-  // bottom left
   page.drawLine({ start: { x: x0, y: y1 }, end: { x: x0 + markW, y: y1 }, thickness: 0.35, color });
   page.drawLine({ start: { x: x0, y: y1 + markW }, end: { x: x0, y: y1 }, thickness: 0.35, color });
-  // bottom right
   page.drawLine({ start: { x: x1 - markW, y: y1 }, end: { x: x1, y: y1 }, thickness: 0.35, color });
   page.drawLine({ start: { x: x1, y: y1 + markW }, end: { x: x1, y: y1 }, thickness: 0.35, color });
 }
-
 function drawCardBorder(page, absX, absY, card_w, card_h, color) {
   page.drawRectangle({
     x: pt(absX),
@@ -43,12 +38,10 @@ function drawCardBorder(page, absX, absY, card_w, card_h, color) {
     borderColor: color
   });
 }
-
 const fetchImage = async (url) => {
   try { const response = await fetch(url); if (!response.ok) return null; return response.arrayBuffer(); }
   catch { return null; }
 };
-
 const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, assets, employee) => {
   const { pdfDoc, thaiFont, imageAssetMap, template } = assets;
   for (const id in layoutConfig) {
@@ -106,13 +99,12 @@ exports.handler = async (event) => {
   const isPortrait = template.orientation === 'portrait';
   const card_w = isPortrait ? 54 : 85.6, card_h = isPortrait ? 85.6 : 54;
   const scaleX = card_w / cpx, scaleY = card_h / cpy;
-
-  // 1 block = 3 คู่ (6 ใบ), row = แนวตั้ง, 2 block ต่อ row
-  const maxPairCol = 3;
-  const blockW = card_w * 2 * maxPairCol; // ความกว้าง 1 block (3 คู่)
+  const maxPairCol = 3; // 3 คู่/บล็อค
+  const blockW = card_w * 2 * maxPairCol;
   const blockH = card_h;
   const blocksPerRow = Math.floor((spec.usableWidth) / blockW);
   const maxRow = Math.floor(spec.usableHeight / blockH);
+  const borderColor = rgb(0.7, 0.7, 0.7);
 
   try {
     const pdfDoc = await PDFDocument.create();
@@ -121,6 +113,7 @@ exports.handler = async (event) => {
     const fontBytes = await fs.readFile(fontPath);
     const thaiFont = await pdfDoc.embedFont(fontBytes);
 
+    // Load images
     const imageUrls = new Set();
     if (template.logo_url) imageUrls.add(template.logo_url);
     if (template.background_front_url) imageUrls.add(template.background_front_url);
@@ -133,11 +126,12 @@ exports.handler = async (event) => {
         try {
           const image = await pdfDoc.embedPng(bytes).catch(() => pdfDoc.embedJpg(bytes));
           imageAssetMap.set(url, image);
-        } catch {}
+        } catch (err) {
+          console.error(`Error embedding image for URL ${url}:`, err);
+        }
       }
     }
     const assets = { pdfDoc, thaiFont, imageAssetMap, template };
-    const borderColor = rgb(0.7, 0.7, 0.7);
 
     let i = 0;
     while (i < employees.length) {
@@ -151,14 +145,28 @@ exports.handler = async (event) => {
             if (i >= employees.length) break;
             const baseX = spec.safeMargin + block * blockW + pairCol * 2 * card_w;
             const baseY = spec.safeMargin + row * blockH;
-            await drawElements(page, template.layout_config_front, baseX, baseY, scaleX, scaleY, assets, employees[i]);
-            await drawElements(page, template.layout_config_back, baseX + card_w, baseY, scaleX, scaleY, assets, employees[i]);
-            if (guideType === "border") {
-              drawCardBorder(page, baseX, baseY, card_w, card_h, borderColor);
-              drawCardBorder(page, baseX + card_w, baseY, card_w, card_h, borderColor);
-            } else if (guideType === "cropmark") {
-              drawCropMarks(page, baseX, baseY, card_w, card_h, borderColor);
-              drawCropMarks(page, baseX + card_w, baseY, card_w, card_h, borderColor);
+            try {
+              // วาดหน้าบัตร
+              await drawElements(page, template.layout_config_front, baseX, baseY, scaleX, scaleY, assets, employees[i]);
+              // วาดหลังบัตร
+              await drawElements(page, template.layout_config_back, baseX + card_w, baseY, scaleX, scaleY, assets, employees[i]);
+              // วาดไกด์
+              if (guideType === "border") {
+                drawCardBorder(page, baseX, baseY, card_w, card_h, borderColor);
+                drawCardBorder(page, baseX + card_w, baseY, card_w, card_h, borderColor);
+              } else if (guideType === "cropmark") {
+                drawCropMarks(page, baseX, baseY, card_w, card_h, borderColor);
+                drawCropMarks(page, baseX + card_w, baseY, card_w, card_h, borderColor);
+              }
+            } catch (innerError) {
+              console.error('Draw cell error:', innerError, {
+                empName: employees[i]?.name,
+                empID: employees[i]?.employee_id,
+                block,
+                row,
+                pairCol
+              });
+              throw innerError;
             }
             i++;
           }
@@ -173,9 +181,10 @@ exports.handler = async (event) => {
       isBase64Encoded: true
     };
   } catch (error) {
+    console.error('PDF generate error:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: `Error generating PDF: ${error.message}` })
+      body: JSON.stringify({ message: "Error generating PDF: " + error.message, stack: error.stack })
     };
   }
 };
