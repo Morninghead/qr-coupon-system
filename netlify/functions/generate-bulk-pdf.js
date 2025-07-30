@@ -5,7 +5,6 @@ const path = require('path');
 const fetch = require('node-fetch');
 const QRCode = require('qrcode');
 
-// Helper แปลง mm → pt สำหรับ PDFLib
 const pt = mm => (mm * 72) / 25.4;
 
 const PAPER_SPECS = {
@@ -13,7 +12,6 @@ const PAPER_SPECS = {
     A3: { width: 297, height: 420, usableWidth: 287, usableHeight: 410, safeMargin: 5 }
 };
 
-// โหลดไฟล์ภาพ (logo/photo/bg) เป็น ArrayBuffer
 const fetchImage = async (url) => {
     try {
         const response = await fetch(url);
@@ -24,7 +22,6 @@ const fetchImage = async (url) => {
     }
 };
 
-// ฟังก์ชันวาด element ทุก Type (ในแต่ละบัตร)
 const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, assets, employee) => {
     const { pdfDoc, thaiFont, imageAssetMap, template } = assets;
     for (const id in layoutConfig) {
@@ -51,7 +48,7 @@ const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, asse
             const image = imageBuffer.isQr ? imageBuffer.image : imageBuffer;
             if (image) page.drawImage(image, { x, y: y - h, width: w, height: h });
         } else if (text) {
-            const fontSize = pt((config.fontSize || 12) * ((scaleX + scaleY)/2));
+            const fontSize = pt((config.fontSize || 12) * ((scaleX + scaleY) / 2));
             page.drawText(text, { x, y: y - fontSize, font: thaiFont, size: fontSize, color: rgb(0, 0, 0) });
         }
     }
@@ -59,20 +56,15 @@ const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, asse
 
 exports.handler = async (event) => {
     const { template, employees, paperSize = "A4" } = JSON.parse(event.body);
-
     if (!template || !employees || employees.length === 0)
         return { statusCode: 400, body: JSON.stringify({ message: 'Missing data.' }) };
 
     const spec = PAPER_SPECS[paperSize] || PAPER_SPECS.A4;
-    // อ่านค่า canvas base px จาก template (รองรับทั้ง portrait/landscape)
     const cpx = template.canvas_width_px || (template.orientation === "portrait" ? 255 : 405);
     const cpy = template.canvas_height_px || (template.orientation === "portrait" ? 405 : 255);
     const isPortrait = template.orientation === 'portrait';
-    // ขนาดบัตรจริง (CR80) mm
     const card_w = isPortrait ? 54 : 85.6, card_h = isPortrait ? 85.6 : 54;
-    // scale px → mm
     const scaleX = card_w / cpx, scaleY = card_h / cpy;
-    // 1 cell = 2 ใบหน้าหลัง
     const PAIR_WIDTH = card_w * 2, PAIR_HEIGHT = card_h;
     const maxCol = Math.floor(spec.usableWidth / PAIR_WIDTH), maxRow = Math.floor(spec.usableHeight / PAIR_HEIGHT);
 
@@ -83,7 +75,7 @@ exports.handler = async (event) => {
         const fontBytes = await fs.readFile(fontPath);
         const thaiFont = await pdfDoc.embedFont(fontBytes);
 
-        // preload images สำหรับโลโก้/photo/bg
+        // โหลด assets
         const imageUrls = new Set();
         if (template.logo_url) imageUrls.add(template.logo_url);
         if (template.background_front_url) imageUrls.add(template.background_front_url);
@@ -93,10 +85,10 @@ exports.handler = async (event) => {
         const imageAssetMap = new Map();
         for (const { url, bytes } of fetchedImages) {
             if (bytes) {
-                try { 
-                    const image = await pdfDoc.embedPng(bytes).catch(() => pdfDoc.embedJpg(bytes)); 
-                    imageAssetMap.set(url, image); 
-                } catch {} 
+                try {
+                    const image = await pdfDoc.embedPng(bytes).catch(() => pdfDoc.embedJpg(bytes));
+                    imageAssetMap.set(url, image);
+                } catch {}
             }
         }
         const assets = { pdfDoc, thaiFont, imageAssetMap, template };
@@ -106,25 +98,26 @@ exports.handler = async (event) => {
             const page = pdfDoc.addPage([pt(spec.width), pt(spec.height)]);
             const bg = imageAssetMap.get(template.background_front_url);
             if (bg) page.drawImage(bg, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
+
             for (let row = 0; row < maxRow; row++) {
                 for (let col = 0; col < maxCol; col++) {
                     if (i >= employees.length) break;
                     const offsetX = spec.safeMargin + col * PAIR_WIDTH;
                     const offsetY = spec.safeMargin + row * PAIR_HEIGHT;
-                    // วาด "หน้าบัตร" (ซ้ายของ cell)
+                    // วาด "หน้า" cell ซ้าย
                     await drawElements(page, template.layout_config_front, offsetX, offsetY, scaleX, scaleY, assets, employees[i]);
-                    // วาด "หลังบัตร" (ขวาของ cell—ชิดตรงขอบบัตรหน้า)
+                    // วาด "หลัง" cell ขวา (offsetX + card_w mm)
                     await drawElements(page, template.layout_config_back, offsetX + card_w, offsetY, scaleX, scaleY, assets, employees[i]);
                     i++;
                 }
             }
         }
         const pdfBytes = await pdfDoc.save();
-        return { 
-            statusCode: 200, 
+        return {
+            statusCode: 200,
             headers: { 'Content-Type': 'application/pdf' },
             body: Buffer.from(pdfBytes).toString('base64'),
-            isBase64Encoded: true 
+            isBase64Encoded: true
         };
     } catch (error) {
         return { statusCode: 500, body: JSON.stringify({ message: `Error generating PDF: ${error.message}` }) };
