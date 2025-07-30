@@ -249,10 +249,13 @@ async function saveTemplate() {
     try {
         const { data: { session } } = await _supabase.auth.getSession();
         if (!session) throw new Error('You must be logged in to save.');
+
+        // *** ตั้งค่าขนาด canvas (portrait/landscape) อย่างถูกต้อง ***
         const orientation = document.querySelector('input[name="orientation"]:checked').value;
-        const canvasSize = orientation === 'portrait'
+        const canvasSize = orientation === 'portrait' 
             ? { width: 255, height: 405 }
             : { width: 405, height: 255 };
+        
         const payload = {
             id: currentTemplateId,
             template_name: document.getElementById('template-name').value,
