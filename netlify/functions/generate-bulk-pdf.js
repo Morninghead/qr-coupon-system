@@ -12,14 +12,41 @@ const PAPER_SPECS = {
   A3: { width: 297, height: 420, usableWidth: 287, usableHeight: 410, safeMargin: 5 }
 };
 
+function drawCropMarks(page, absX, absY, card_w, card_h, color) {
+  const markLen = 3;
+  const markW = pt(markLen);
+  const x0 = pt(absX), x1 = pt(absX + card_w);
+  const y0 = page.getHeight() - pt(absY);
+  const y1 = page.getHeight() - pt(absY + card_h);
+  // top left
+  page.drawLine({ start: { x: x0, y: y0 }, end: { x: x0 + markW, y: y0 }, thickness: 0.35, color });
+  page.drawLine({ start: { x: x0, y: y0 }, end: { x: x0, y: y0 - markW }, thickness: 0.35, color });
+  // top right
+  page.drawLine({ start: { x: x1 - markW, y: y0 }, end: { x: x1, y: y0 }, thickness: 0.35, color });
+  page.drawLine({ start: { x: x1, y: y0 }, end: { x: x1, y: y0 - markW }, thickness: 0.35, color });
+  // bottom left
+  page.drawLine({ start: { x: x0, y: y1 }, end: { x: x0 + markW, y: y1 }, thickness: 0.35, color });
+  page.drawLine({ start: { x: x0, y: y1 + markW }, end: { x: x0, y: y1 }, thickness: 0.35, color });
+  // bottom right
+  page.drawLine({ start: { x: x1 - markW, y: y1 }, end: { x: x1, y: y1 }, thickness: 0.35, color });
+  page.drawLine({ start: { x: x1, y: y1 + markW }, end: { x: x1, y: y1 }, thickness: 0.35, color });
+}
+
+function drawCardBorder(page, absX, absY, card_w, card_h, color) {
+  page.drawRectangle({
+    x: pt(absX),
+    y: page.getHeight() - pt(absY) - pt(card_h),
+    width: pt(card_w),
+    height: pt(card_h),
+    borderWidth: 0.35,
+    color: undefined,
+    borderColor: color
+  });
+}
+
 const fetchImage = async (url) => {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    return response.arrayBuffer();
-  } catch {
-    return null;
-  }
+  try { const response = await fetch(url); if (!response.ok) return null; return response.arrayBuffer(); }
+  catch { return null; }
 };
 
 const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, assets, employee) => {
@@ -66,7 +93,6 @@ exports.handler = async (event) => {
   }
 
   const { template, employees, paperSize = "A4", guideType = "border" } = data || {};
-
   if (!template || !employees || employees.length === 0) {
     return {
       statusCode: 400,
@@ -80,9 +106,13 @@ exports.handler = async (event) => {
   const isPortrait = template.orientation === 'portrait';
   const card_w = isPortrait ? 54 : 85.6, card_h = isPortrait ? 85.6 : 54;
   const scaleX = card_w / cpx, scaleY = card_h / cpy;
-  const PAIR_WIDTH = card_w * 2, PAIR_HEIGHT = card_h;
-  const maxCol = Math.floor(spec.usableWidth / PAIR_WIDTH);
-  const maxRow = Math.floor(spec.usableHeight / PAIR_HEIGHT);
+
+  // 1 block = 3 คู่ (6 ใบ), row = แนวตั้ง, 2 block ต่อ row
+  const maxPairCol = 3;
+  const blockW = card_w * 2 * maxPairCol; // ความกว้าง 1 block (3 คู่)
+  const blockH = card_h;
+  const blocksPerRow = Math.floor((spec.usableWidth) / blockW);
+  const maxRow = Math.floor(spec.usableHeight / blockH);
 
   try {
     const pdfDoc = await PDFDocument.create();
@@ -96,7 +126,6 @@ exports.handler = async (event) => {
     if (template.background_front_url) imageUrls.add(template.background_front_url);
     if (template.background_back_url) imageUrls.add(template.background_back_url);
     employees.forEach(emp => { if(emp.photo_url) imageUrls.add(emp.photo_url); });
-
     const fetchedImages = await Promise.all(Array.from(imageUrls).map(url => fetchImage(url).then(bytes => ({ url, bytes }))));
     const imageAssetMap = new Map();
     for (const { url, bytes } of fetchedImages) {
@@ -107,43 +136,42 @@ exports.handler = async (event) => {
         } catch {}
       }
     }
-
     const assets = { pdfDoc, thaiFont, imageAssetMap, template };
+    const borderColor = rgb(0.7, 0.7, 0.7);
 
     let i = 0;
-    while(i < employees.length) {
+    while (i < employees.length) {
       const page = pdfDoc.addPage([pt(spec.width), pt(spec.height)]);
       const bg = imageAssetMap.get(template.background_front_url);
-      if (bg) {
-        page.drawImage(bg, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
-      }
+      if (bg) page.drawImage(bg, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
 
       for (let row = 0; row < maxRow; row++) {
-        for (let col = 0; col < maxCol; col++) {
-          if (i >= employees.length) break;
-
-          const offsetX = spec.safeMargin + col * PAIR_WIDTH;
-          const offsetY = spec.safeMargin + row * PAIR_HEIGHT;
-
-          // วาดหน้าบัตร (ซ้าย cell)
-          await drawElements(page, template.layout_config_front, offsetX, offsetY, scaleX, scaleY, assets, employees[i]);
-          // วาดหลังบัตร (ขวา cell) ชิดติดกัน
-          await drawElements(page, template.layout_config_back, offsetX + card_w, offsetY, scaleX, scaleY, assets, employees[i]);
-
-          i++;
+        for (let block = 0; block < blocksPerRow; block++) {
+          for (let pairCol = 0; pairCol < maxPairCol; pairCol++) {
+            if (i >= employees.length) break;
+            const baseX = spec.safeMargin + block * blockW + pairCol * 2 * card_w;
+            const baseY = spec.safeMargin + row * blockH;
+            await drawElements(page, template.layout_config_front, baseX, baseY, scaleX, scaleY, assets, employees[i]);
+            await drawElements(page, template.layout_config_back, baseX + card_w, baseY, scaleX, scaleY, assets, employees[i]);
+            if (guideType === "border") {
+              drawCardBorder(page, baseX, baseY, card_w, card_h, borderColor);
+              drawCardBorder(page, baseX + card_w, baseY, card_w, card_h, borderColor);
+            } else if (guideType === "cropmark") {
+              drawCropMarks(page, baseX, baseY, card_w, card_h, borderColor);
+              drawCropMarks(page, baseX + card_w, baseY, card_w, card_h, borderColor);
+            }
+            i++;
+          }
         }
       }
     }
-
     const pdfBytes = await pdfDoc.save();
-
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/pdf' },
       body: Buffer.from(pdfBytes).toString('base64'),
       isBase64Encoded: true
     };
-
   } catch (error) {
     return {
       statusCode: 500,
