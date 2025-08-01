@@ -1,8 +1,9 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import QRCode from 'qrcode';
 import fs from 'fs/promises';
-import path from 'path';
+import path from 'path'; // ต้อง import 'path' เข้ามา
 
+// ... (ฟังก์ชัน createQrCodeImage ไม่มีการเปลี่ยนแปลง)
 async function createQrCodeImage(data) {
     try {
         const dataUrl = await QRCode.toDataURL(data, { errorCorrectionLevel: 'H' });
@@ -14,36 +15,31 @@ async function createQrCodeImage(data) {
     }
 }
 
+
 export const handler = async (event, context) => {
-    // 1. รับข้อมูลจาก Request Body อย่างปลอดภัย
-    // <<< FIX: เพิ่ม Default Value เป็น Array ว่าง ([]) เพื่อป้องกัน error
-    const { records = [] } = JSON.parse(event.body || '{ "records": [] }');
-
-    // ใช้ข้อมูลจำลองหากไม่มีข้อมูลจาก request body ส่งมา
-    const sampleRecords = [
-        { id: 'EMP001', name: 'สมชาย ใจดี', position: 'พนักงานฝ่ายผลิต' },
-        { id: 'EMP002', name: 'สมศรี มีสุข', position: 'พนักงานฝ่ายขาย' },
-        { id: 'EMP003', name: 'มานะ อดทน', position: 'ผู้จัดการ' },
-        { id: 'EMP004', name: 'ปิติ ยินดี', position: 'พนักงานคลังสินค้า' },
-        { id: 'EMP005', name: 'วีระ กล้าหาญ', position: 'เจ้าหน้าที่รักษาความปลอดภัย' }
-    ];
-    
-    // Logic นี้จะทำงานถูกต้องเสมอ เพราะ records จะเป็น array เสมอ
-    const dataToProcess = records.length > 0 ? records : sampleRecords;
-
-    if (dataToProcess.length === 0) {
-        return {
-            statusCode: 400,
-            body: 'No records provided to generate PDF.',
-        };
-    }
-
     try {
+        const { records = [] } = JSON.parse(event.body || '{ "records": [] }');
+
+        const sampleRecords = [
+            { id: 'EMP001', name: 'สมชาย ใจดี', position: 'พนักงานฝ่ายผลิต' },
+            { id: 'EMP002', name: 'สมศรี มีสุข', position: 'พนักงานฝ่ายขาย' },
+        ];
+        
+        const dataToProcess = records.length > 0 ? records : sampleRecords;
+
+        if (dataToProcess.length === 0) {
+            return { statusCode: 400, body: 'No records provided.' };
+        }
+
         const pdfDoc = await PDFDocument.create();
-        const fontPath = path.resolve(process.cwd(), 'netlify/functions/fonts/NotoSansThai-Regular.ttf');
+        
+        // <<< FIX: แก้ไขวิธีการหา Path ของฟอนต์ให้แม่นยำขึ้น
+        // __dirname คือ path ของโฟลเดอร์ที่ไฟล์นี้อยู่ (netlify/functions/)
+        const fontPath = path.resolve(__dirname, 'fonts/NotoSansThai-Regular.ttf');
         const fontBytes = await fs.readFile(fontPath);
         const customFont = await pdfDoc.embedFont(fontBytes);
 
+        // ... (ส่วนที่เหลือของโค้ดในการสร้าง PDF ไม่มีการเปลี่ยนแปลง) ...
         let currentPage;
         const recordsPerPage = 2;
 
@@ -73,27 +69,9 @@ export const handler = async (event, context) => {
                 height: qrDims.height,
             });
 
-            currentPage.drawText(`รหัสพนักงาน: ${record.id}`, {
-                x: padding,
-                y: yOffset - padding,
-                font: customFont,
-                size: 16,
-                color: rgb(0, 0, 0),
-            });
-            currentPage.drawText(`ชื่อ: ${record.name}`, {
-                x: padding,
-                y: yOffset - padding - 30,
-                font: customFont,
-                size: 14,
-                color: rgb(0.2, 0.2, 0.2),
-            });
-            currentPage.drawText(`ตำแหน่ง: ${record.position}`, {
-                x: padding,
-                y: yOffset - padding - 55,
-                font: customFont,
-                size: 12,
-                color: rgb(0.4, 0.4, 0.4),
-            });
+            currentPage.drawText(`รหัสพนักงาน: ${record.id}`, { x: padding, y: yOffset - padding, font: customFont, size: 16 });
+            currentPage.drawText(`ชื่อ: ${record.name}`, { x: padding, y: yOffset - padding - 30, font: customFont, size: 14 });
+            currentPage.drawText(`ตำแหน่ง: ${record.position}`, { x: padding, y: yOffset - padding - 55, font: customFont, size: 12 });
             
             if (recordIndexOnPage < recordsPerPage - 1) {
                 currentPage.drawLine({
@@ -109,10 +87,7 @@ export const handler = async (event, context) => {
 
         return {
             statusCode: 200,
-            headers: {
-                'Content-Type': 'application/pdf',
-                'Content-Disposition': 'attachment; filename="bulk_document.pdf"'
-            },
+            headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'attachment; filename="bulk_document.pdf"' },
             body: Buffer.from(pdfBytes).toString('base64'),
             isBase64Encoded: true,
         };
@@ -125,3 +100,4 @@ export const handler = async (event, context) => {
         };
     }
 };
+
