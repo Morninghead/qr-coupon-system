@@ -5,17 +5,16 @@ const path = require('path');
 const fetch = require('node-fetch');
 const QRCode = require('qrcode');
 
+// --- Helper Functions (ไม่มีการเปลี่ยนแปลง) ---
 const pt = mm => (mm * 72) / 25.4;
 const PAPER_SPECS = {
     A4: { width: 210, height: 297, usableWidth: 200, usableHeight: 287, safeMargin: 5 },
     A3: { width: 297, height: 420, usableWidth: 287, usableHeight: 410, safeMargin: 5 }
 };
-
-// ... (ฟังก์ชัน Helper ทั้งหมด drawCropMarks, drawCardBorder, fetchImage, drawElements ไม่มีการเปลี่ยนแปลง) ...
-function drawCropMarks(page, absX, absY, card_w, card_h, color) { /* ... */ }
-function drawCardBorder(page, absX, absY, card_w, card_h, color) { /* ... */ }
-const fetchImage = async (url) => { /* ... (ใช้เวอร์ชันที่มี Timeout) ... */ };
-const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, assets, employee) => { /* ... */ };
+function drawCropMarks(page, absX, absY, card_w, card_h, color) { /* ... โค้ดเดิม ... */ }
+function drawCardBorder(page, absX, absY, card_w, card_h, color) { /* ... โค้ดเดิม ... */ }
+const fetchImage = async (url) => { /* ... โค้ดเดิมที่มี Timeout ... */ };
+const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, assets, employee) => { /* ... โค้ดเดิม ... */ };
 
 
 exports.handler = async (event) => {
@@ -39,13 +38,7 @@ exports.handler = async (event) => {
     const isPortrait = template.orientation === 'portrait';
     const card_w = isPortrait ? 54 : 85.6, card_h = isPortrait ? 85.6 : 54;
     const scaleX = card_w / cpx, scaleY = card_h / cpy;
-
-    const maxPairCol = 3;
-    const PAIR_WIDTH = card_w * 2, PAIR_PER_BLOCK = maxPairCol;
-    const BLOCK_WIDTH = PAIR_WIDTH * PAIR_PER_BLOCK;
-    const blockGap = 0;
-    const maxBlockPerRow = Math.floor((spec.usableWidth + blockGap) / (BLOCK_WIDTH + blockGap));
-    const maxRow = Math.floor(spec.usableHeight / card_h);
+    const PAIR_WIDTH = card_w * 2;
     const borderColor = rgb(0.7, 0.7, 0.7);
 
     try {
@@ -55,60 +48,64 @@ exports.handler = async (event) => {
         const fontBytes = await fs.readFile(fontPath);
         const thaiFont = await pdfDoc.embedFont(fontBytes);
 
-        // <<< FIX: เพิ่มโค้ดส่วน "Load Images" ที่หายไปกลับเข้ามาที่นี่
+        // --- Load Images (Logic เดิม) ---
         const imageUrls = new Set();
         if (template.logo_url) imageUrls.add(template.logo_url);
         if (template.background_front_url) imageUrls.add(template.background_front_url);
         if (template.background_back_url) imageUrls.add(template.background_back_url);
         employees.forEach(emp => { if (emp.photo_url) imageUrls.add(emp.photo_url); });
-
         const fetchedImages = await Promise.all(Array.from(imageUrls).map(url => fetchImage(url).then(bytes => ({ url, bytes }))));
-        
-        // สร้าง imageAssetMap ขึ้นมาก่อนใช้งาน
-        const imageAssetMap = new Map(); 
+        const imageAssetMap = new Map();
         for (const { url, bytes } of fetchedImages) {
             if (bytes) {
                 try {
                     const image = await pdfDoc.embedPng(bytes).catch(() => pdfDoc.embedJpg(bytes));
                     imageAssetMap.set(url, image);
-                } catch (err) {
-                    console.error(`Error embedding image for URL ${url}:`, err);
-                }
+                } catch (err) { console.error(`Error embedding image for URL ${url}:`, err); }
             }
         }
-        
-        // บรรทัดนี้จะทำงานได้ถูกต้องแล้ว เพราะ imageAssetMap ถูกสร้างแล้ว
         const assets = { pdfDoc, thaiFont, imageAssetMap, template };
 
-        let i = 0;
-        while (i < employees.length) {
+        // <<< FIX: เปลี่ยน Logic การจัดวางใหม่ทั้งหมด ---
+        for (let i = 0; i < employees.length; i++) {
+            const employee = employees[i];
             const page = pdfDoc.addPage([pt(spec.width), pt(spec.height)]);
+
             const bg = imageAssetMap.get(template.background_front_url);
             if (bg) page.drawImage(bg, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
+            
+            // 1. หา "ดัชนีกลุ่ม" (0, 1, 2, ...) โดยการหารด้วย 3
+            const groupIndex = Math.floor(i / 3);
+            
+            // 2. ตรวจสอบว่ากลุ่มเป็นเลขคู่หรือไม่ (กลุ่ม 0, 2, 4... คือกลุ่มซ้าย)
+            const isLeftGroup = (groupIndex % 2 === 0);
+            
+            let baseX;
+            if (isLeftGroup) {
+                // กลุ่มซ้าย (พนักงาน 1-3, 7-9, ...)
+                baseX = spec.safeMargin;
+            } else {
+                // กลุ่มขวา (พนักงาน 4-6, 10-12, ...)
+                baseX = spec.width - spec.safeMargin - PAIR_WIDTH;
+            }
+            
+            // จัดวางกึ่งกลางแนวตั้ง
+            const baseY = (spec.height - card_h) / 2;
 
-            // ... (ส่วน for loops และการวาดบัตรไม่เปลี่ยนแปลง) ...
-            for (let row = 0; row < maxRow && i < employees.length; row++) {
-                for (let block = 0; block < maxBlockPerRow && i < employees.length; block++) {
-                    const baseX = spec.safeMargin + block * (BLOCK_WIDTH + blockGap);
-                    if (baseX + BLOCK_WIDTH > spec.safeMargin + spec.usableWidth) continue;
-                    for (let pair = 0; pair < maxPairCol && i < employees.length; pair++) {
-                        const offsetX = baseX + pair * PAIR_WIDTH, baseY = spec.safeMargin + row * card_h;
-                        try {
-                            await drawElements(page, template.layout_config_front, offsetX, baseY, scaleX, scaleY, assets, employees[i]);
-                            await drawElements(page, template.layout_config_back, offsetX + card_w, baseY, scaleX, scaleY, assets, employees[i]);
-                            if (guideType === "border") {
-                                drawCardBorder(page, offsetX, baseY, card_w, card_h, borderColor);
-                                drawCardBorder(page, offsetX + card_w, baseY, card_w, card_h, borderColor);
-                            } else if (guideType === "cropmark") {
-                                drawCropMarks(page, offsetX, baseY, card_w, card_h, borderColor);
-                                drawCropMarks(page, offsetX + card_w, baseY, card_w, card_h, borderColor);
-                            }
-                        } catch (cellErr) {
-                            console.error('Draw cell error:', cellErr, { block, row, pair, empID: employees[i]?.employee_id });
-                        }
-                        i++;
-                    }
+            // วาดองค์ประกอบของบัตร (Logic เดิม)
+            try {
+                await drawElements(page, template.layout_config_front, baseX, baseY, scaleX, scaleY, assets, employee);
+                await drawElements(page, template.layout_config_back, baseX + card_w, baseY, scaleX, scaleY, assets, employee);
+                
+                if (guideType === "border") {
+                    drawCardBorder(page, baseX, baseY, card_w, card_h, borderColor);
+                    drawCardBorder(page, baseX + card_w, baseY, card_w, card_h, borderColor);
+                } else if (guideType === "cropmark") {
+                    drawCropMarks(page, baseX, baseY, card_w, card_h, borderColor);
+                    drawCropMarks(page, baseX + card_w, baseY, card_w, card_h, borderColor);
                 }
+            } catch (cellErr) {
+                console.error('Draw cell error:', cellErr, { empID: employee?.employee_id });
             }
         }
 
