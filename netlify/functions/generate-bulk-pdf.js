@@ -1,4 +1,5 @@
 import { PDFDocument, rgb } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit'; // <<< FIX 1: Import fontkit
 import QRCode from 'qrcode';
 import fs from 'fs/promises';
 import path from 'path';
@@ -31,8 +32,10 @@ export const handler = async (event, context) => {
 
         const pdfDoc = await PDFDocument.create();
         
-        // <<< FIX: แก้ไข Path ให้มองหาฟอนต์จาก Root ของโปรเจกต์
-        // process.cwd() ใน Netlify Function คือ /var/task/
+        // <<< FIX 2: ลงทะเบียน fontkit กับเอกสาร PDF ของคุณ
+        pdfDoc.registerFontkit(fontkit);
+
+        // โค้ดส่วนที่เหลือทำงานได้ตามปกติแล้ว เพราะเราลงทะเบียน fontkit แล้ว
         const fontPath = path.resolve(process.cwd(), 'fonts/NotoSansThai-Regular.ttf');
         const fontBytes = await fs.readFile(fontPath);
         const customFont = await pdfDoc.embedFont(fontBytes);
@@ -53,7 +56,7 @@ export const handler = async (event, context) => {
 
             const qrCodeData = `EMP_ID:${record.id}`;
             const qrImageBytes = await createQrCodeImage(qrCodeData);
-            if (!qrImageBytes) continue; // ข้ามไปหากสร้าง QR ไม่สำเร็จ
+            if (!qrImageBytes) continue;
             const qrImage = await pdfDoc.embedPng(qrImageBytes);
             const qrDims = qrImage.scale(0.3);
 
