@@ -18,3 +18,18 @@
 # It tells Netlify to include the 'fonts' directory for 'generate-bulk-pdf'.
 [functions."generate-bulk-pdf"]
   included_files = ["fonts/**"]
+
+
+# กำหนดค่าสำหรับฟังก์ชัน generate-bulk-pdf โดยเฉพาะ
+[[functions]]
+  # ชื่อฟังก์ชันต้องตรงกับชื่อไฟล์ (ไม่รวม .js)
+  name = "generate-bulk-pdf"
+  
+  # นี่คือบรรทัดที่สำคัญที่สุดสำหรับแก้ปัญหานี้
+  # บอกให้ Netlify นำไฟล์ทั้งหมดในโฟลเดอร์ fonts ไปด้วย
+  included_files = ["netlify/functions/fonts/**"]
+
+# คุณอาจมีส่วนตั้งค่าสำหรับฟังก์ชันอื่นๆ ด้วย เช่น
+# [[functions]]
+#   name = "generate-bulk-cards"
+#   included_files = ["node_modules/@sparticuz/chromium/bin/**"]
