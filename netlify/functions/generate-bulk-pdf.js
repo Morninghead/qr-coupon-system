@@ -16,14 +16,11 @@ async function createQrCodeImage(data) {
     }
 }
 
-// ฟังก์ชันสำหรับวาดเส้นตัดรอบบัตร
 function drawCutMarks(page, x, y, width, height) {
-    const lineLength = 15; // ความยาวของเส้นตัด
+    const lineLength = 15;
     const color = rgb(0.7, 0.7, 0.7);
     const thickness = 0.5;
     const dashArray = [3, 3];
-
-    // วาดเส้นประ (Dashe Lines) เป็นแนวตัด
     // Top-Left
     page.drawLine({ start: { x: x - lineLength, y: y + height }, end: { x: x + lineLength, y: y + height }, color, thickness, dashArray });
     page.drawLine({ start: { x: x, y: y + height + lineLength }, end: { x: x, y: y + height - lineLength }, color, thickness, dashArray });
@@ -41,15 +38,24 @@ function drawCutMarks(page, x, y, width, height) {
 
 export const handler = async (event, context) => {
     try {
-        // --- 1. การเตรียมข้อมูล ---
+        // --- 1. การเตรียมข้อมูล (ใช้ข้อมูลจริงเท่านั้น) ---
+        // <<< FIX: ลบข้อมูลจำลอง (sampleRecords) ทั้งหมดออก
+        // ดึงข้อมูล "records" จาก body ของ request โดยตรง
         const { records = [] } = JSON.parse(event.body || '{ "records": [] }');
-        const sampleRecords = [
-            { id: 'EMP001', name: 'สมชาย ใจดี', position: 'พนักงานฝ่ายผลิต' },
-            { id: 'EMP002', name: 'สมศรี มีสุข', position: 'พนักงานฝ่ายขาย' },
-            { id: 'EMP003', name: 'มานะ อดทน', position: 'ผู้จัดการ' },
-        ];
-        const dataToProcess = records.length > 0 ? records : sampleRecords;
-        if (dataToProcess.length === 0) return { statusCode: 400, body: 'No records provided.' };
+
+        // ตรวจสอบว่ามีข้อมูลจริงส่งมาหรือไม่ ถ้าไม่ ให้ส่ง error กลับไป
+        if (records.length === 0) {
+            return {
+                statusCode: 400,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    error: "Bad Request",
+                    message: "No records provided in the request body. Please send a JSON array with the key 'records'."
+                })
+            };
+        }
+        // กำหนดให้ dataToProcess คือข้อมูลที่ได้รับมาโดยตรง
+        const dataToProcess = records;
 
         // --- 2. การเตรียมเอกสารและฟอนต์ ---
         const pdfDoc = await PDFDocument.create();
@@ -59,10 +65,8 @@ export const handler = async (event, context) => {
         const customFont = await pdfDoc.embedFont(fontBytes);
 
         // --- 3. การตั้งค่า Layout ตามขนาดบัตรมาตรฐาน ---
-        // ใช้ขนาดบัตรมาตรฐาน CR80 (85.6mm x 53.98mm) แปลงเป็นหน่วย points (1mm = 2.835 points)
-        const CARD_WIDTH = 85.6 * 2.835;  // ~242.6 points
-        const CARD_HEIGHT = 53.98 * 2.835; // ~153.0 points
-        
+        const CARD_WIDTH = 85.6 * 2.835;
+        const CARD_HEIGHT = 53.98 * 2.835;
         const pairsPerPage = 3;
         let currentPage;
 
@@ -77,13 +81,11 @@ export const handler = async (event, context) => {
             const page = currentPage;
             const { width: pageWidth, height: pageHeight } = page.getSize();
             
-            // คำนวณตำแหน่งเริ่มต้นเพื่อจัดให้อยู่กึ่งกลางหน้า
             const totalContentWidth = CARD_WIDTH * 2;
             const totalContentHeight = CARD_HEIGHT * 3;
             const marginX = (pageWidth - totalContentWidth) / 2;
             const marginY = (pageHeight - totalContentHeight) / 2;
 
-            // คำนวณตำแหน่งของแถวปัจจุบัน
             const rowY = pageHeight - marginY - (pairIndexOnPage * CARD_HEIGHT) - CARD_HEIGHT;
 
             // --- 4. วาดบัตรหน้าและหลังตามขนาดมาตรฐาน ---
@@ -92,7 +94,6 @@ export const handler = async (event, context) => {
             // --- วาดบัตรด้านหน้า (ซ้าย) ---
             const frontX = marginX;
             drawCutMarks(page, frontX, rowY, CARD_WIDTH, CARD_HEIGHT);
-            // เนื้อหา
             page.drawText(`รหัส: ${record.id}`, { x: frontX + padding, y: rowY + CARD_HEIGHT - padding - 10, font: customFont, size: 11 });
             page.drawText(`ชื่อ: ${record.name}`, { x: frontX + padding, y: rowY + CARD_HEIGHT - padding - 30, font: customFont, size: 10 });
             page.drawText(`ตำแหน่ง: ${record.position}`, { x: frontX + padding, y: rowY + CARD_HEIGHT - padding - 48, font: customFont, size: 9 });
@@ -100,12 +101,11 @@ export const handler = async (event, context) => {
             // --- วาดบัตรด้านหลัง (ขวา) ---
             const backX = marginX + CARD_WIDTH;
             drawCutMarks(page, backX, rowY, CARD_WIDTH, CARD_HEIGHT);
-            // เนื้อหา (QR Code)
             const qrCodeData = `EMP_ID:${record.id}`;
             const qrImageBytes = await createQrCodeImage(qrCodeData);
             if (qrImageBytes) {
                 const qrImage = await pdfDoc.embedPng(qrImageBytes);
-                const qrDims = qrImage.scale(0.3); // ปรับขนาด QR Code ตามความเหมาะสม
+                const qrDims = qrImage.scale(0.3);
                 page.drawImage(qrImage, {
                     x: backX + (CARD_WIDTH - qrDims.width) / 2,
                     y: rowY + (CARD_HEIGHT - qrDims.height) / 2,
