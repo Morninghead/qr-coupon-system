@@ -1,192 +1,145 @@
-const { PDFDocument, rgb } = require('pdf-lib');
-const fontkit = require('@pdf-lib/fontkit');
-const fs = require('fs/promises');
-const path = require('path');
-const fetch = require('node-fetch');
-const QRCode = require('qrcode');
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import QRCode from 'qrcode';
+import fs from 'fs/promises';
+import path from 'path';
 
-const pt = mm => (mm * 72) / 25.4;
-const PAPER_SPECS = {
-  A4: { width: 210, height: 297, usableWidth: 200, usableHeight: 287, safeMargin: 5 },
-  A3: { width: 297, height: 420, usableWidth: 287, usableHeight: 410, safeMargin: 5 }
-};
-
-function drawCropMarks(page, absX, absY, card_w, card_h, color) {
-  const markLen = 3;
-  const markW = pt(markLen);
-  const x0 = pt(absX), x1 = pt(absX + card_w);
-  const y0 = page.getHeight() - pt(absY);
-  const y1 = page.getHeight() - pt(absY + card_h);
-  page.drawLine({ start: { x: x0, y: y0 }, end: { x: x0 + markW, y: y0 }, thickness: 0.35, color });
-  page.drawLine({ start: { x: x0, y: y0 }, end: { x: x0, y: y0 - markW }, thickness: 0.35, color });
-  page.drawLine({ start: { x: x1 - markW, y: y0 }, end: { x: x1, y: y0 }, thickness: 0.35, color });
-  page.drawLine({ start: { x: x1, y: y0 }, end: { x: x1, y: y0 - markW }, thickness: 0.35, color });
-  page.drawLine({ start: { x: x0, y: y1 }, end: { x: x0 + markW, y: y1 }, thickness: 0.35, color });
-  page.drawLine({ start: { x: x0, y: y1 + markW }, end: { x: x0, y: y1 }, thickness: 0.35, color });
-  page.drawLine({ start: { x: x1 - markW, y: y1 }, end: { x: x1, y: y1 }, thickness: 0.35, color });
-  page.drawLine({ start: { x: x1, y: y1 + markW }, end: { x: x1, y: y1 }, thickness: 0.35, color });
-}
-function drawCardBorder(page, absX, absY, card_w, card_h, color) {
-  page.drawRectangle({
-    x: pt(absX),
-    y: page.getHeight() - pt(absY) - pt(card_h),
-    width: pt(card_w),
-    height: pt(card_h),
-    borderWidth: 0.35,
-    color: undefined,
-    borderColor: color
-  });
-}
-const fetchImage = async (url) => {
-  try { const response = await fetch(url); if (!response.ok) return null; return response.arrayBuffer(); }
-  catch { return null; }
-};
-const drawElements = async (page, layoutConfig, absX, absY, scaleX, scaleY, assets, employee) => {
-  const { pdfDoc, thaiFont, imageAssetMap, template } = assets;
-  for (const id in layoutConfig) {
+// --- ฟังก์ชัน Helper สำหรับการสร้าง QR Code ---
+// สร้าง QR Code และคืนค่าเป็น Buffer รูปภาพ PNG
+async function createQrCodeImage(data) {
     try {
-      const config = layoutConfig[id];
-      if (!config) continue;
-      const type = id.split('-')[0];
-      let text = '', imageBuffer;
-      switch (type) {
-        case 'employee_name': text = employee?.name || ''; break;
-        case 'employee_id': text = employee?.employee_id || ''; break;
-        case 'department_name': text = employee?.department_name || ''; break;
-        case 'text': text = config.text || ''; break;
-        case 'logo': imageBuffer = imageAssetMap.get(template.logo_url); break;
-        case 'photo': imageBuffer = imageAssetMap.get(employee.photo_url); break;
-        case 'qr_code':
-          const qrData = employee?.employee_id || 'no-id';
-          const qrImageBuffer = await QRCode.toBuffer(qrData, { type: 'png' });
-          imageBuffer = { image: await pdfDoc.embedPng(qrImageBuffer), isQr: true };
-          break;
-      }
-      const x = pt(absX + (config.x * scaleX));
-      const y = page.getHeight() - pt(absY + (config.y * scaleY));
-      const w = pt(config.width * scaleX), h = pt(config.height * scaleY);
-      if (imageBuffer) {
-        const image = imageBuffer.isQr ? imageBuffer.image : imageBuffer;
-        if (image) page.drawImage(image, { x, y: y - h, width: w, height: h });
-      } else if (text) {
-        const fontSize = pt((config.fontSize || 12) * ((scaleX + scaleY) / 2));
-        page.drawText(text, { x, y: y - fontSize, font: thaiFont, size: fontSize, color: rgb(0, 0, 0) });
-      }
-    } catch (elemError) {
-      console.error('DrawElement error:', elemError, { id, employee });
+        // สร้าง QR Code เป็น Data URL แล้วแปลงเป็น Buffer
+        const dataUrl = await QRCode.toDataURL(data, { errorCorrectionLevel: 'H' });
+        const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
+        return Buffer.from(base64Data, 'base64');
+    } catch (err) {
+        console.error('Error generating QR code:', err);
+        return null;
     }
-  }
-};
+}
 
-exports.handler = async (event) => {
-  let data;
-  try {
-    data = JSON.parse(event.body);
-  } catch (error) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ message: 'Invalid or empty JSON body.', error: error.message })
-    };
-  }
+// --- Netlify Function Handler ---
+export const handler = async (event, context) => {
+    // 1. รับข้อมูลจาก Request Body
+    // ในสถานการณ์จริง ข้อมูลนี้จะมาจาก event.body
+    // ตัวอย่างนี้ใช้ข้อมูลจำลองเพื่อการสาธิต
+    const { records } = JSON.parse(event.body || '{ "records": [] }');
 
-  const { template, employees, paperSize = "A4", guideType = "border" } = data || {};
-  if (!template || !employees || employees.length === 0) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ message: 'Missing required fields: template or employees.' })
-    };
-  }
+    // ใช้ข้อมูลจำลองหากไม่มีข้อมูลส่งมา
+    const sampleRecords = [
+        { id: 'EMP001', name: 'สมชาย ใจดี', position: 'พนักงานฝ่ายผลิต' },
+        { id: 'EMP002', name: 'สมศรี มีสุข', position: 'พนักงานฝ่ายขาย' },
+        { id: 'EMP003', name: 'มานะ อดทน', position: 'ผู้จัดการ' },
+        { id: 'EMP004', name: 'ปิติ ยินดี', position: 'พนักงานคลังสินค้า' },
+        { id: 'EMP005', name: 'วีระ กล้าหาญ', position: 'เจ้าหน้าที่รักษาความปลอดภัย' }
+    ];
+    const dataToProcess = records.length > 0 ? records : sampleRecords;
 
-  const spec = PAPER_SPECS[paperSize] || PAPER_SPECS.A4;
-  const cpx = template.canvas_width_px || (template.orientation === "portrait" ? 255 : 405);
-  const cpy = template.canvas_height_px || (template.orientation === "portrait" ? 405 : 255);
-  const isPortrait = template.orientation === 'portrait';
-  const card_w = isPortrait ? 54 : 85.6, card_h = isPortrait ? 85.6 : 54;
-  const scaleX = card_w / cpx, scaleY = card_h / cpy;
-
-  // Block/Row กำหนด gap เป็น 0 เพื่อความง่าย (หรือจะ config gap เป็น mm ตามต้องการ)
-  const maxPairCol = 3; // 3 คู่ (6 ใบ) ต่อ block
-  const PAIR_WIDTH = card_w * 2, PAIR_PER_BLOCK = maxPairCol;
-  const BLOCK_WIDTH = PAIR_WIDTH * PAIR_PER_BLOCK;
-  const blockGap = 0; // สามารถตั้งเป็น mm หรือแปลงจาก px ถ้าต้องการ
-  const maxBlockPerRow = Math.floor((spec.usableWidth + blockGap) / (BLOCK_WIDTH + blockGap));
-  const maxRow = Math.floor(spec.usableHeight / card_h);
-  const borderColor = rgb(0.7, 0.7, 0.7);
-
-  try {
-    const pdfDoc = await PDFDocument.create();
-    pdfDoc.registerFontkit(fontkit);
-    const fontPath = path.resolve(process.cwd(), 'fonts/Noto_Sans_Thai/noto-sans-thai-latin-ext-400-normal.woff');
-    const fontBytes = await fs.readFile(fontPath);
-    const thaiFont = await pdfDoc.embedFont(fontBytes);
-
-    // Load images
-    const imageUrls = new Set();
-    if (template.logo_url) imageUrls.add(template.logo_url);
-    if (template.background_front_url) imageUrls.add(template.background_front_url);
-    if (template.background_back_url) imageUrls.add(template.background_back_url);
-    employees.forEach(emp => { if(emp.photo_url) imageUrls.add(emp.photo_url); });
-    const fetchedImages = await Promise.all(Array.from(imageUrls).map(url => fetchImage(url).then(bytes => ({ url, bytes }))));
-    const imageAssetMap = new Map();
-    for (const { url, bytes } of fetchedImages) {
-      if (bytes) {
-        try {
-          const image = await pdfDoc.embedPng(bytes).catch(() => pdfDoc.embedJpg(bytes));
-          imageAssetMap.set(url, image);
-        } catch (err) {
-          console.error(`Error embedding image for URL ${url}:`, err);
-        }
-      }
+    if (dataToProcess.length === 0) {
+        return {
+            statusCode: 400,
+            body: 'No records provided to generate PDF.',
+        };
     }
-    const assets = { pdfDoc, thaiFont, imageAssetMap, template };
 
-    let i = 0;
-    while (i < employees.length) {
-      const page = pdfDoc.addPage([pt(spec.width), pt(spec.height)]);
-      const bg = imageAssetMap.get(template.background_front_url);
-      if (bg) page.drawImage(bg, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
+    try {
+        // 2. สร้างเอกสาร PDF และโหลดฟอนต์
+        const pdfDoc = await PDFDocument.create();
+        
+        // โหลดฟอนต์ภาษาไทย (ต้องแน่ใจว่า path ถูกต้องและไฟล์ถูก include ใน netlify.toml)
+        const fontPath = path.resolve(process.cwd(), 'netlify/functions/fonts/NotoSansThai-Regular.ttf');
+        const fontBytes = await fs.readFile(fontPath);
+        const customFont = await pdfDoc.embedFont(fontBytes);
 
-      for (let row = 0; row < maxRow; row++) {
-        for (let block = 0; block < maxBlockPerRow; block++) {
-          const baseX = spec.safeMargin + block * (BLOCK_WIDTH + blockGap);
-          if (baseX + BLOCK_WIDTH > spec.safeMargin + spec.usableWidth) continue;
-          for (let pair = 0; pair < maxPairCol; pair++) {
-            if (i >= employees.length) break;
-            const offsetX = baseX + pair * PAIR_WIDTH, baseY = spec.safeMargin + row * card_h;
-            try {
-              await drawElements(page, template.layout_config_front, offsetX, baseY, scaleX, scaleY, assets, employees[i]);
-              await drawElements(page, template.layout_config_back, offsetX + card_w, baseY, scaleX, scaleY, assets, employees[i]);
-              if (guideType === "border") {
-                drawCardBorder(page, offsetX, baseY, card_w, card_h, borderColor);
-                drawCardBorder(page, offsetX + card_w, baseY, card_w, card_h, borderColor);
-              } else if (guideType === "cropmark") {
-                drawCropMarks(page, offsetX, baseY, card_w, card_h, borderColor);
-                drawCropMarks(page, offsetX + card_w, baseY, card_w, card_h, borderColor);
-              }
-            } catch (cellErr) {
-              console.error('Draw cell error:', cellErr, { block, row, pair, empID: employees[i]?.employee_id });
-              throw cellErr;
+        // --- หัวใจของ Logic การสร้าง 2 บล็อกต่อหน้า ---
+        let currentPage;
+        const recordsPerPage = 2;
+
+        for (let i = 0; i < dataToProcess.length; i++) {
+            const record = dataToProcess[i];
+            const recordIndexOnPage = i % recordsPerPage; // ตำแหน่งบนหน้าปัจจุบัน (0 หรือ 1)
+
+            // A. สร้างหน้าใหม่เมื่อเริ่มต้นวาดบล็อกแรกของหน้า
+            if (recordIndexOnPage === 0) {
+                currentPage = pdfDoc.addPage(); // ขนาด A4 เริ่มต้น
             }
-            i++;
-          }
+
+            const { width, height } = currentPage.getSize();
+            const blockHeight = height / recordsPerPage;
+
+            // B. คำนวณพิกัด Y ของบล็อกปัจจุบัน
+            // บล็อกบน (index 0) เริ่มที่ด้านบนของหน้า (y=height)
+            // บล็อกล่าง (index 1) เริ่มที่กึ่งกลางหน้า (y=blockHeight)
+            const yOffset = height - (recordIndexOnPage * blockHeight);
+
+            // C. สร้างและฝังรูปภาพ QR Code
+            const qrCodeData = `EMP_ID:${record.id}`; // ข้อมูลที่จะใส่ใน QR Code
+            const qrImageBytes = await createQrCodeImage(qrCodeData);
+            const qrImage = await pdfDoc.embedPng(qrImageBytes);
+            const qrDims = qrImage.scale(0.3); // ย่อขนาด QR Code
+
+            // D. วาดเนื้อหาลงในบล็อกปัจจุบัน
+            const padding = 50;
+            
+            // วาด QR Code ที่มุมขวาบนของบล็อก
+            currentPage.drawImage(qrImage, {
+                x: width - qrDims.width - padding,
+                y: yOffset - qrDims.height - padding,
+                width: qrDims.width,
+                height: qrDims.height,
+            });
+
+            // วาดข้อมูลตัวอักษร
+            currentPage.drawText(`รหัสพนักงาน: ${record.id}`, {
+                x: padding,
+                y: yOffset - padding,
+                font: customFont,
+                size: 16,
+                color: rgb(0, 0, 0),
+            });
+            currentPage.drawText(`ชื่อ: ${record.name}`, {
+                x: padding,
+                y: yOffset - padding - 30, // เลื่อนลงมา 30 units
+                font: customFont,
+                size: 14,
+                color: rgb(0.2, 0.2, 0.2),
+            });
+            currentPage.drawText(`ตำแหน่ง: ${record.position}`, {
+                x: padding,
+                y: yOffset - padding - 55, // เลื่อนลงมาอีก
+                font: customFont,
+                size: 12,
+                color: rgb(0.4, 0.4, 0.4),
+            });
+            
+            // วาดเส้นแบ่งระหว่างบล็อก (ยกเว้นบล็อกสุดท้ายของหน้า)
+            if (recordIndexOnPage < recordsPerPage - 1) {
+                currentPage.drawLine({
+                    start: { x: padding, y: yOffset - blockHeight },
+                    end: { x: width - padding, y: yOffset - blockHeight },
+                    thickness: 0.5,
+                    color: rgb(0.8, 0.8, 0.8),
+                });
+            }
         }
-      }
+
+        // 3. บันทึกไฟล์ PDF และส่งกลับ
+        const pdfBytes = await pdfDoc.save();
+
+        return {
+            statusCode: 200,
+            headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': 'attachment; filename="bulk_document.pdf"'
+            },
+            body: Buffer.from(pdfBytes).toString('base64'),
+            isBase64Encoded: true,
+        };
+
+    } catch (error) {
+        console.error('Failed to generate PDF:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: 'Internal Server Error', message: error.message }),
+        };
     }
-    const pdfBytes = await pdfDoc.save();
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/pdf' },
-      body: Buffer.from(pdfBytes).toString('base64'),
-      isBase64Encoded: true
-    };
-  } catch (error) {
-    console.error('PDF generate error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        message: "Error generating PDF: " + error.message,
-        stack: error.stack
-      })
-    };
-  }
 };
