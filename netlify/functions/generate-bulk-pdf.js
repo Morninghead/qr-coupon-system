@@ -1,7 +1,7 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import QRCode from 'qrcode';
 import fs from 'fs/promises';
-import path from 'path'; // ต้อง import 'path' เข้ามา
+import path from 'path';
 
 // ... (ฟังก์ชัน createQrCodeImage ไม่มีการเปลี่ยนแปลง)
 async function createQrCodeImage(data) {
@@ -18,24 +18,22 @@ async function createQrCodeImage(data) {
 
 export const handler = async (event, context) => {
     try {
+        // ... (ส่วนการรับข้อมูล records เหมือนเดิม)
         const { records = [] } = JSON.parse(event.body || '{ "records": [] }');
-
         const sampleRecords = [
             { id: 'EMP001', name: 'สมชาย ใจดี', position: 'พนักงานฝ่ายผลิต' },
             { id: 'EMP002', name: 'สมศรี มีสุข', position: 'พนักงานฝ่ายขาย' },
         ];
-        
         const dataToProcess = records.length > 0 ? records : sampleRecords;
-
         if (dataToProcess.length === 0) {
             return { statusCode: 400, body: 'No records provided.' };
         }
 
         const pdfDoc = await PDFDocument.create();
         
-        // <<< FIX: แก้ไขวิธีการหา Path ของฟอนต์ให้แม่นยำขึ้น
-        // __dirname คือ path ของโฟลเดอร์ที่ไฟล์นี้อยู่ (netlify/functions/)
-        const fontPath = path.resolve(__dirname, 'fonts/NotoSansThai-Regular.ttf');
+        // <<< FIX: แก้ไข Path ให้มองหาฟอนต์จาก Root ของโปรเจกต์
+        // process.cwd() ใน Netlify Function คือ /var/task/
+        const fontPath = path.resolve(process.cwd(), 'fonts/NotoSansThai-Regular.ttf');
         const fontBytes = await fs.readFile(fontPath);
         const customFont = await pdfDoc.embedFont(fontBytes);
 
@@ -47,9 +45,7 @@ export const handler = async (event, context) => {
             const record = dataToProcess[i];
             const recordIndexOnPage = i % recordsPerPage;
 
-            if (recordIndexOnPage === 0) {
-                currentPage = pdfDoc.addPage();
-            }
+            if (recordIndexOnPage === 0) { currentPage = pdfDoc.addPage(); }
 
             const { width, height } = currentPage.getSize();
             const blockHeight = height / recordsPerPage;
@@ -57,6 +53,7 @@ export const handler = async (event, context) => {
 
             const qrCodeData = `EMP_ID:${record.id}`;
             const qrImageBytes = await createQrCodeImage(qrCodeData);
+            if (!qrImageBytes) continue; // ข้ามไปหากสร้าง QR ไม่สำเร็จ
             const qrImage = await pdfDoc.embedPng(qrImageBytes);
             const qrDims = qrImage.scale(0.3);
 
@@ -100,4 +97,3 @@ export const handler = async (event, context) => {
         };
     }
 };
-
