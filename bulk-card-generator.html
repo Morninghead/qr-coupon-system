@@ -2,38 +2,94 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bulk Card Generator (Background Job)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bulk Card Generator (Background Job System)</title>
+    <!-- โหลด Supabase Client Library จาก CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 20px; color: #333; }
-        .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .btn { padding: 10px 18px; border-radius: 8px; font-weight: 600; color: white; border: none; cursor: pointer; transition: background-color 0.2s; }
-        .btn-generate { background-color: #28a745; }
+        :root {
+            --primary-color: #4f46e5;
+            --success-color: #16a34a;
+            --error-color: #dc2626;
+            --info-color: #2563eb;
+            --light-gray: #f3f4f6;
+            --gray-text: #6b7280;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        h1 { color: var(--primary-color); }
+        .btn {
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-generate { background-color: var(--primary-color); }
         .btn-generate:disabled { background-color: #a0a0a0; cursor: not-allowed; }
-        th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
-        th { background: #f9f9f9; }
-        .message-box { margin-top: 15px; font-weight: bold; padding: 12px; border-radius: 6px; }
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+        th { background: #f9fafb; font-size: 0.9em; text-transform: uppercase; color: var(--gray-text); }
+        .message-box {
+            margin-top: 20px;
+            font-weight: bold;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        #download-link {
+            display: none;
+            margin-top: 15px;
+            text-align: center;
+            background: var(--success-color);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 1.1em;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        #download-link:hover { background-color: #15803d; }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>Bulk Card Generator</h1>
-    <a href="/manage-templates.html">← Back to Manage Templates</a>
     
-    <div id="template-info" style="margin-top: 20px; padding: 15px; background: #eef2ff; border-radius: 8px;">
-        <h2>Using Template: <span id="template-name-display">Loading...</span></h2>
+    <div id="template-info" style="margin-bottom: 20px;">
+        <h3>Template: <span id="template-name-display">Loading...</span></h3>
     </div>
 
-    <div style="margin: 18px 0;">
-        <label for="paper-size-select">ขนาดกระดาษ:
-            <select id="paper-size-select"><option value="A4" selected>A4</option><option value="A3">A3</option></select>
-        </label>
+    <div id="controls" style="margin-bottom: 20px; display: flex; align-items: center; gap: 15px;">
+        <label>ขนาดกระดาษ: <select id="paper-size-select"><option value="A4" selected>A4</option><option value="A3">A3</option></select></label>
+        <div id="selected-count" style="font-weight: 500; color: var(--gray-text);">Selected: 0</div>
     </div>
 
-    <div id="employee-list">
-        <h3>Select Employees</h3>
-        <table id="employee-selection-table" style="width: 100%;">
+    <div class="table-container">
+        <table>
             <thead>
                 <tr>
                     <th style="width: 5%;"><input type="checkbox" id="select-all-employees"/></th>
@@ -41,30 +97,22 @@
                     <th>Name</th>
                 </tr>
             </thead>
-            <tbody id="employee-table-body">
-                <tr><td colspan="3" style="text-align: center; padding: 20px;">Loading employees...</td></tr>
-            </tbody>
+            <tbody id="employee-table-body"></tbody>
         </table>
     </div>
 
     <br />
-    <button id="generate-pdf-btn" class="btn btn-generate" disabled>
-        Generate PDF for Selected (<span id="selected-count">0</span>)
-    </button>
+    <button id="generate-pdf-btn" class="btn btn-generate" disabled>Generate PDF</button>
     
-    <!-- <<< FIX: ส่วนแสดงสถานะและลิงก์ดาวน์โหลดที่ปรับปรุงใหม่ -->
     <div id="pdf-message" class="message-box" style="display: none;"></div>
-    <a id="download-link" href="#" style="display: none; margin-top: 10px; font-size: 1.2em; text-align: center; background: #007bff; color: white; padding: 15px; border-radius: 8px; text-decoration: none;" target="_blank">
-        📥 Download PDF
-    </a>
+    <a id="download-link" href="#" target="_blank">📥 Download PDF</a>
 </div>
 
 <script>
-// --- Global Variables ---
+// --- 1. Global Variables & UI References ---
 let _supabase, selectedTemplate = null, allEmployees = [], selectedEmployeeIds = new Map();
-let pollingInterval = null; // สำหรับหยุดการถามสถานะ
+let pollingInterval = null;
 
-// --- UI Element References ---
 const baseUrl = window.location.origin;
 const templateNameEl = document.getElementById('template-name-display');
 const employeeTableBody = document.getElementById('employee-table-body');
@@ -75,12 +123,13 @@ const pdfMessageEl = document.getElementById('pdf-message');
 const paperSizeSelect = document.getElementById('paper-size-select');
 const downloadLink = document.getElementById('download-link');
 
-// --- Initialization ---
+// --- 2. Initialization ---
 document.addEventListener('DOMContentLoaded', initializeApp);
 
 async function initializeApp() {
     try {
         const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+        if (!response.ok) throw new Error('Failed to load configuration.');
         const config = await response.json();
         _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
         
@@ -88,33 +137,75 @@ async function initializeApp() {
         const templateId = urlParams.get('template_id');
         if (!templateId) throw new Error('No template ID provided in URL.');
         
-        await Promise.all([
-            loadTemplate(templateId),
-            fetchAllEmployees()
-        ]);
-        
-        selectAllCheckbox.addEventListener('change', handleSelectAll);
-        generateBtn.addEventListener('click', startPdfGenerationJob); // <-- เปลี่ยนไปเรียกฟังก์ชันใหม่
+        await Promise.all([ loadTemplate(templateId), fetchAllEmployees() ]);
+        setupEventListeners();
     } catch (error) {
-        console.error("Initialization Error:", error);
-        pdfMessageEl.textContent = `Initialization Error: ${error.message}`;
-        pdfMessageEl.style.color = 'red';
-        pdfMessageEl.style.display = 'block';
+        handleUIError("Initialization Error", error.message);
     }
 }
 
-// --- Data Loading & UI Rendering (โค้ดส่วนนี้ของคุณดีอยู่แล้ว ไม่มีการเปลี่ยนแปลง) ---
-async function loadTemplate(templateId) { /* ... โค้ดเดิม ... */ }
-async function fetchAllEmployees() { /* ... โค้ดเดิม ... */ }
-function renderEmployeeTable(employees) { /* ... โค้ดเดิม ... */ }
-function handleCheckboxChange(event, employee) { /* ... โค้ดเดิม ... */ }
-function handleSelectAll(event) { /* ... โค้ดเดิม ... */ }
-function updateGenerateButton() { /* ... โค้ดเดิม ... */ }
+function setupEventListeners() {
+    selectAllCheckbox.addEventListener('change', handleSelectAll);
+    generateBtn.addEventListener('click', startPdfGenerationJob);
+}
+
+// --- 3. Data Loading & UI Rendering (Logic from your original file) ---
+async function loadTemplate(templateId) {
+    const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
+    if (error) throw new Error(`Could not load template: ${error.message}`);
+    selectedTemplate = data;
+    templateNameEl.textContent = selectedTemplate.template_name;
+}
+
+async function fetchAllEmployees() {
+    const { data, error } = await _supabase.from('combined_employees_view').select('id, employee_id, name, photo_url, department_name');
+    if (error) throw new Error(`Could not fetch employees: ${error.message}`);
+    allEmployees = data;
+    renderEmployeeTable(allEmployees);
+}
+
+function renderEmployeeTable(employees) {
+    employeeTableBody.innerHTML = '';
+    if (employees.length === 0) {
+        employeeTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center;">No employees found.</td></tr>';
+        return;
+    }
+    employees.forEach(emp => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td><input type="checkbox" class="employee-checkbox" data-id="${emp.id}" /></td><td>${emp.employee_id || 'N/A'}</td><td>${emp.name}</td>`;
+        row.querySelector('.employee-checkbox').addEventListener('change', (e) => handleCheckboxChange(e, emp));
+        employeeTableBody.appendChild(row);
+    });
+}
+
+function handleCheckboxChange(event, employee) {
+    if (event.target.checked) selectedEmployeeIds.set(employee.id, employee);
+    else selectedEmployeeIds.delete(employee.id);
+    updateGenerateButton();
+}
+
+function handleSelectAll(event) {
+    const isChecked = event.target.checked;
+    allEmployees.forEach(emp => {
+        const checkbox = employeeTableBody.querySelector(`.employee-checkbox[data-id="${emp.id}"]`);
+        if (checkbox) checkbox.checked = isChecked;
+        if (isChecked) selectedEmployeeIds.set(emp.id, emp);
+    });
+    if (!isChecked) selectedEmployeeIds.clear();
+    updateGenerateButton();
+}
+
+function updateGenerateButton() {
+    const count = selectedEmployeeIds.size;
+    selectedCountSpan.textContent = `Selected: ${count}`;
+    generateBtn.disabled = count === 0;
+    generateBtn.textContent = count > 0 ? `Generate PDF for ${count}` : 'Generate PDF';
+}
 
 
-// =========================================================================
-// <<< FIX: LOGIC ใหม่ทั้งหมดสำหรับ BACKGROUND JOBS >>>
-// =========================================================================
+// =============================================================
+// --- 4. NEW CORE LOGIC: Background Job System ---
+// =============================================================
 
 /**
  * 1. เริ่มต้นกระบวนการ: ส่งคำสั่งสร้าง Job ไปยังเซิร์ฟเวอร์
@@ -122,26 +213,16 @@ function updateGenerateButton() { /* ... โค้ดเดิม ... */ }
 async function startPdfGenerationJob() {
     if (selectedEmployeeIds.size === 0 || !selectedTemplate) return;
 
-    // --- Reset UI ---
-    generateBtn.disabled = true;
-    generateBtn.textContent = '⏳ Processing...';
-    pdfMessageEl.style.display = 'block';
-    pdfMessageEl.style.color = 'blue';
-    pdfMessageEl.textContent = 'Sending request to server...';
-    downloadLink.style.display = 'none';
-    if (pollingInterval) clearInterval(pollingInterval); // หยุดการถามสถานะเก่า
+    resetUIState();
+    updateMessage('Sending request to server...', 'info');
 
     try {
         const { data: { session } } = await _supabase.auth.getSession();
-        if (!session) throw new Error("User not authenticated.");
+        if (!session) throw new Error("User not authenticated. Please log in again.");
 
-        // --- ส่ง Request ไปสร้าง Job ---
         const response = await fetch(`${baseUrl}/.netlify/functions/request-bulk-pdf`, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
             body: JSON.stringify({
                 template: selectedTemplate,
                 employees: Array.from(selectedEmployeeIds.values()),
@@ -155,9 +236,7 @@ async function startPdfGenerationJob() {
         }
 
         const { jobId } = await response.json();
-        pdfMessageEl.textContent = `Job created (ID: ${jobId}). Waiting for worker to process...`;
-        
-        // --- เริ่ม Polling เพื่อถามสถานะ ---
+        updateMessage(`Job created (ID: ${jobId}). Waiting for worker...`, 'info');
         pollingInterval = setInterval(() => checkJobStatus(jobId), 5000);
 
     } catch (error) {
@@ -167,14 +246,13 @@ async function startPdfGenerationJob() {
 
 /**
  * 2. ตรวจสอบสถานะ: ถามเซิร์ฟเวอร์เป็นระยะๆ ว่างานเสร็จหรือยัง
- * @param {string} jobId - ID ของงานที่ต้องการตรวจสอบ
  */
 async function checkJobStatus(jobId) {
     try {
         const response = await fetch(`${baseUrl}/.netlify/functions/get-job-status?jobId=${jobId}`);
         const data = await response.json();
 
-        pdfMessageEl.textContent = `Current status: ${data.status}...`;
+        updateMessage(`Current status: ${data.status}...`, 'info');
         
         if (data.status === 'completed') {
             handleJobSuccess(data.result_url);
@@ -188,31 +266,43 @@ async function checkJobStatus(jobId) {
     }
 }
 
-/**
- * 3. จัดการเมื่อสำเร็จ: แสดงลิงก์ดาวน์โหลดและคืนค่า UI
- * @param {string} url - URL ของไฟล์ PDF ที่สร้างเสร็จ
- */
+// --- 5. UI State Handlers ---
+
+function resetUIState() {
+    generateBtn.disabled = true;
+    generateBtn.textContent = '⏳ Processing...';
+    downloadLink.style.display = 'none';
+    if (pollingInterval) clearInterval(pollingInterval);
+}
+
 function handleJobSuccess(url) {
     clearInterval(pollingInterval);
-    pdfMessageEl.textContent = '✅ PDF generated successfully!';
-    pdfMessageEl.style.color = 'green';
+    updateMessage('✅ PDF generated successfully!', 'success');
     downloadLink.href = url;
     downloadLink.style.display = 'block';
     generateBtn.disabled = false;
-    updateGenerateButton(); // รีเซ็ตข้อความบนปุ่ม
+    updateGenerateButton();
 }
 
-/**
- * 4. จัดการเมื่อล้มเหลว: แสดงข้อผิดพลาดและคืนค่า UI
- * @param {string} message - ข้อความ Error ที่จะแสดง
- */
 function handleJobError(message) {
     clearInterval(pollingInterval);
-    pdfMessageEl.textContent = `❌ ${message}`;
-    pdfMessageEl.style.color = 'red';
+    updateMessage(`❌ ${message}`, 'error');
     generateBtn.disabled = false;
     updateGenerateButton();
 }
+
+function handleUIError(title, message) {
+    employeeTableBody.innerHTML = `<td colspan="3" style="text-align: center; color: var(--error-color);"><strong>${title}</strong><br>${message}</td>`;
+}
+
+function updateMessage(text, type) {
+    pdfMessageEl.textContent = text;
+    pdfMessageEl.style.display = 'block';
+    if (type === 'info') pdfMessageEl.style.backgroundColor = '#dbeafe';
+    if (type === 'success') pdfMessageEl.style.backgroundColor = '#dcfce7';
+    if (type === 'error') pdfMessageEl.style.backgroundColor = '#fee2e2';
+}
+
 </script>
 </body>
 </html>
