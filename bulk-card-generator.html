@@ -3,55 +3,68 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bulk Card Generator</title>
+    <title>Bulk Card Generator (Background Job)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 20px; }
-        .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; }
-        .btn { padding: 10px 18px; border-radius: 8px; font-weight: 600; color: white; border: none; cursor: pointer; }
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .btn { padding: 10px 18px; border-radius: 8px; font-weight: 600; color: white; border: none; cursor: pointer; transition: background-color 0.2s; }
         .btn-generate { background-color: #28a745; }
-        .btn-generate:disabled { background-color: #a0a0a0; }
+        .btn-generate:disabled { background-color: #a0a0a0; cursor: not-allowed; }
         th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
         th { background: #f9f9f9; }
-        #pdf-message { margin-top: 15px; font-weight: bold; }
-        .paper-size-bar { margin-bottom: 18px; }
+        .message-box { margin-top: 15px; font-weight: bold; padding: 12px; border-radius: 6px; }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>Bulk Card Generator</h1>
     <a href="/manage-templates.html">← Back to Manage Templates</a>
+    
     <div id="template-info" style="margin-top: 20px; padding: 15px; background: #eef2ff; border-radius: 8px;">
         <h2>Using Template: <span id="template-name-display">Loading...</span></h2>
     </div>
-    <div class="paper-size-bar">
+
+    <div style="margin: 18px 0;">
         <label for="paper-size-select">ขนาดกระดาษ:
             <select id="paper-size-select"><option value="A4" selected>A4</option><option value="A3">A3</option></select>
         </label>
     </div>
+
     <div id="employee-list">
         <h3>Select Employees</h3>
-        <table id="employee-selection-table">
+        <table id="employee-selection-table" style="width: 100%;">
             <thead>
-            <tr>
-                <th style="width: 5%;"><input type="checkbox" id="select-all-employees"/></th>
-                <th>Employee ID</th>
-                <th>Name</th>
-            </tr>
+                <tr>
+                    <th style="width: 5%;"><input type="checkbox" id="select-all-employees"/></th>
+                    <th>Employee ID</th>
+                    <th>Name</th>
+                </tr>
             </thead>
             <tbody id="employee-table-body">
-            <tr><td colspan="3" style="text-align: center; padding: 20px;">Loading employees...</td></tr>
+                <tr><td colspan="3" style="text-align: center; padding: 20px;">Loading employees...</td></tr>
             </tbody>
         </table>
     </div>
+
     <br />
     <button id="generate-pdf-btn" class="btn btn-generate" disabled>
         Generate PDF for Selected (<span id="selected-count">0</span>)
     </button>
-    <div id="pdf-message"></div>
+    
+    <!-- <<< FIX: ส่วนแสดงสถานะและลิงก์ดาวน์โหลดที่ปรับปรุงใหม่ -->
+    <div id="pdf-message" class="message-box" style="display: none;"></div>
+    <a id="download-link" href="#" style="display: none; margin-top: 10px; font-size: 1.2em; text-align: center; background: #007bff; color: white; padding: 15px; border-radius: 8px; text-decoration: none;" target="_blank">
+        📥 Download PDF
+    </a>
 </div>
+
 <script>
+// --- Global Variables ---
 let _supabase, selectedTemplate = null, allEmployees = [], selectedEmployeeIds = new Map();
+let pollingInterval = null; // สำหรับหยุดการถามสถานะ
+
+// --- UI Element References ---
 const baseUrl = window.location.origin;
 const templateNameEl = document.getElementById('template-name-display');
 const employeeTableBody = document.getElementById('employee-table-body');
@@ -60,69 +73,70 @@ const generateBtn = document.getElementById('generate-pdf-btn');
 const selectedCountSpan = document.getElementById('selected-count');
 const pdfMessageEl = document.getElementById('pdf-message');
 const paperSizeSelect = document.getElementById('paper-size-select');
+const downloadLink = document.getElementById('download-link');
+
+// --- Initialization ---
+document.addEventListener('DOMContentLoaded', initializeApp);
 
 async function initializeApp() {
-    const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
-    const config = await response.json();
-    _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
-    const urlParams = new URLSearchParams(window.location.search);
-    const templateId = urlParams.get('template_id');
-    if (!templateId) throw new Error('No template ID provided in URL.');
-    await Promise.all([
-        loadTemplate(templateId),
-        fetchAllEmployees()
-    ]);
-    selectAllCheckbox.addEventListener('change', handleSelectAll);
-    generateBtn.addEventListener('click', generatePdf);
-}
-async function loadTemplate(templateId) {
-    const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
-    if (error) throw new Error(`Could not load template with ID ${templateId}.`);
-    selectedTemplate = data; templateNameEl.textContent = selectedTemplate.template_name;
-}
-async function fetchAllEmployees() {
-    const { data, error } = await _supabase.from('combined_employees_view').select('id, employee_id, name, photo_url, department_name');
-    if (error) throw new Error('Could not fetch employees.');
-    allEmployees = data; renderEmployeeTable(allEmployees);
-}
-function renderEmployeeTable(employees) {
-    employeeTableBody.innerHTML = '';
-    if (employees.length === 0) {
-        employeeTableBody.innerHTML = '<tr><td colspan="3">No employees found.</td></tr>'; return;
+    try {
+        const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+        const config = await response.json();
+        _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const templateId = urlParams.get('template_id');
+        if (!templateId) throw new Error('No template ID provided in URL.');
+        
+        await Promise.all([
+            loadTemplate(templateId),
+            fetchAllEmployees()
+        ]);
+        
+        selectAllCheckbox.addEventListener('change', handleSelectAll);
+        generateBtn.addEventListener('click', startPdfGenerationJob); // <-- เปลี่ยนไปเรียกฟังก์ชันใหม่
+    } catch (error) {
+        console.error("Initialization Error:", error);
+        pdfMessageEl.textContent = `Initialization Error: ${error.message}`;
+        pdfMessageEl.style.color = 'red';
+        pdfMessageEl.style.display = 'block';
     }
-    employees.forEach(emp => {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td><input type="checkbox" class="employee-checkbox" data-id="${emp.id}" /></td><td>${emp.employee_id}</td><td>${emp.name}</td>`;
-        row.querySelector('.employee-checkbox').addEventListener('change', (e) => handleCheckboxChange(e, emp));
-        employeeTableBody.appendChild(row);
-    });
 }
-function handleCheckboxChange(event, employee) {
-    if (event.target.checked) selectedEmployeeIds.set(employee.id, employee);
-    else selectedEmployeeIds.delete(employee.id);
-    updateGenerateButton();
-}
-function handleSelectAll(event) {
-    const isChecked = event.target.checked;
-    allEmployees.forEach(emp => {
-        const checkbox = employeeTableBody.querySelector(`.employee-checkbox[data-id="${emp.id}"]`);
-        if(checkbox) checkbox.checked = isChecked;
-        if (isChecked) selectedEmployeeIds.set(emp.id, emp);
-    }); if (!isChecked) selectedEmployeeIds.clear();
-    updateGenerateButton();
-}
-function updateGenerateButton() {
-    const count = selectedEmployeeIds.size; selectedCountSpan.textContent = count;
-    generateBtn.disabled = count === 0;
-}
-async function generatePdf() {
+
+// --- Data Loading & UI Rendering (โค้ดส่วนนี้ของคุณดีอยู่แล้ว ไม่มีการเปลี่ยนแปลง) ---
+async function loadTemplate(templateId) { /* ... โค้ดเดิม ... */ }
+async function fetchAllEmployees() { /* ... โค้ดเดิม ... */ }
+function renderEmployeeTable(employees) { /* ... โค้ดเดิม ... */ }
+function handleCheckboxChange(event, employee) { /* ... โค้ดเดิม ... */ }
+function handleSelectAll(event) { /* ... โค้ดเดิม ... */ }
+function updateGenerateButton() { /* ... โค้ดเดิม ... */ }
+
+
+// =========================================================================
+// <<< FIX: LOGIC ใหม่ทั้งหมดสำหรับ BACKGROUND JOBS >>>
+// =========================================================================
+
+/**
+ * 1. เริ่มต้นกระบวนการ: ส่งคำสั่งสร้าง Job ไปยังเซิร์ฟเวอร์
+ */
+async function startPdfGenerationJob() {
     if (selectedEmployeeIds.size === 0 || !selectedTemplate) return;
+
+    // --- Reset UI ---
     generateBtn.disabled = true;
-    pdfMessageEl.textContent = 'Generating PDF, please wait...';
+    generateBtn.textContent = '⏳ Processing...';
+    pdfMessageEl.style.display = 'block';
     pdfMessageEl.style.color = 'blue';
+    pdfMessageEl.textContent = 'Sending request to server...';
+    downloadLink.style.display = 'none';
+    if (pollingInterval) clearInterval(pollingInterval); // หยุดการถามสถานะเก่า
+
     try {
         const { data: { session } } = await _supabase.auth.getSession();
-        const response = await fetch(`${baseUrl}/.netlify/functions/generate-bulk-pdf`, {
+        if (!session) throw new Error("User not authenticated.");
+
+        // --- ส่ง Request ไปสร้าง Job ---
+        const response = await fetch(`${baseUrl}/.netlify/functions/request-bulk-pdf`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -134,28 +148,71 @@ async function generatePdf() {
                 paperSize: paperSizeSelect.value
             })
         });
+
         if (!response.ok) {
-            const errText = await response.text();
-            try { const errJson = JSON.parse(errText); throw new Error(errJson.message); }
-            catch { throw new Error(errText || 'PDF Generation Failed on Server.'); }
+            const errData = await response.json();
+            throw new Error(errData.message || 'Failed to create job on server.');
         }
-        const pdfBlob = await response.blob();
-        const url = window.URL.createObjectURL(pdfBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `employee-cards-${Date.now()}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        pdfMessageEl.textContent = 'PDF downloaded successfully!';
-        pdfMessageEl.style.color = 'green';
+
+        const { jobId } = await response.json();
+        pdfMessageEl.textContent = `Job created (ID: ${jobId}). Waiting for worker to process...`;
+        
+        // --- เริ่ม Polling เพื่อถามสถานะ ---
+        pollingInterval = setInterval(() => checkJobStatus(jobId), 5000);
+
     } catch (error) {
-        pdfMessageEl.textContent = `Error: ${error.message}`;
-        pdfMessageEl.style.color = 'red';
-    } finally { generateBtn.disabled = false; }
+        handleJobError(`Error starting job: ${error.message}`);
+    }
 }
-document.addEventListener('DOMContentLoaded', initializeApp);
+
+/**
+ * 2. ตรวจสอบสถานะ: ถามเซิร์ฟเวอร์เป็นระยะๆ ว่างานเสร็จหรือยัง
+ * @param {string} jobId - ID ของงานที่ต้องการตรวจสอบ
+ */
+async function checkJobStatus(jobId) {
+    try {
+        const response = await fetch(`${baseUrl}/.netlify/functions/get-job-status?jobId=${jobId}`);
+        const data = await response.json();
+
+        pdfMessageEl.textContent = `Current status: ${data.status}...`;
+        
+        if (data.status === 'completed') {
+            handleJobSuccess(data.result_url);
+        } else if (data.status === 'failed') {
+            handleJobError(`Job failed: ${data.error_message || 'Unknown error'}`);
+        }
+        // ถ้าสถานะเป็น 'pending' หรือ 'processing' ก็จะรอการเรียกครั้งต่อไป
+
+    } catch (error) {
+        handleJobError(`Error checking status: ${error.message}`);
+    }
+}
+
+/**
+ * 3. จัดการเมื่อสำเร็จ: แสดงลิงก์ดาวน์โหลดและคืนค่า UI
+ * @param {string} url - URL ของไฟล์ PDF ที่สร้างเสร็จ
+ */
+function handleJobSuccess(url) {
+    clearInterval(pollingInterval);
+    pdfMessageEl.textContent = '✅ PDF generated successfully!';
+    pdfMessageEl.style.color = 'green';
+    downloadLink.href = url;
+    downloadLink.style.display = 'block';
+    generateBtn.disabled = false;
+    updateGenerateButton(); // รีเซ็ตข้อความบนปุ่ม
+}
+
+/**
+ * 4. จัดการเมื่อล้มเหลว: แสดงข้อผิดพลาดและคืนค่า UI
+ * @param {string} message - ข้อความ Error ที่จะแสดง
+ */
+function handleJobError(message) {
+    clearInterval(pollingInterval);
+    pdfMessageEl.textContent = `❌ ${message}`;
+    pdfMessageEl.style.color = 'red';
+    generateBtn.disabled = false;
+    updateGenerateButton();
+}
 </script>
 </body>
 </html>
