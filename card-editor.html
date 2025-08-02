@@ -311,45 +311,55 @@ function makeInteractive(element) {
     const horizontalGuide = document.getElementById('horizontal-guide');
     const snapThreshold = 5;
 
-    interact(element).draggable({
-        listeners: {
-            start(event) { verticalGuide.style.display = 'block'; horizontalGuide.style.display = 'block'; },
-            move(event) {
-                config.x += event.dx; config.y += event.dy;
-                const elementCenterX = config.x + (config.width / 2);
-                const elementCenterY = config.y + (config.height / 2);
-                const parentCenterX = cardPreview.offsetWidth / 2;
-                const parentCenterY = cardPreview.offsetHeight / 2;
-                if (Math.abs(elementCenterX - parentCenterX) < snapThreshold) {
-                    config.x = parentCenterX - (config.width / 2);
-                    verticalGuide.style.backgroundColor = '#28a745';
-                } else { verticalGuide.style.backgroundColor = '#e74c3c'; }
-                if (Math.abs(elementCenterY - parentCenterY) < snapThreshold) {
-                    config.y = parentCenterY - (config.height / 2);
-                    horizontalGuide.style.backgroundColor = '#28a745';
-                } else { horizontalGuide.style.backgroundColor = '#e74c3c'; }
-                event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
+    interact(element)
+        .draggable({
+            listeners: {
+                start(event) { verticalGuide.style.display = 'block'; horizontalGuide.style.display = 'block'; },
+                move(event) {
+                    config.x += event.dx; config.y += event.dy;
+                    const elementCenterX = config.x + (config.width / 2);
+                    const elementCenterY = config.y + (config.height / 2);
+                    const parentCenterX = cardPreview.offsetWidth / 2;
+                    const parentCenterY = cardPreview.offsetHeight / 2;
+                    if (Math.abs(elementCenterX - parentCenterX) < snapThreshold) {
+                        config.x = parentCenterX - (config.width / 2);
+                        verticalGuide.style.backgroundColor = '#28a745';
+                    } else { verticalGuide.style.backgroundColor = '#e74c3c'; }
+                    if (Math.abs(elementCenterY - parentCenterY) < snapThreshold) {
+                        config.y = parentCenterY - (config.height / 2);
+                        horizontalGuide.style.backgroundColor = '#28a745';
+                    } else { horizontalGuide.style.backgroundColor = '#e74c3c'; }
+                    event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
+                },
+                end(event) { verticalGuide.style.display = 'none'; horizontalGuide.style.display = 'none'; }
             },
-            end(event) { verticalGuide.style.display = 'none'; horizontalGuide.style.display = 'none'; }
-        },
-        modifiers: [interact.modifiers.restrictRect({ restriction: 'parent' })]
-    }).resizable({
-        edges: { left: true, right: true, bottom: true, top: true },
-        listeners: {
-            move(event) {
-                config.width = event.rect.width; config.height = event.rect.height;
-                config.x += event.deltaRect.left; config.y += event.deltaRect.top;
-                Object.assign(event.target.style, {
-                    width: `${event.rect.width}px`, height: `${event.rect.height}px`,
-                    transform: `translate(${config.x}px, ${config.y}px)`
-                });
-            }
-        },
-        modifiers: [
-            interact.modifiers.restrictSize({ min: { width: 20, height: 20 } }),
-            interact.modifiers.restrictRect({ restriction: 'parent' })
-        ]
-    });
+            modifiers: [interact.modifiers.restrictRect({ restriction: 'parent' })]
+        })
+        .resizable({
+            edges: { left: true, right: true, bottom: true, top: true },
+            listeners: {
+                move(event) {
+                    config.width = event.rect.width; config.height = event.rect.height;
+                    config.x += event.deltaRect.left; config.y += event.deltaRect.top;
+                    Object.assign(event.target.style, {
+                        width: `${event.rect.width}px`, height: `${event.rect.height}px`,
+                        transform: `translate(${config.x}px, ${config.y}px)`
+                    });
+                }
+            },
+            modifiers: [
+                interact.modifiers.restrictSize({ min: { width: 20, height: 20 } }),
+                interact.modifiers.restrictRect({ restriction: 'parent' }),
+                // NEW: Add aspect ratio modifier for shift key
+                interact.modifiers.aspectRatio({
+                    ratio: 'preserve',
+                    equalDelta: true,
+                    modifiers: [
+                        interact.modifiers.restrictSize({ max: 'parent' })
+                    ]
+                })
+            ]
+        });
 }
 
 async function uploadImage(file, folder) {
