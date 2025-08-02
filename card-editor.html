@@ -16,75 +16,84 @@
         .card-preview.portrait { width: 255px; height: 405px; }
         .card-preview.landscape { width: 405px; height: 255px; }
         .card-element { position: absolute; border: 1px dashed #3498db; box-sizing: border-box; cursor: move; user-select: none; display: flex; align-items: center; justify-content: center; background: rgba(52, 152, 219, 0.1); }
+        .card-element.active-selection { border: 2px solid var(--primary); background: rgba(99, 102, 241, 0.2); }
         .card-element img, .card-element div, .card-element span { width: 100%; height: 100%; object-fit: contain; text-align: center; pointer-events: none; }
         .card-element:hover .delete-btn { display: block; }
         .delete-btn { display: none; position: absolute; top: -10px; right: -10px; width: 20px; height: 20px; background: #e74c3c; color: white; border: none; border-radius: 50%; cursor: pointer; font-weight: bold; line-height: 20px; text-align: center; z-index: 10; }
-        
-        /* NEW: Styles for Snap Guidelines */
         .snap-guideline { position: absolute; background-color: #e74c3c; display: none; z-index: 0; }
         .snap-guideline.vertical { width: 1px; height: 100%; top: 0; left: 50%; }
         .snap-guideline.horizontal { height: 1px; width: 100%; left: 0; top: 50%; }
-        
         .control-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], input[type="url"], input[type="file"], select, button { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        input[type="text"], input[type="url"], input[type="file"], input[type="number"], select, button { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        input[type="file"] { display: none; }
+        .upload-btn-label { display: block; background-color: #f0f0f0; text-align: center; padding: 8px; margin-top: 5px; cursor: pointer; border-radius: 4px; font-size: 12px; border: 1px solid #ccc; }
+        .upload-btn-label:hover { background-color: #e0e0e0; }
         .radio-group { display: flex; align-items: center; gap: 15px; border: 1px solid #ccc; border-radius: 4px; padding: 5px; }
         .radio-group input[type="radio"] { width: auto; }
         .radio-group label { margin-bottom: 0; font-weight: normal; }
         .element-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        #save-template-btn { background-color: #28a745; color: white; font-weight: bold; margin-top: auto; }
+        #save-template-btn { background-color: #28a745; color: white; font-weight: bold; margin-top: 15px; }
         .view-switcher { display: flex; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
         .view-switcher button { width: 50%; border: none; background: #fff; cursor: pointer; border-radius: 0; padding: 10px; }
         .view-switcher button.active { background: var(--primary); color: white; }
+        #properties-panel { margin-top: auto; padding-top: 15px; border-top: 1px solid #eee; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h2 id="editor-title">Create New Template</h2>
-    <div class="control-group">
-        <label for="template-name">Template Name</label>
-        <input type="text" id="template-name" placeholder="e.g., Standard Employee Card">
-    </div>
-    <div class="control-group">
-        <label>Orientation</label>
-        <div class="radio-group">
-            <input type="radio" id="orientation-landscape" name="orientation" value="landscape" checked>
-            <label for="orientation-landscape">Landscape</label>
-            <input type="radio" id="orientation-portrait" name="orientation" value="portrait">
-            <label for="orientation-portrait">Portrait</label>
+    <div>
+        <h2 id="editor-title">Create New Template</h2>
+        <div class="control-group">
+            <label for="template-name">Template Name</label>
+            <input type="text" id="template-name" placeholder="e.g., Standard Employee Card">
+        </div>
+        <div class="control-group">
+            <label>Orientation</label>
+            <div class="radio-group">
+                <input type="radio" id="orientation-landscape" name="orientation" value="landscape" checked>
+                <label for="orientation-landscape">Landscape</label>
+                <input type="radio" id="orientation-portrait" name="orientation" value="portrait">
+                <label for="orientation-portrait">Portrait</label>
+            </div>
+        </div>
+        <hr>
+        <h3>Layout Control</h3>
+        <div class="control-group">
+            <label>Editing Side</label>
+            <div class="view-switcher">
+                <button id="front-view-btn" class="active">Front</button>
+                <button id="back-view-btn">Back</button>
+            </div>
+        </div>
+        <div class="control-group">
+            <label for="background-url">Background URL</label>
+            <input type="url" id="background-url" placeholder="Paste URL or upload image below">
+            <input type="file" id="background-upload-input" accept="image/png, image/jpeg">
+            <label for="background-upload-input" class="upload-btn-label">📁 Upload Background</label>
+        </div>
+        <div class="control-group">
+            <label for="logo-upload-input">Template Logo</label>
+            <input type="file" id="logo-upload-input" accept="image/png, image/jpeg">
+            <label for="logo-upload-input" class="upload-btn-label">📁 Upload Logo</label>
+            <img id="logo-preview" src="" style="max-width: 100%; margin-top: 10px; border: 1px dashed #ccc; min-height: 50px;">
+        </div>
+        <hr>
+        <h3>Add Elements</h3>
+        <div class="element-buttons">
+            <button onclick="addElement('photo')">Photo</button>
+            <button onclick="addElement('employee_name')">Name</button>
+            <button onclick="addElement('employee_id')">Employee ID</button>
+            <button onclick="addElement('department_name')">Department</button>
+            <button onclick="addElement('qr_code')">QR Code</button>
+            <button onclick="addElement('logo')">Logo</button>
+            <button onclick="addElement('text')">Custom Text</button>
         </div>
     </div>
-    <hr>
-    <h3>Layout Control</h3>
-    <div class="control-group">
-        <label>Editing Side</label>
-        <div class="view-switcher">
-            <button id="front-view-btn" class="active">Front</button>
-            <button id="back-view-btn">Back</button>
-        </div>
-    </div>
-    <div class="control-group">
-        <label for="background-url">Background URL</label>
-        <input type="url" id="background-url" placeholder="https://.../bg.jpg">
-    </div>
-    <div class="control-group">
-        <label for="logo-upload">Template Logo</label>
-        <input type="file" id="logo-upload" accept="image/png, image/jpeg">
-        <img id="logo-preview" src="" style="max-width: 100%; margin-top: 10px; border: 1px dashed #ccc; min-height: 50px;">
-    </div>
-    <hr>
-    <h3>Add Elements</h3>
-    <div class="element-buttons">
-        <button onclick="addElement('photo')">Photo</button>
-        <button onclick="addElement('employee_name')">Name</button>
-        <button onclick="addElement('employee_id')">Employee ID</button>
-        <button onclick="addElement('department_name')">Department</button>
-        <button onclick="addElement('qr_code')">QR Code</button>
-        <button onclick="addElement('logo')">Logo</button>
-        <button onclick="addElement('text')">Custom Text</button>
-    </div>
-    <hr>
+    
+    <div id="properties-panel"></div>
+
     <button id="save-template-btn">Save Template</button>
     <a href="/menu.html" style="text-align: center; display: block; margin-top: 10px;">Back to Menu</a>
     <div id="message" style="margin-top: 15px;"></div>
@@ -92,8 +101,7 @@
 
 <div class="main-content">
     <div class="card-container">
-        <div id="card-preview" class="card-preview landscape">
-             </div>
+        <div id="card-preview" class="card-preview landscape"></div>
     </div>
 </div>
 
@@ -105,50 +113,40 @@ let currentSide = 'front';
 let layoutConfigs = { front: {}, back: {} };
 let backgroundUrls = { front: '', back: '' };
 let logoUrl = '';
+let activeElementId = null;
 
 const cardPreview = document.getElementById('card-preview');
 const backgroundUrlInput = document.getElementById('background-url');
+const backgroundUploadInput = document.getElementById('background-upload-input');
 const saveBtn = document.getElementById('save-template-btn');
 const frontViewBtn = document.getElementById('front-view-btn');
 const backViewBtn = document.getElementById('back-view-btn');
-const logoUploadInput = document.getElementById('logo-upload');
+const logoUploadInput = document.getElementById('logo-upload-input');
 const logoPreview = document.getElementById('logo-preview');
 const templateNameInput = document.getElementById('template-name');
 const editorTitle = document.getElementById('editor-title');
+const propertiesPanel = document.getElementById('properties-panel');
 
 async function loadTemplateData(templateId) {
     showMessage('Loading template data...', 'info');
     try {
-        const { data, error } = await _supabase
-            .from('card_templates')
-            .select('*')
-            .eq('id', templateId)
-            .single();
-
+        const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
         if (error) throw error;
-        if (!data) throw new Error('Template not found.');
-
         currentTemplateId = data.id;
         templateNameInput.value = data.template_name;
         editorTitle.textContent = `Editing: ${data.template_name}`;
-        
         document.getElementById(`orientation-${data.orientation}`).checked = true;
         cardPreview.className = `card-preview ${data.orientation}`;
-
         logoUrl = data.logo_url || '';
         logoPreview.src = logoUrl;
         backgroundUrls.front = data.background_front_url || '';
         backgroundUrls.back = data.background_back_url || '';
         layoutConfigs.front = data.layout_config_front || {};
         layoutConfigs.back = data.layout_config_back || {};
-        
         switchView('front');
         showMessage('Template loaded successfully.', 'success');
-
     } catch (error) {
-        console.error('Error loading template:', error);
         showMessage(`Failed to load template: ${error.message}`, 'error');
-        editorTitle.textContent = 'Error Loading Template';
     }
 }
 
@@ -163,6 +161,8 @@ function editTextElement(id) {
 }
 
 function switchView(side) {
+    activeElementId = null;
+    updatePropertiesPanel();
     currentSide = side;
     frontViewBtn.classList.toggle('active', side === 'front');
     backViewBtn.classList.toggle('active', side === 'back');
@@ -173,7 +173,6 @@ function switchView(side) {
 
 function renderElements() {
     cardPreview.innerHTML = '';
-    // NEW: Add guidelines to the preview area
     cardPreview.innerHTML += '<div id="vertical-guide" class="snap-guideline vertical"></div><div id="horizontal-guide" class="snap-guideline horizontal"></div>';
     const config = layoutConfigs[currentSide];
     for (const key in config) {
@@ -193,15 +192,23 @@ function createVisualElement(id, config) {
     switch(type) {
         case 'photo': content = `<img src="https://placehold.co/100x100/EFEFEF/AAAAAA&text=Photo" alt="Photo">`; break;
         case 'logo': content = `<img src="${currentLogoSrc}" alt="Logo">`; break;
-        case 'employee_name': content = `<span>John Doe</span>`; break;
-        case 'employee_id': content = `<span>12345</span>`; break;
-        case 'department_name': content = `<span>Marketing</span>`; break;
-        case 'qr_code': content = `<div><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=example" style="width:100%;height:100%;"></div>`; break;
+        case 'employee_name':
+        case 'employee_id':
+        case 'department_name':
         case 'text':
             el.setAttribute('ondblclick', `editTextElement('${id}')`);
-            el.title = 'Double-click to edit text';
-            content = `<span style="padding: 5px;">${config.text || 'Custom Text'}</span>`;
+            if(type === 'text') el.title = 'Double-click to edit text';
+            
+            let displayText = 'Sample Text';
+            if (type === 'employee_name') displayText = 'John Doe';
+            if (type === 'employee_id') displayText = '12345';
+            if (type === 'department_name') displayText = 'Marketing';
+            if (type === 'text') displayText = config.text || 'Custom Text';
+            
+            content = `<span style="font-size:${config.fontSize || 16}px;">${displayText}</span>`;
             break;
+        case 'qr_code': 
+            content = `<div><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=example" style="width:100%;height:100%;"></div>`; break;
     }
     el.innerHTML = content + '<button class="delete-btn" onclick="removeElement(this.parentElement.id)">X</button>';
     return el;
@@ -209,14 +216,43 @@ function createVisualElement(id, config) {
 
 function addElement(type) {
     const id = `${type}-${Date.now()}`;
-    layoutConfigs[currentSide][id] = { x: 10, y: 10, width: 100, height: type === 'text' ? 30 : 100, text: 'Custom Text' };
+    layoutConfigs[currentSide][id] = { 
+        x: 10, y: 10, 
+        width: 100, height: type.includes('text') || type.includes('name') || type.includes('id') ? 30 : 100, 
+        text: 'Custom Text', fontSize: 16
+    };
     renderElements();
 }
 
 function removeElement(id) {
     event.stopPropagation();
     delete layoutConfigs[currentSide][id];
+    activeElementId = null;
+    updatePropertiesPanel();
     renderElements();
+}
+
+function updatePropertiesPanel() {
+    propertiesPanel.innerHTML = '';
+    if (!activeElementId) return;
+
+    const config = layoutConfigs[currentSide][activeElementId];
+    const type = activeElementId.split('-')[0];
+
+    if (['employee_name', 'employee_id', 'department_name', 'text'].includes(type)) {
+        propertiesPanel.innerHTML = `
+            <h4>Element Properties</h4>
+            <div class="control-group">
+                <label for="font-size-input">Font Size (px)</label>
+                <input type="number" id="font-size-input" value="${config.fontSize || 16}">
+            </div>
+        `;
+        document.getElementById('font-size-input').addEventListener('input', (e) => {
+            config.fontSize = e.target.value;
+            const elToUpdate = document.getElementById(activeElementId)?.querySelector('span');
+            if (elToUpdate) elToUpdate.style.fontSize = `${e.target.value}px`;
+        });
+    }
 }
 
 function makeInteractive(element) {
@@ -225,101 +261,99 @@ function makeInteractive(element) {
     element.style.width = `${config.width}px`;
     element.style.height = `${config.height}px`;
     element.style.transform = `translate(${config.x}px, ${config.y}px)`;
+    
+    if (id === activeElementId) element.classList.add('active-selection');
+    
+    element.addEventListener('click', (e) => {
+        e.stopPropagation();
+        activeElementId = id;
+        document.querySelectorAll('.card-element').forEach(el => el.classList.remove('active-selection'));
+        element.classList.add('active-selection');
+        updatePropertiesPanel();
+    });
 
-    // --- UPDATED: Add snapping and guideline logic ---
     const verticalGuide = document.getElementById('vertical-guide');
     const horizontalGuide = document.getElementById('horizontal-guide');
     const snapThreshold = 5;
 
-    interact(element)
-        .draggable({
-            listeners: {
-                start (event) {
-                    verticalGuide.style.display = 'block';
-                    horizontalGuide.style.display = 'block';
-                },
-                move (event) {
-                    config.x += event.dx;
-                    config.y += event.dy;
-
-                    const elementCenterX = config.x + (config.width / 2);
-                    const elementCenterY = config.y + (config.height / 2);
-                    const parentCenterX = cardPreview.offsetWidth / 2;
-                    const parentCenterY = cardPreview.offsetHeight / 2;
-                    
-                    // Vertical snapping
-                    if (Math.abs(elementCenterX - parentCenterX) < snapThreshold) {
-                        config.x = parentCenterX - (config.width / 2);
-                        verticalGuide.style.backgroundColor = '#28a745'; // Green
-                    } else {
-                        verticalGuide.style.backgroundColor = '#e74c3c'; // Red
-                    }
-                    
-                    // Horizontal snapping
-                    if (Math.abs(elementCenterY - parentCenterY) < snapThreshold) {
-                        config.y = parentCenterY - (config.height / 2);
-                        horizontalGuide.style.backgroundColor = '#28a745'; // Green
-                    } else {
-                        horizontalGuide.style.backgroundColor = '#e74c3c'; // Red
-                    }
-
-                    event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
-                },
-                end (event) {
-                    verticalGuide.style.display = 'none';
-                    horizontalGuide.style.display = 'none';
-                }
+    interact(element).draggable({
+        listeners: {
+            start(event) { verticalGuide.style.display = 'block'; horizontalGuide.style.display = 'block'; },
+            move(event) {
+                config.x += event.dx; config.y += event.dy;
+                const elementCenterX = config.x + (config.width / 2);
+                const elementCenterY = config.y + (config.height / 2);
+                const parentCenterX = cardPreview.offsetWidth / 2;
+                const parentCenterY = cardPreview.offsetHeight / 2;
+                if (Math.abs(elementCenterX - parentCenterX) < snapThreshold) {
+                    config.x = parentCenterX - (config.width / 2);
+                    verticalGuide.style.backgroundColor = '#28a745';
+                } else { verticalGuide.style.backgroundColor = '#e74c3c'; }
+                if (Math.abs(elementCenterY - parentCenterY) < snapThreshold) {
+                    config.y = parentCenterY - (config.height / 2);
+                    horizontalGuide.style.backgroundColor = '#28a745';
+                } else { horizontalGuide.style.backgroundColor = '#e74c3c'; }
+                event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
             },
-            modifiers: [ interact.modifiers.restrictRect({ restriction: 'parent' }) ]
-        })
-        .resizable({
-            edges: { left: true, right: true, bottom: true, top: true },
-            listeners: {
-                move(event) {
-                    config.width = event.rect.width;
-                    config.height = event.rect.height;
-                    config.x += event.deltaRect.left;
-                    config.y += event.deltaRect.top;
-                    Object.assign(element.style, {
-                        width: `${event.rect.width}px`,
-                        height: `${event.rect.height}px`,
-                        transform: `translate(${config.x}px, ${config.y}px)`
-                    });
-                }
-            },
-            modifiers: [
-                interact.modifiers.restrictSize({ min: { width: 20, height: 20 } }),
-                interact.modifiers.restrictRect({ restriction: 'parent' })
-            ]
-        });
+            end(event) { verticalGuide.style.display = 'none'; horizontalGuide.style.display = 'none'; }
+        },
+        modifiers: [interact.modifiers.restrictRect({ restriction: 'parent' })]
+    }).resizable({
+        edges: { left: true, right: true, bottom: true, top: true },
+        listeners: {
+            move(event) {
+                config.width = event.rect.width; config.height = event.rect.height;
+                config.x += event.deltaRect.left; config.y += event.deltaRect.top;
+                Object.assign(event.target.style, {
+                    width: `${event.rect.width}px`, height: `${event.rect.height}px`,
+                    transform: `translate(${config.x}px, ${config.y}px)`
+                });
+            }
+        },
+        modifiers: [
+            interact.modifiers.restrictSize({ min: { width: 20, height: 20 } }),
+            interact.modifiers.restrictRect({ restriction: 'parent' })
+        ]
+    });
+}
+
+async function uploadImage(file, folder) {
+    if (!file) return null;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `template-${currentTemplateId || 'new'}-${Date.now()}.${fileExt}`;
+    const filePath = `${folder}/${fileName}`;
+    
+    showMessage(`Uploading ${folder.replace(/-/g, ' ')}...`, 'info');
+    try {
+        const { error } = await _supabase.storage.from('images').upload(filePath, file, { upsert: true });
+        if (error) throw error;
+        const { data } = _supabase.storage.from('images').getPublicUrl(filePath);
+        showMessage('Upload successful!', 'success');
+        return data.publicUrl;
+    } catch (error) {
+        showMessage(`Upload failed: ${error.message}`, 'error');
+        return null;
+    }
 }
 
 async function handleLogoUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        logoPreview.src = e.target.result;
+    logoUrl = await uploadImage(file, 'card-template-logos');
+    if (logoUrl) {
+        logoPreview.src = logoUrl;
         renderElements();
-    };
-    reader.readAsDataURL(file);
-    const fileExt = file.name.split('.').pop();
-    const fileName = `template-${currentTemplateId || 'new'}-${Date.now()}.${fileExt}`;
-    const filePath = `card-template-logos/${fileName}`;
-    showMessage('Uploading logo...', 'info');
-    try {
-        const { error: uploadError } = await _supabase.storage
-            .from('images')
-            .upload(filePath, file, { upsert: true });
-        if (uploadError) throw uploadError;
-        const { data: urlData } = _supabase.storage
-            .from('images')
-            .getPublicUrl(filePath);
-        logoUrl = urlData.publicUrl; 
-        showMessage('Logo uploaded successfully!', 'success');
-    } catch(error) {
-        console.error('Logo Upload Error:', error);
-        showMessage('Logo upload failed: ' + error.message, 'error');
+    }
+}
+
+async function handleBackgroundUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const newBgUrl = await uploadImage(file, 'card-template-backgrounds');
+    if (newBgUrl) {
+        backgroundUrls[currentSide] = newBgUrl;
+        backgroundUrlInput.value = newBgUrl;
+        cardPreview.style.backgroundImage = `url('${newBgUrl}')`;
     }
 }
 
@@ -329,23 +363,14 @@ async function saveTemplate() {
     try {
         const { data: { session } } = await _supabase.auth.getSession();
         if (!session) throw new Error('You must be logged in to save.');
-
         const orientation = document.querySelector('input[name="orientation"]:checked').value;
-        const canvasSize = orientation === 'portrait' 
-            ? { width: 255, height: 405 }
-            : { width: 405, height: 255 };
-        
+        const canvasSize = orientation === 'portrait' ? { width: 255, height: 405 } : { width: 405, height: 255 };
         const payload = {
-            id: currentTemplateId,
-            template_name: templateNameInput.value,
-            orientation,
-            logo_url: logoUrl,
-            background_front_url: backgroundUrls.front,
-            background_back_url: backgroundUrls.back,
-            layout_config_front: layoutConfigs.front,
-            layout_config_back: layoutConfigs.back,
-            canvas_width_px: canvasSize.width,
-            canvas_height_px: canvasSize.height
+            id: currentTemplateId, template_name: templateNameInput.value,
+            orientation, logo_url: logoUrl,
+            background_front_url: backgroundUrls.front, background_back_url: backgroundUrls.back,
+            layout_config_front: layoutConfigs.front, layout_config_back: layoutConfigs.back,
+            canvas_width_px: canvasSize.width, canvas_height_px: canvasSize.height
         };
         const response = await fetch(`${baseUrl}/.netlify/functions/upsert-card-template`, {
             method: 'POST',
@@ -381,7 +406,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const urlParams = new URLSearchParams(window.location.search);
         const templateIdFromUrl = urlParams.get('template_id');
-
         if (templateIdFromUrl) {
             await loadTemplateData(templateIdFromUrl);
         } else {
@@ -393,12 +417,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('input[name="orientation"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 cardPreview.className = `card-preview ${e.target.value}`;
+                activeElementId = null; updatePropertiesPanel();
             });
         });
         backgroundUrlInput.addEventListener('input', (e) => {
             backgroundUrls[currentSide] = e.target.value;
             cardPreview.style.backgroundImage = `url('${e.target.value}')`;
         });
+        
+        backgroundUploadInput.addEventListener('change', handleBackgroundUpload);
         logoUploadInput.addEventListener('change', handleLogoUpload);
         saveBtn.addEventListener('click', saveTemplate);
         
