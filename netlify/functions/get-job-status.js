@@ -18,25 +18,21 @@ exports.handler = async (event) => {
         // Use the admin client to query the table, bypassing RLS.
         const { data, error } = await supabaseAdmin
             .from('pdf_generation_jobs')
-            .select('status, result_url, error_message')
+            .select('status, result_url, error_message, progress, progress_message') // <-- Added progress columns
             .eq('id', jobId)
-            .maybeSingle(); // Use maybeSingle() to handle "not found" gracefully
+            .maybeSingle(); 
 
-        // This error now only triggers for real problems (like bad connection), not "not found".
         if (error) {
             throw error;
         }
         
-        // If data is null, the job is not yet visible in the DB.
-        // This is an expected state during the first few polls.
         if (!data) {
             return { 
-                statusCode: 200, // It's not a server error, it's an expected state
+                statusCode: 200, 
                 body: JSON.stringify({ status: 'pending', message: 'Job not yet visible, polling continues...' }) 
             };
         }
 
-        // If data is found, return it as normal.
         return {
             statusCode: 200,
             body: JSON.stringify(data)
