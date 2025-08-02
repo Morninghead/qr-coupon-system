@@ -3,7 +3,7 @@
 // --- Imports ---
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, rgb } = require('pdf-lib');
 const QRCode = require('qrcode');
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
@@ -22,71 +22,60 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, serviceKey);
 
 // =========================================================================
-// --- PDF GENERATION LOGIC (REVISED FOR RELIABILITY) ---
+// --- PDF GENERATION LOGIC (FINAL LAYOUT) ---
 // =========================================================================
 
-// NEW: Define reference canvas dimensions used by the card editor.
 const CANVAS_DIMENSIONS = {
     portrait: { width: 255, height: 405 },
     landscape: { width: 405, height: 255 }
 };
 
 /**
- * Generates the HTML for a single card side (front or back).
+ * Helper function to draw crop marks around a card.
  */
-const generateCardHtml = async (employee, template, side) => {
-    console.log(`--- Generating HTML for Employee ID: ${employee.employee_id}, Side: ${side} ---`);
+function drawCropMarks(page, x, y, width, height) {
+    const markLength = 4; // mm
+    const markOffset = 1; // mm
+    const color = rgb(0.5, 0.5, 0.5);
+    const thickness = 0.25; // pt
 
+    // Top-left
+    page.drawLine({ start: { x: x - markOffset, y: y + height }, end: { x: x - markOffset - markLength, y: y + height }, color, thickness });
+    page.drawLine({ start: { x: x, y: y + height + markOffset }, end: { x: x, y: y + height + markOffset + markLength }, color, thickness });
+    // Top-right
+    page.drawLine({ start: { x: x + width + markOffset, y: y + height }, end: { x: x + width + markOffset + markLength, y: y + height }, color, thickness });
+    page.drawLine({ start: { x: x + width, y: y + height + markOffset }, end: { x: x + width, y: y + height + markOffset + markLength }, color, thickness });
+    // Bottom-left
+    page.drawLine({ start: { x: x - markOffset, y: y }, end: { x: x - markOffset - markLength, y: y }, color, thickness });
+    page.drawLine({ start: { x: x, y: y - markOffset }, end: { x: x, y: y - markOffset - markLength }, color, thickness });
+    // Bottom-right
+    page.drawLine({ start: { x: x + width + markOffset, y: y }, end: { x: x + width + markOffset + markLength, y: y }, color, thickness });
+    page.drawLine({ start: { x: x + width, y: y - markOffset }, end: { x: x + width, y: y - markOffset - markLength }, color, thickness });
+}
+
+
+const generateCardHtml = async (employee, template, side) => {
     const layoutConfig = side === 'front' ? template.layout_config_front : template.layout_config_back;
     const backgroundUrl = side === 'front' ? template.background_front_url : template.background_back_url;
+    if (!layoutConfig || Object.keys(layoutConfig).length === 0) return `<html><body></body></html>`;
 
-    if (!layoutConfig || Object.keys(layoutConfig).length === 0) {
-        console.log(`No layout_config found for side: ${side}. Returning empty page.`);
-        return `<html><body></body></html>`;
-    }
+    let finalPhotoUrl = employee.photo_url || `https://placehold.co/400x400/EFEFEF/AAAAAA?text=${encodeURIComponent(`No Photo\\nID: ${employee.employee_id}`)}`;
+    let finalQrCodeUrl = employee.permanent_token 
+        ? await QRCode.toDataURL(`https://ssth-ecoupon.netlify.app/scanner?token=${employee.permanent_token}`, { errorCorrectionLevel: 'H', width: 256, margin: 1 })
+        : `https://placehold.co/256x256/EFEFEF/AAAAAA?text=No+QR+Code`;
 
-    // --- Asset Fallbacks ---
-    let finalPhotoUrl;
-    if (employee.photo_url) {
-        finalPhotoUrl = employee.photo_url;
-    } else {
-        const placeholderText = `No Photo\\nID: ${employee.employee_id}`;
-        finalPhotoUrl = `https://placehold.co/400x400/EFEFEF/AAAAAA?text=${encodeURIComponent(placeholderText)}`;
-    }
-
-    let finalQrCodeUrl;
-    if (employee.permanent_token) {
-        const qrCodeData = `https://ssth-ecoupon.netlify.app/scanner?token=${employee.permanent_token}`;
-        finalQrCodeUrl = await QRCode.toDataURL(qrCodeData, { errorCorrectionLevel: 'H', width: 256, margin: 1 });
-    } else {
-        finalQrCodeUrl = `https://placehold.co/256x256/EFEFEF/AAAAAA?text=No+QR+Code`;
-    }
-
-    // --- HTML and CSS Generation ---
     const canvas = CANVAS_DIMENSIONS[template.orientation] || CANVAS_DIMENSIONS.landscape;
-    console.log(`Using canvas dimensions for percentage calculation: ${canvas.width}x${canvas.height}`);
-    
-    let elementsHtml = '';
-    if (backgroundUrl) {
-        elementsHtml += `<img src="${backgroundUrl}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index: -1;">`;
-    }
+    let elementsHtml = backgroundUrl ? `<img src="${backgroundUrl}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index: -1;">` : '';
 
     for (const key in layoutConfig) {
         const style = layoutConfig[key];
         const elementType = key.split('-')[0];
-        
-        // LOGGING: Log each element's style calculation
-        const leftPercent = (style.x / canvas.width * 100).toFixed(4);
-        const topPercent = (style.y / canvas.height * 100).toFixed(4);
-        const widthPercent = (style.width / canvas.width * 100).toFixed(4);
-        const heightPercent = (style.height / canvas.height * 100).toFixed(4);
-        
         const inlineStyle = `
             position: absolute;
-            left: ${leftPercent}%;
-            top: ${topPercent}%;
-            width: ${widthPercent}%;
-            height: ${heightPercent}%;
+            left: ${(style.x / canvas.width * 100).toFixed(4)}%;
+            top: ${(style.y / canvas.height * 100).toFixed(4)}%;
+            width: ${(style.width / canvas.width * 100).toFixed(4)}%;
+            height: ${(style.height / canvas.height * 100).toFixed(4)}%;
             font-size: ${style.fontSize || 16}px;
             font-family: ${style.fontFamily || 'sans-serif'};
             color: ${style.fill || '#000'};
@@ -97,74 +86,49 @@ const generateCardHtml = async (employee, template, side) => {
             text-align: center;
             overflow: hidden;
         `;
-        console.log(`Element: ${key}, Style: left=${leftPercent}%, top=${topPercent}%`);
-
+        
         let content = '';
         switch (elementType) {
-            case 'photo':
-                content = `<img src="${finalPhotoUrl}" style="width:100%; height:100%; object-fit:cover; display:block;" />`;
-                break;
-            case 'logo':
-                content = `<img src="${template.logo_url || ''}" style="width:100%; height:100%; object-fit:contain; display:block;" />`;
-                break;
-            case 'employee_name':
-                content = `<span>${employee.name}</span>`;
-                break;
-            case 'employee_id':
-                content = `<span>${employee.employee_id}</span>`;
-                break;
-            case 'department_name':
-                content = `<span>${employee.department_name || ''}</span>`;
-                break;
-            case 'qr_code':
-                content = `<img src="${finalQrCodeUrl}" style="width:100%; height:100%; object-fit:contain; display:block;" />`;
-                break;
-            case 'text':
-                if (style.text) content = `<span>${style.text}</span>`;
-                break;
+            case 'photo': content = `<img src="${finalPhotoUrl}" style="width:100%; height:100%; object-fit:cover; display:block;" />`; break;
+            case 'logo': content = `<img src="${template.logo_url || ''}" style="width:100%; height:100%; object-fit:contain; display:block;" />`; break;
+            case 'employee_name': content = `<span>${employee.name}</span>`; break;
+            case 'employee_id': content = `<span>${employee.employee_id}</span>`; break;
+            case 'department_name': content = `<span>${employee.department_name || ''}</span>`; break;
+            case 'qr_code': content = `<img src="${finalQrCodeUrl}" style="width:100%; height:100%; object-fit:contain; display:block;" />`; break;
+            case 'text': if (style.text) content = `<span>${style.text}</span>`; break;
         }
-        if (content) {
-            elementsHtml += `<div style="${inlineStyle}">${content}</div>`;
-        }
+        if (content) elementsHtml += `<div style="${inlineStyle}">${content}</div>`;
     }
-
-    return `
-        <html>
-            <head><style>body,html{margin:0;padding:0;font-family:sans-serif; width:${canvas.width}px; height:${canvas.height}px; position:relative;}</style></head>
-            <body>${elementsHtml}</body>
-        </html>
-    `;
+    return `<html><head><style>body,html{margin:0;padding:0;font-family:sans-serif;width:${canvas.width}px;height:${canvas.height}px;position:relative;}</style></head><body>${elementsHtml}</body></html>`;
 };
 
 
+/**
+ * Main job function - REWRITTEN for 2x3 grid layout (6 employees per page)
+ */
 async function generatePdfForJob(job) {
-    // This function remains the same as the previous version
     const { template, employees } = job.payload;
     const doc = await PDFDocument.create();
     let browser = null;
-    try {
-        console.log('Starting PDF generation process for job:', job.id);
-        console.log('Template received:', template.template_name);
-        console.log('Processing employees:', employees.map(e => e.employee_id));
 
+    try {
         browser = await puppeteer.launch({
-            args: chromium.args,
-            defaultViewport: chromium.defaultViewport,
-            executablePath: await chromium.executablePath(),
-            headless: chromium.headless,
+            args: chromium.args, executablePath: await chromium.executablePath(), headless: chromium.headless,
         });
-        
         const page = await browser.newPage();
 
         const isPortrait = template.orientation === 'portrait';
         const CARD_WIDTH = isPortrait ? 53.98 : 85.6;
         const CARD_HEIGHT = isPortrait ? 85.6 : 53.98;
-        const PAGE_WIDTH = 210;
-        const PAGE_HEIGHT = 297;
-        const MARGIN = 10;
-        const SPACING = 0; // Set to 0 for edge-to-edge printing with crop marks in mind
-        const CARDS_PER_ROW = Math.floor((PAGE_WIDTH - 2 * MARGIN) / (CARD_WIDTH * 2));
-        const PAIRS_PER_PAGE = Math.floor((PAGE_HEIGHT - 2 * MARGIN) / CARD_HEIGHT) * CARDS_PER_ROW;
+        const PAIR_WIDTH = CARD_WIDTH * 2;
+        
+        const PAGE_WIDTH = 210; const PAGE_HEIGHT = 297;
+        const CARDS_PER_ROW = 2; const CARDS_PER_COL = 3;
+        const PAIRS_PER_PAGE = 6;
+
+        // Center the entire grid on the page
+        const MARGIN_X = (PAGE_WIDTH - (PAIR_WIDTH * CARDS_PER_ROW)) / 2;
+        const MARGIN_Y = (PAGE_HEIGHT - (CARD_HEIGHT * CARDS_PER_COL)) / 2;
 
         const canvas = CANVAS_DIMENSIONS[template.orientation] || CANVAS_DIMENSIONS.landscape;
         await page.setViewport({ width: canvas.width, height: canvas.height });
@@ -189,25 +153,28 @@ async function generatePdfForJob(job) {
             const row = Math.floor(indexOnPage / CARDS_PER_ROW);
             const col = indexOnPage % CARDS_PER_ROW;
             
-            const x_front = MARGIN + col * (CARD_WIDTH * 2 + SPACING);
-            const y_pos = PAGE_HEIGHT - MARGIN - CARD_HEIGHT - row * (CARD_HEIGHT + SPACING);
-            
+            const x_front = MARGIN_X + col * PAIR_WIDTH;
+            const y_pos = PAGE_HEIGHT - MARGIN_Y - CARD_HEIGHT - (row * CARD_HEIGHT);
+
             const frontImage = await doc.embedJpg(frontImageBuffer);
             currentPage.drawImage(frontImage, { x: x_front, y: y_pos, width: CARD_WIDTH, height: CARD_HEIGHT });
             
             const backImage = await doc.embedJpg(backImageBuffer);
             currentPage.drawImage(backImage, { x: x_front + CARD_WIDTH, y: y_pos, width: CARD_WIDTH, height: CARD_HEIGHT });
+            
+            // Draw crop marks around the pair
+            drawCropMarks(currentPage, x_front, y_pos, PAIR_WIDTH, CARD_HEIGHT);
 
             cardCount++;
         }
         
         const pdfBytes = await doc.save();
         return { pdfBytes };
+
     } finally {
         if (browser) await browser.close();
     }
 }
-
 
 // =========================================================================
 // --- WORKER QUEUE LOGIC (No changes) ---
@@ -235,7 +202,7 @@ async function processQueue() {
     }
 }
 
-// --- Start the server and the polling interval ---
+// --- Start the server ---
 app.listen(PORT, () => {
     console.log(`Web service listening on port ${PORT}`);
     console.log('Starting PDF Worker polling...');
