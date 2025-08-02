@@ -1,53 +1,55 @@
-// worker.js
-
-require('dotenv').config();
+// /netlify/functions/request-bulk-pdf.js
 const { createClient } = require('@supabase/supabase-js');
-const { PDFDocument, rgb } = require('pdf-lib');
-const fontkit = require('@pdf-lib/fontkit');
-// ... และ dependencies อื่นๆ ของคุณ
+const { randomUUID } = require('crypto');
 
-// <<< FIX: แก้ไขชื่อ Environment Variable ให้ตรงกับการตั้งค่าของคุณ
-// Worker ต้องใช้ SERVICE_ROLE_KEY เพื่อให้มีสิทธิ์สูงสุดในการจัดการข้อมูล
 const supabaseUrl = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // เปลี่ยนจาก SUPABASE_SERVICE_KEY
-const supabase = createClient(supabaseUrl, serviceKey);
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
-// =========================================================================
-// --- ส่วนของ LOGIC การสร้าง PDF (ให้คัดลอกมาวางที่นี่เหมือนเดิม) ---
-// ...
-// async function generatePdfForJob(job) { ... }
-// ...
-// =========================================================================
-
-async function processQueue() {
-    console.log(`[${new Date().toISOString()}] Checking for new jobs...`);
-
-    const { data: job, error: findError } = await supabase
-        .from('pdf_generation_jobs').select('*').eq('status', 'pending').limit(1).single();
-
-    if (!job) {
-        return; // ไม่มีงานให้ทำ
+exports.handler = async (event) => {
+    if (event.httpMethod !== 'POST') {
+        return { statusCode: 405, body: 'Method Not Allowed' };
     }
-    
-    console.log(`Processing job ${job.id}...`);
-    await supabase.from('pdf_generation_jobs').update({ status: 'processing' }).eq('id', job.id);
 
     try {
-        const { pdfBytes } = await generatePdfForJob(job);
-        const filePath = `public/pdfs/${job.id}.pdf`;
-        const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
-        if (uploadError) throw uploadError;
+        // Authenticate the user making the request
+        const token = event.headers.authorization?.split('Bearer ')[1];
+        if (!token) {
+            return { statusCode: 401, body: JSON.stringify({ message: 'Authentication required' }) };
+        }
+        const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+        if (!user) {
+            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
+        }
 
-        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-        await supabase.from('pdf_generation_jobs').update({ status: 'completed', result_url: urlData.publicUrl }).eq('id', job.id);
-        console.log(`Job ${job.id} completed.`);
+        const jobPayload = JSON.parse(event.body);
+        const jobId = randomUUID();
+
+        // Insert a new job into the queue table
+        const { error } = await supabaseAdmin
+            .from('pdf_generation_jobs')
+            .insert({
+                id: jobId,
+                status: 'pending',
+                payload: jobPayload, // Save the template and employee list
+                created_by: user.id
+            });
+
+        if (error) {
+            throw error;
+        }
+
+        // Return the Job ID to the frontend immediately
+        return {
+            statusCode: 202, // 202 Accepted: The request has been accepted for processing
+            body: JSON.stringify({ jobId: jobId })
+        };
 
     } catch (error) {
-        console.error(`Failed job ${job.id}:`, error);
-        await supabase.from('pdf_generation_jobs').update({ status: 'failed', error_message: error.message }).eq('id', job.id);
+        console.error('Error creating PDF job:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ message: 'Could not create PDF generation job.', error: error.message })
+        };
     }
-}
-
-// ตั้งให้ Worker ทำงานทุกๆ 10 วินาที
-setInterval(processQueue, 10000);
-console.log('PDF Worker started.');
+};
