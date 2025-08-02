@@ -106,6 +106,7 @@
 </div>
 
 <script>
+// --- Global Variables & UI References ---
 let _supabase;
 const baseUrl = window.location.origin;
 let currentTemplateId = null;
@@ -127,11 +128,15 @@ const templateNameInput = document.getElementById('template-name');
 const editorTitle = document.getElementById('editor-title');
 const propertiesPanel = document.getElementById('properties-panel');
 
+// --- Functions ---
+
 async function loadTemplateData(templateId) {
     showMessage('Loading template data...', 'info');
     try {
         const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
         if (error) throw error;
+        if (!data) throw new Error('Template not found.');
+
         currentTemplateId = data.id;
         templateNameInput.value = data.template_name;
         editorTitle.textContent = `Editing: ${data.template_name}`;
@@ -143,6 +148,7 @@ async function loadTemplateData(templateId) {
         backgroundUrls.back = data.background_back_url || '';
         layoutConfigs.front = data.layout_config_front || {};
         layoutConfigs.back = data.layout_config_back || {};
+        
         switchView('front');
         showMessage('Template loaded successfully.', 'success');
     } catch (error) {
@@ -192,23 +198,15 @@ function createVisualElement(id, config) {
     switch(type) {
         case 'photo': content = `<img src="https://placehold.co/100x100/EFEFEF/AAAAAA&text=Photo" alt="Photo">`; break;
         case 'logo': content = `<img src="${currentLogoSrc}" alt="Logo">`; break;
-        case 'employee_name':
-        case 'employee_id':
-        case 'department_name':
+        case 'employee_name': content = `<span>John Doe</span>`; break;
+        case 'employee_id': content = `<span>12345</span>`; break;
+        case 'department_name': content = `<span>Marketing</span>`; break;
+        case 'qr_code': content = `<div><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=example" style="width:100%;height:100%;"></div>`; break;
         case 'text':
             el.setAttribute('ondblclick', `editTextElement('${id}')`);
-            if(type === 'text') el.title = 'Double-click to edit text';
-            
-            let displayText = 'Sample Text';
-            if (type === 'employee_name') displayText = 'John Doe';
-            if (type === 'employee_id') displayText = '12345';
-            if (type === 'department_name') displayText = 'Marketing';
-            if (type === 'text') displayText = config.text || 'Custom Text';
-            
-            content = `<span style="font-size:${config.fontSize || 16}px;">${displayText}</span>`;
+            el.title = 'Double-click to edit text';
+            content = `<span style="padding: 5px; font-size:${config.fontSize || 16}px;">${config.text || 'Custom Text'}</span>`;
             break;
-        case 'qr_code': 
-            content = `<div><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=example" style="width:100%;height:100%;"></div>`; break;
     }
     el.innerHTML = content + '<button class="delete-btn" onclick="removeElement(this.parentElement.id)">X</button>';
     return el;
@@ -219,7 +217,8 @@ function addElement(type) {
     layoutConfigs[currentSide][id] = { 
         x: 10, y: 10, 
         width: 100, height: type.includes('text') || type.includes('name') || type.includes('id') ? 30 : 100, 
-        text: 'Custom Text', fontSize: 16
+        text: 'Custom Text',
+        fontSize: 16
     };
     renderElements();
 }
@@ -261,6 +260,7 @@ function makeInteractive(element) {
     element.style.width = `${config.width}px`;
     element.style.height = `${config.height}px`;
     element.style.transform = `translate(${config.x}px, ${config.y}px)`;
+    if (config.fontSize) element.style.fontSize = `${config.fontSize}px`;
     
     if (id === activeElementId) element.classList.add('active-selection');
     
@@ -278,9 +278,13 @@ function makeInteractive(element) {
 
     interact(element).draggable({
         listeners: {
-            start(event) { verticalGuide.style.display = 'block'; horizontalGuide.style.display = 'block'; },
-            move(event) {
-                config.x += event.dx; config.y += event.dy;
+            start (event) {
+                verticalGuide.style.display = 'block';
+                horizontalGuide.style.display = 'block';
+            },
+            move (event) {
+                config.x += event.dx;
+                config.y += event.dy;
                 const elementCenterX = config.x + (config.width / 2);
                 const elementCenterY = config.y + (config.height / 2);
                 const parentCenterX = cardPreview.offsetWidth / 2;
@@ -295,15 +299,20 @@ function makeInteractive(element) {
                 } else { horizontalGuide.style.backgroundColor = '#e74c3c'; }
                 event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
             },
-            end(event) { verticalGuide.style.display = 'none'; horizontalGuide.style.display = 'none'; }
+            end (event) {
+                verticalGuide.style.display = 'none';
+                horizontalGuide.style.display = 'none';
+            }
         },
         modifiers: [interact.modifiers.restrictRect({ restriction: 'parent' })]
     }).resizable({
         edges: { left: true, right: true, bottom: true, top: true },
         listeners: {
             move(event) {
-                config.width = event.rect.width; config.height = event.rect.height;
-                config.x += event.deltaRect.left; config.y += event.deltaRect.top;
+                config.width = event.rect.width;
+                config.height = event.rect.height;
+                config.x += event.deltaRect.left;
+                config.y += event.deltaRect.top;
                 Object.assign(event.target.style, {
                     width: `${event.rect.width}px`, height: `${event.rect.height}px`,
                     transform: `translate(${config.x}px, ${config.y}px)`
@@ -346,6 +355,7 @@ async function handleLogoUpload(event) {
     }
 }
 
+// --- NEWLY ADDED FUNCTION ---
 async function handleBackgroundUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -357,6 +367,54 @@ async function handleBackgroundUpload(event) {
     }
 }
 
+async function saveTemplate() {
+    // ... (This function remains unchanged)
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+        const config = await response.json();
+        _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (!session) { document.body.innerHTML = '<h1>Please log in.</h1>'; return; }
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const templateIdFromUrl = urlParams.get('template_id');
+        if (templateIdFromUrl) {
+            await loadTemplateData(templateIdFromUrl);
+        } else {
+            switchView('front');
+        }
+
+        frontViewBtn.addEventListener('click', () => switchView('front'));
+        backViewBtn.addEventListener('click', () => switchView('back'));
+        document.querySelectorAll('input[name="orientation"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                cardPreview.className = `card-preview ${e.target.value}`;
+                activeElementId = null; updatePropertiesPanel();
+            });
+        });
+        backgroundUrlInput.addEventListener('input', (e) => {
+            backgroundUrls[currentSide] = e.target.value;
+            cardPreview.style.backgroundImage = `url('${e.target.value}')`;
+        });
+        
+        // --- ATTACH EVENT LISTENERS ---
+        backgroundUploadInput.addEventListener('change', handleBackgroundUpload);
+        logoUploadInput.addEventListener('change', handleLogoUpload);
+        saveBtn.addEventListener('click', saveTemplate);
+        
+    } catch(error) {
+        showMessage('Initialization Error: ' + error.message, 'error');
+    }
+});
+
+function showMessage(msg, type) {
+    // ... (This function remains unchanged)
+}
+
+// Full unchanged functions for brevity
 async function saveTemplate() {
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';
@@ -395,45 +453,6 @@ async function saveTemplate() {
         saveBtn.textContent = 'Save Template';
     }
 }
-
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
-        const config = await response.json();
-        _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
-        const { data: { session } } = await _supabase.auth.getSession();
-        if (!session) { document.body.innerHTML = '<h1>Please log in.</h1>'; return; }
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const templateIdFromUrl = urlParams.get('template_id');
-        if (templateIdFromUrl) {
-            await loadTemplateData(templateIdFromUrl);
-        } else {
-            switchView('front');
-        }
-
-        frontViewBtn.addEventListener('click', () => switchView('front'));
-        backViewBtn.addEventListener('click', () => switchView('back'));
-        document.querySelectorAll('input[name="orientation"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                cardPreview.className = `card-preview ${e.target.value}`;
-                activeElementId = null; updatePropertiesPanel();
-            });
-        });
-        backgroundUrlInput.addEventListener('input', (e) => {
-            backgroundUrls[currentSide] = e.target.value;
-            cardPreview.style.backgroundImage = `url('${e.target.value}')`;
-        });
-        
-        backgroundUploadInput.addEventListener('change', handleBackgroundUpload);
-        logoUploadInput.addEventListener('change', handleLogoUpload);
-        saveBtn.addEventListener('click', saveTemplate);
-        
-    } catch(error) {
-        showMessage('Initialization Error: ' + error.message, 'error');
-    }
-});
-
 function showMessage(msg, type) {
     const messageEl = document.getElementById('message');
     if(!messageEl) return;
