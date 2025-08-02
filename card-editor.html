@@ -19,6 +19,12 @@
         .card-element img, .card-element div, .card-element span { width: 100%; height: 100%; object-fit: contain; text-align: center; pointer-events: none; }
         .card-element:hover .delete-btn { display: block; }
         .delete-btn { display: none; position: absolute; top: -10px; right: -10px; width: 20px; height: 20px; background: #e74c3c; color: white; border: none; border-radius: 50%; cursor: pointer; font-weight: bold; line-height: 20px; text-align: center; z-index: 10; }
+        
+        /* NEW: Styles for Snap Guidelines */
+        .snap-guideline { position: absolute; background-color: #e74c3c; display: none; z-index: 0; }
+        .snap-guideline.vertical { width: 1px; height: 100%; top: 0; left: 50%; }
+        .snap-guideline.horizontal { height: 1px; width: 100%; left: 0; top: 50%; }
+        
         .control-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input[type="text"], input[type="url"], input[type="file"], select, button { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
@@ -86,7 +92,8 @@
 
 <div class="main-content">
     <div class="card-container">
-        <div id="card-preview" class="card-preview landscape"></div>
+        <div id="card-preview" class="card-preview landscape">
+             </div>
     </div>
 </div>
 
@@ -109,7 +116,6 @@ const logoPreview = document.getElementById('logo-preview');
 const templateNameInput = document.getElementById('template-name');
 const editorTitle = document.getElementById('editor-title');
 
-// --- NEW: Function to load existing template data ---
 async function loadTemplateData(templateId) {
     showMessage('Loading template data...', 'info');
     try {
@@ -126,15 +132,9 @@ async function loadTemplateData(templateId) {
         templateNameInput.value = data.template_name;
         editorTitle.textContent = `Editing: ${data.template_name}`;
         
-        // Set orientation
-        if (data.orientation === 'portrait') {
-            document.getElementById('orientation-portrait').checked = true;
-        } else {
-            document.getElementById('orientation-landscape').checked = true;
-        }
+        document.getElementById(`orientation-${data.orientation}`).checked = true;
         cardPreview.className = `card-preview ${data.orientation}`;
 
-        // Set URLs and configs
         logoUrl = data.logo_url || '';
         logoPreview.src = logoUrl;
         backgroundUrls.front = data.background_front_url || '';
@@ -142,7 +142,6 @@ async function loadTemplateData(templateId) {
         layoutConfigs.front = data.layout_config_front || {};
         layoutConfigs.back = data.layout_config_back || {};
         
-        // Render the initial view
         switchView('front');
         showMessage('Template loaded successfully.', 'success');
 
@@ -153,6 +152,15 @@ async function loadTemplateData(templateId) {
     }
 }
 
+function editTextElement(id) {
+    event.stopPropagation();
+    const config = layoutConfigs[currentSide][id];
+    const newText = prompt("Enter new text:", config.text || "Custom Text");
+    if (newText !== null) {
+        config.text = newText;
+        renderElements();
+    }
+}
 
 function switchView(side) {
     currentSide = side;
@@ -165,6 +173,8 @@ function switchView(side) {
 
 function renderElements() {
     cardPreview.innerHTML = '';
+    // NEW: Add guidelines to the preview area
+    cardPreview.innerHTML += '<div id="vertical-guide" class="snap-guideline vertical"></div><div id="horizontal-guide" class="snap-guideline horizontal"></div>';
     const config = layoutConfigs[currentSide];
     for (const key in config) {
         const element = createVisualElement(key, config[key]);
@@ -187,7 +197,11 @@ function createVisualElement(id, config) {
         case 'employee_id': content = `<span>12345</span>`; break;
         case 'department_name': content = `<span>Marketing</span>`; break;
         case 'qr_code': content = `<div><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=example" style="width:100%;height:100%;"></div>`; break;
-        case 'text': content = `<span contenteditable="true" onblur="updateText(this, '${id}')" style="padding: 5px;">${config.text || 'Custom Text'}</span>`; break;
+        case 'text':
+            el.setAttribute('ondblclick', `editTextElement('${id}')`);
+            el.title = 'Double-click to edit text';
+            content = `<span style="padding: 5px;">${config.text || 'Custom Text'}</span>`;
+            break;
     }
     el.innerHTML = content + '<button class="delete-btn" onclick="removeElement(this.parentElement.id)">X</button>';
     return el;
@@ -205,8 +219,6 @@ function removeElement(id) {
     renderElements();
 }
 
-function updateText(span, id) { layoutConfigs[currentSide][id].text = span.textContent; }
-
 function makeInteractive(element) {
     const id = element.id;
     const config = layoutConfigs[currentSide][id];
@@ -214,13 +226,48 @@ function makeInteractive(element) {
     element.style.height = `${config.height}px`;
     element.style.transform = `translate(${config.x}px, ${config.y}px)`;
 
+    // --- UPDATED: Add snapping and guideline logic ---
+    const verticalGuide = document.getElementById('vertical-guide');
+    const horizontalGuide = document.getElementById('horizontal-guide');
+    const snapThreshold = 5;
+
     interact(element)
         .draggable({
             listeners: {
+                start (event) {
+                    verticalGuide.style.display = 'block';
+                    horizontalGuide.style.display = 'block';
+                },
                 move (event) {
                     config.x += event.dx;
                     config.y += event.dy;
+
+                    const elementCenterX = config.x + (config.width / 2);
+                    const elementCenterY = config.y + (config.height / 2);
+                    const parentCenterX = cardPreview.offsetWidth / 2;
+                    const parentCenterY = cardPreview.offsetHeight / 2;
+                    
+                    // Vertical snapping
+                    if (Math.abs(elementCenterX - parentCenterX) < snapThreshold) {
+                        config.x = parentCenterX - (config.width / 2);
+                        verticalGuide.style.backgroundColor = '#28a745'; // Green
+                    } else {
+                        verticalGuide.style.backgroundColor = '#e74c3c'; // Red
+                    }
+                    
+                    // Horizontal snapping
+                    if (Math.abs(elementCenterY - parentCenterY) < snapThreshold) {
+                        config.y = parentCenterY - (config.height / 2);
+                        horizontalGuide.style.backgroundColor = '#28a745'; // Green
+                    } else {
+                        horizontalGuide.style.backgroundColor = '#e74c3c'; // Red
+                    }
+
                     event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
+                },
+                end (event) {
+                    verticalGuide.style.display = 'none';
+                    horizontalGuide.style.display = 'none';
                 }
             },
             modifiers: [ interact.modifiers.restrictRect({ restriction: 'parent' }) ]
@@ -332,16 +379,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { data: { session } } = await _supabase.auth.getSession();
         if (!session) { document.body.innerHTML = '<h1>Please log in.</h1>'; return; }
         
-        // --- UPDATED: Check for template_id in URL ---
         const urlParams = new URLSearchParams(window.location.search);
         const templateIdFromUrl = urlParams.get('template_id');
 
         if (templateIdFromUrl) {
             await loadTemplateData(templateIdFromUrl);
         } else {
-            switchView('front'); // Start with a blank editor if no ID
+            switchView('front');
         }
-        // --- END UPDATE ---
 
         frontViewBtn.addEventListener('click', () => switchView('front'));
         backViewBtn.addEventListener('click', () => switchView('back'));
