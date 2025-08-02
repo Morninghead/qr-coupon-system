@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bulk Card Generator (Background Job System)</title>
-    <!-- โหลด Supabase Client Library จาก CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -147,9 +146,20 @@ async function initializeApp() {
 function setupEventListeners() {
     selectAllCheckbox.addEventListener('change', handleSelectAll);
     generateBtn.addEventListener('click', startPdfGenerationJob);
+    // Add event listener for employee list checkboxes after they are rendered
+    employeeTableBody.addEventListener('change', function(event) {
+        if (event.target.classList.contains('employee-checkbox')) {
+            const empId = event.target.dataset.id;
+            const employee = allEmployees.find(e => e.id === empId);
+            if (employee) {
+                handleCheckboxChange(event, employee);
+            }
+        }
+    });
 }
 
-// --- 3. Data Loading & UI Rendering (Logic from your original file) ---
+
+// --- 3. Data Loading & UI Rendering (Logic remains the same) ---
 async function loadTemplate(templateId) {
     const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
     if (error) throw new Error(`Could not load template: ${error.message}`);
@@ -158,6 +168,7 @@ async function loadTemplate(templateId) {
 }
 
 async function fetchAllEmployees() {
+    // Fetches from the view that includes department name
     const { data, error } = await _supabase.from('combined_employees_view').select('id, employee_id, name, photo_url, department_name');
     if (error) throw new Error(`Could not fetch employees: ${error.message}`);
     allEmployees = data;
@@ -173,7 +184,6 @@ function renderEmployeeTable(employees) {
     employees.forEach(emp => {
         const row = document.createElement('tr');
         row.innerHTML = `<td><input type="checkbox" class="employee-checkbox" data-id="${emp.id}" /></td><td>${emp.employee_id || 'N/A'}</td><td>${emp.name}</td>`;
-        row.querySelector('.employee-checkbox').addEventListener('change', (e) => handleCheckboxChange(e, emp));
         employeeTableBody.appendChild(row);
     });
 }
@@ -208,13 +218,13 @@ function updateGenerateButton() {
 // =============================================================
 
 /**
- * 1. เริ่มต้นกระบวนการ: ส่งคำสั่งสร้าง Job ไปยังเซิร์ฟเวอร์
+ * 1. Starts the process: Sends a request to create a job on the server.
  */
 async function startPdfGenerationJob() {
     if (selectedEmployeeIds.size === 0 || !selectedTemplate) return;
 
     resetUIState();
-    updateMessage('Sending request to server...', 'info');
+    updateMessage('กำลังส่งคำขอไปยังเซิร์ฟเวอร์...', 'info');
 
     try {
         const { data: { session } } = await _supabase.auth.getSession();
@@ -236,33 +246,33 @@ async function startPdfGenerationJob() {
         }
 
         const { jobId } = await response.json();
-        updateMessage(`Job created (ID: ${jobId}). Waiting for worker...`, 'info');
-        pollingInterval = setInterval(() => checkJobStatus(jobId), 5000);
+        updateMessage(`สร้างงานสำเร็จ (ID: ${jobId}). กำลังรอ Worker ประมวลผล...`, 'info');
+        pollingInterval = setInterval(() => checkJobStatus(jobId), 5000); // Poll every 5 seconds
 
     } catch (error) {
-        handleJobError(`Error starting job: ${error.message}`);
+        handleJobError(`เกิดข้อผิดพลาดในการเริ่มงาน: ${error.message}`);
     }
 }
 
 /**
- * 2. ตรวจสอบสถานะ: ถามเซิร์ฟเวอร์เป็นระยะๆ ว่างานเสร็จหรือยัง
+ * 2. Checks status: Periodically asks the server if the job is done.
  */
 async function checkJobStatus(jobId) {
     try {
         const response = await fetch(`${baseUrl}/.netlify/functions/get-job-status?jobId=${jobId}`);
         const data = await response.json();
 
-        updateMessage(`Current status: ${data.status}...`, 'info');
+        updateMessage(`สถานะปัจจุบัน: ${data.status}...`, 'info');
         
         if (data.status === 'completed') {
             handleJobSuccess(data.result_url);
         } else if (data.status === 'failed') {
-            handleJobError(`Job failed: ${data.error_message || 'Unknown error'}`);
+            handleJobError(`การสร้างไฟล์ล้มเหลว: ${data.error_message || 'Unknown error'}`);
         }
-        // ถ้าสถานะเป็น 'pending' หรือ 'processing' ก็จะรอการเรียกครั้งต่อไป
+        // If status is 'pending' or 'processing', the polling continues automatically.
 
     } catch (error) {
-        handleJobError(`Error checking status: ${error.message}`);
+        handleJobError(`เกิดข้อผิดพลาดในการตรวจสอบสถานะ: ${error.message}`);
     }
 }
 
@@ -270,14 +280,14 @@ async function checkJobStatus(jobId) {
 
 function resetUIState() {
     generateBtn.disabled = true;
-    generateBtn.textContent = '⏳ Processing...';
+    generateBtn.textContent = '⏳ กำลังประมวลผล...';
     downloadLink.style.display = 'none';
     if (pollingInterval) clearInterval(pollingInterval);
 }
 
 function handleJobSuccess(url) {
     clearInterval(pollingInterval);
-    updateMessage('✅ PDF generated successfully!', 'success');
+    updateMessage('✅ สร้างไฟล์ PDF สำเร็จ!', 'success');
     downloadLink.href = url;
     downloadLink.style.display = 'block';
     generateBtn.disabled = false;
@@ -292,15 +302,17 @@ function handleJobError(message) {
 }
 
 function handleUIError(title, message) {
-    employeeTableBody.innerHTML = `<td colspan="3" style="text-align: center; color: var(--error-color);"><strong>${title}</strong><br>${message}</td>`;
+    employeeTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--error-color);"><strong>${title}</strong><br>${message}</td></tr>`;
 }
 
 function updateMessage(text, type) {
     pdfMessageEl.textContent = text;
     pdfMessageEl.style.display = 'block';
-    if (type === 'info') pdfMessageEl.style.backgroundColor = '#dbeafe';
-    if (type === 'success') pdfMessageEl.style.backgroundColor = '#dcfce7';
-    if (type === 'error') pdfMessageEl.style.backgroundColor = '#fee2e2';
+    pdfMessageEl.style.backgroundColor = 
+        type === 'info' ? '#dbeafe' :
+        type === 'success' ? '#dcfce7' :
+        type === 'error' ? '#fee2e2' :
+        '#f3f4f6';
 }
 
 </script>
