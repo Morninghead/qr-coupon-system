@@ -1,8 +1,12 @@
-// get-job-status.js
-
+// /netlify/functions/get-job-status.js
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+// IMPORTANT: Use the SERVICE_ROLE_KEY for admin-level access, just like the worker.
+const supabaseUrl = process.env.SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
+
+// Initialize the admin client
+const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
 exports.handler = async (event) => {
     const { jobId } = event.queryStringParameters;
@@ -11,25 +15,28 @@ exports.handler = async (event) => {
     }
 
     try {
-        const { data, error } = await supabase
+        // Use the admin client to query the table, bypassing RLS.
+        const { data, error } = await supabaseAdmin
             .from('pdf_generation_jobs')
             .select('status, result_url, error_message')
             .eq('id', jobId)
-            .maybeSingle(); // <-- FIX IS HERE
+            .maybeSingle();
 
-        // This error now only triggers for real problems, not "not found".
-        if (error) throw error;
-        
-        // If data is null, the job is not yet visible in the DB.
-        // This is an expected state during the first few polls.
+        if (error) {
+            // This now only triggers for real database errors.
+            throw error;
+        }
+
         if (!data) {
-            return { 
-                statusCode: 200, // Return 200 OK because this is not a server error
-                body: JSON.stringify({ status: 'pending', message: 'Job not found yet, still processing...' }) 
+            // If the job isn't found yet (race condition), this is fine.
+            // The frontend will continue polling.
+            return {
+                statusCode: 200,
+                body: JSON.stringify({ status: 'pending', message: 'Job not yet found, polling continues...' })
             };
         }
 
-        // If data is found, return it as normal.
+        // If the job is found, return its current status.
         return {
             statusCode: 200,
             body: JSON.stringify(data)
@@ -37,6 +44,9 @@ exports.handler = async (event) => {
 
     } catch (error) {
         console.error('Error fetching job status:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Could not fetch job status.', error: error.message }) };
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ message: 'Could not fetch job status.', error: error.message })
+        };
     }
 };
