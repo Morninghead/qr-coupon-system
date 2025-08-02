@@ -31,9 +31,10 @@ const CANVAS_DIMENSIONS = {
 };
 
 const generateCardHtml = async (employee, template, side) => {
+    // This function generates the HTML for a single card side.
     const layoutConfig = side === 'front' ? template.layout_config_front : template.layout_config_back;
     const backgroundUrl = side === 'front' ? template.background_front_url : template.background_back_url;
-    if (!layoutConfig || Object.keys(layoutConfig).length === 0) return `<html><body></body></html>`;
+    if (!layoutConfig || Object.keys(layoutConfig).length === 0) return `<html><body><div class="card-wrapper"></div></body></html>`;
 
     let finalPhotoUrl = employee.photo_url || `https://placehold.co/400x400/EFEFEF/AAAAAA?text=${encodeURIComponent(`No Photo\\nID: ${employee.employee_id}`)}`;
     let finalQrCodeUrl = employee.permanent_token 
@@ -41,26 +42,18 @@ const generateCardHtml = async (employee, template, side) => {
         : `https://placehold.co/256x256/EFEFEF/AAAAAA?text=No+QR+Code`;
 
     const canvas = CANVAS_DIMENSIONS[template.orientation] || CANVAS_DIMENSIONS.landscape;
-    let elementsHtml = backgroundUrl ? `<img src="${backgroundUrl}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index: -1;">` : '';
+    let elementsHtml = backgroundUrl ? `<img src="${backgroundUrl}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index: 0;">` : '';
 
     for (const key in layoutConfig) {
         const style = layoutConfig[key];
         const elementType = key.split('-')[0];
         const inlineStyle = `
-            position: absolute;
-            left: ${(style.x / canvas.width * 100).toFixed(4)}%;
-            top: ${(style.y / canvas.height * 100).toFixed(4)}%;
-            width: ${(style.width / canvas.width * 100).toFixed(4)}%;
-            height: ${(style.height / canvas.height * 100).toFixed(4)}%;
-            font-size: ${style.fontSize || 16}px;
-            font-family: ${style.fontFamily || 'sans-serif'};
-            color: ${style.fill || '#000'};
-            box-sizing: border-box;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            overflow: hidden;
+            position: absolute; z-index: 1;
+            left: ${(style.x / canvas.width * 100).toFixed(4)}%; top: ${(style.y / canvas.height * 100).toFixed(4)}%;
+            width: ${(style.width / canvas.width * 100).toFixed(4)}%; height: ${(style.height / canvas.height * 100).toFixed(4)}%;
+            font-size: ${style.fontSize || 16}px; font-family: ${style.fontFamily || 'sans-serif'};
+            color: ${style.fill || '#000'}; box-sizing: border-box; display: flex;
+            align-items: center; justify-content: center; text-align: center; overflow: hidden;
         `;
         
         let content = '';
@@ -76,29 +69,27 @@ const generateCardHtml = async (employee, template, side) => {
         if (content) elementsHtml += `<div style="${inlineStyle}">${content}</div>`;
     }
     
-    // NEW: Added a border for cutting and box-sizing to keep dimensions correct.
+    // NEW: Reliable border implementation on an inner wrapper div.
     return `
         <html>
             <head>
                 <style>
-                    body, html {
-                        margin:0; 
-                        padding:0; 
-                        font-family:sans-serif; 
-                        width:${canvas.width}px; 
-                        height:${canvas.height}px; 
-                        position:relative;
-                        border: 0.5pt solid #cccccc;
-                        box-sizing: border-box;
-                    } 
+                    body, html { margin:0; padding:0; font-family:sans-serif; width:${canvas.width}px; height:${canvas.height}px; }
+                    .card-wrapper {
+                        width: 100%; height: 100%; position: relative; overflow: hidden;
+                        border: 1px solid #B0B0B0; box-sizing: border-box;
+                    }
                     span { width:100%; padding:2px; }
                 </style>
             </head>
-            <body>${elementsHtml}</body>
+            <body><div class="card-wrapper">${elementsHtml}</div></body>
         </html>
     `;
 };
 
+/**
+ * Main job function - Corrected layout for 6 employees per page.
+ */
 async function generatePdfForJob(job) {
     const { template, employees } = job.payload;
     const doc = await PDFDocument.create();
@@ -110,18 +101,22 @@ async function generatePdfForJob(job) {
         });
         const page = await browser.newPage();
 
+        // --- Layout Constants (in mm) ---
         const isPortrait = template.orientation === 'portrait';
-        const CARD_WIDTH = isPortrait ? 53.98 : 85.6;
-        const CARD_HEIGHT = isPortrait ? 85.6 : 53.98;
-        const PAIR_WIDTH = CARD_WIDTH * 2;
+        // Preserve standard aspect ratio
+        const CARD_ASPECT_RATIO = isPortrait ? (53.98 / 85.6) : (85.6 / 53.98);
         
-        const PAGE_WIDTH = 210; const PAGE_HEIGHT = 297;
-        const CARDS_PER_ROW = 1; // Only 1 pair of front/back can fit horizontally
-        const CARDS_PER_COL = 3;
-        const PAIRS_PER_PAGE = CARDS_PER_ROW * CARDS_PER_COL;
-
-        const MARGIN_X = (PAGE_WIDTH - (PAIR_WIDTH * CARDS_PER_ROW)) / 2;
-        const MARGIN_Y = (PAGE_HEIGHT - (CARD_HEIGHT * CARDS_PER_COL)) / 2;
+        const PAGE_WIDTH = 210; const PAGE_HEIGHT = 297; // A4
+        const MARGIN = 10;
+        
+        // Calculate scaled dimensions to fit a 2x3 grid of pairs
+        const USABLE_WIDTH = PAGE_WIDTH - (MARGIN * 2);
+        const PAIR_WIDTH = USABLE_WIDTH / 2; // 2 pairs fit horizontally
+        const CARD_WIDTH = PAIR_WIDTH / 2; // Each pair has a front and back
+        const CARD_HEIGHT = CARD_WIDTH / CARD_ASPECT_RATIO;
+        
+        const PAIRS_PER_PAGE = 6;
+        const CARDS_PER_ROW = 2;
 
         const canvas = CANVAS_DIMENSIONS[template.orientation] || CANVAS_DIMENSIONS.landscape;
         await page.setViewport({ width: canvas.width, height: canvas.height });
@@ -143,11 +138,12 @@ async function generatePdfForJob(job) {
             const backImageBuffer = await page.screenshot({ type: 'jpeg', quality: 95 });
 
             const indexOnPage = cardCount % PAIRS_PER_PAGE;
-            const row = indexOnPage;
+            const row = Math.floor(indexOnPage / CARDS_PER_ROW); // 0, 0, 1, 1, 2, 2
+            const col = indexOnPage % CARDS_PER_ROW;           // 0, 1, 0, 1, 0, 1
             
-            const x_front = MARGIN_X;
-            const y_pos = PAGE_HEIGHT - MARGIN_Y - CARD_HEIGHT - (row * CARD_HEIGHT);
-            
+            const x_front = MARGIN + col * PAIR_WIDTH;
+            const y_pos = PAGE_HEIGHT - MARGIN - CARD_HEIGHT - (row * CARD_HEIGHT);
+
             const frontImage = await doc.embedJpg(frontImageBuffer);
             currentPage.drawImage(frontImage, { x: x_front, y: y_pos, width: CARD_WIDTH, height: CARD_HEIGHT });
             
@@ -165,6 +161,7 @@ async function generatePdfForJob(job) {
     }
 }
 
+
 // =========================================================================
 // --- WORKER QUEUE LOGIC (No changes) ---
 // =========================================================================
@@ -176,14 +173,14 @@ async function processQueue() {
         return;
     }
     console.log(`Found job ${job.id}. Starting to process...`);
-    await supabase.from('pdf_generation_jobs').update({ status: 'processing' }).eq('id', job.id);
+    await supabase.from('pdf_generation_jobs').update({ status: 'processing', progress: 0, progress_message: 'Worker picked up job...' }).eq('id', job.id);
     try {
         const { pdfBytes } = await generatePdfForJob(job);
         const filePath = `public/pdfs/${job.id}.pdf`;
         const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
         if (uploadError) throw uploadError;
         const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-        await supabase.from('pdf_generation_jobs').update({ status: 'completed', result_url: urlData.publicUrl }).eq('id', job.id);
+        await supabase.from('pdf_generation_jobs').update({ status: 'completed', result_url: urlData.publicUrl, progress: 100, progress_message: 'Completed!' }).eq('id', job.id);
         console.log(`Job ${job.id} completed successfully.`);
     } catch (error) {
         console.error(`Failed to process job ${job.id}:`, error);
