@@ -294,6 +294,7 @@ function handleJobSuccess(url) {
     progressBarFill.style.width = '100%';
     progressBarFill.textContent = '100%';
     downloadLink.href = url;
+    downloadLink.download = `employee-cards-${Date.now()}.pdf`; // <-- ADD THIS LINE
     downloadLink.style.display = 'block';
     generateBtn.disabled = false;
     updateGenerateButton();
