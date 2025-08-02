@@ -18,6 +18,7 @@
         .card-element { position: absolute; border: 1px dashed #3498db; box-sizing: border-box; cursor: move; user-select: none; display: flex; align-items: center; justify-content: center; background: rgba(52, 152, 219, 0.1); }
         .card-element.active-selection { border: 2px solid var(--primary); background: rgba(99, 102, 241, 0.2); }
         .card-element img, .card-element div, .card-element span { width: 100%; height: 100%; object-fit: contain; text-align: center; pointer-events: none; }
+        .card-element .photo-img { object-fit: cover; }
         .card-element:hover .delete-btn { display: block; }
         .delete-btn { display: none; position: absolute; top: -10px; right: -10px; width: 20px; height: 20px; background: #e74c3c; color: white; border: none; border-radius: 50%; cursor: pointer; font-weight: bold; line-height: 20px; text-align: center; z-index: 10; }
         .snap-guideline { position: absolute; background-color: #e74c3c; display: none; z-index: 0; }
@@ -135,8 +136,6 @@ async function loadTemplateData(templateId) {
     try {
         const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
         if (error) throw error;
-        if (!data) throw new Error('Template not found.');
-
         currentTemplateId = data.id;
         templateNameInput.value = data.template_name;
         editorTitle.textContent = `Editing: ${data.template_name}`;
@@ -148,7 +147,6 @@ async function loadTemplateData(templateId) {
         backgroundUrls.back = data.background_back_url || '';
         layoutConfigs.front = data.layout_config_front || {};
         layoutConfigs.back = data.layout_config_back || {};
-        
         switchView('front');
         showMessage('Template loaded successfully.', 'success');
     } catch (error) {
@@ -195,18 +193,30 @@ function createVisualElement(id, config) {
     let content = '';
     const type = id.split('-')[0];
     const currentLogoSrc = logoPreview.src || 'https://placehold.co/100x40/EFEFEF/AAAAAA&text=Logo';
+    
     switch(type) {
-        case 'photo': content = `<img src="https://placehold.co/100x100/EFEFEF/AAAAAA&text=Photo" alt="Photo">`; break;
+        case 'photo':
+            const shapeStyle = config.shape === 'circle' ? 'border-radius: 50%;' : '';
+            content = `<img src="https://placehold.co/100x100/EFEFEF/AAAAAA&text=Photo" alt="Photo" class="photo-img" style="${shapeStyle}">`;
+            break;
         case 'logo': content = `<img src="${currentLogoSrc}" alt="Logo">`; break;
-        case 'employee_name': content = `<span>John Doe</span>`; break;
-        case 'employee_id': content = `<span>12345</span>`; break;
-        case 'department_name': content = `<span>Marketing</span>`; break;
-        case 'qr_code': content = `<div><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=example" style="width:100%;height:100%;"></div>`; break;
+        case 'employee_name':
+        case 'employee_id':
+        case 'department_name':
         case 'text':
             el.setAttribute('ondblclick', `editTextElement('${id}')`);
-            el.title = 'Double-click to edit text';
-            content = `<span style="padding: 5px; font-size:${config.fontSize || 16}px;">${config.text || 'Custom Text'}</span>`;
+            if(type === 'text') el.title = 'Double-click to edit text';
+            
+            let displayText = 'Sample';
+            if (type === 'employee_name') displayText = 'John Doe';
+            if (type === 'employee_id') displayText = '12345';
+            if (type === 'department_name') displayText = 'Marketing';
+            if (type === 'text') displayText = config.text || 'Custom Text';
+            
+            content = `<span style="font-size:${config.fontSize || 16}px;">${displayText}</span>`;
             break;
+        case 'qr_code': 
+            content = `<div><img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=example" style="width:100%;height:100%;"></div>`; break;
     }
     el.innerHTML = content + '<button class="delete-btn" onclick="removeElement(this.parentElement.id)">X</button>';
     return el;
@@ -217,8 +227,7 @@ function addElement(type) {
     layoutConfigs[currentSide][id] = { 
         x: 10, y: 10, 
         width: 100, height: type.includes('text') || type.includes('name') || type.includes('id') ? 30 : 100, 
-        text: 'Custom Text',
-        fontSize: 16
+        text: 'Custom Text', fontSize: 16, shape: 'rect'
     };
     renderElements();
 }
@@ -237,19 +246,46 @@ function updatePropertiesPanel() {
 
     const config = layoutConfigs[currentSide][activeElementId];
     const type = activeElementId.split('-')[0];
+    let panelContent = '<h4>Element Properties</h4>';
 
     if (['employee_name', 'employee_id', 'department_name', 'text'].includes(type)) {
-        propertiesPanel.innerHTML = `
-            <h4>Element Properties</h4>
+        panelContent += `
             <div class="control-group">
                 <label for="font-size-input">Font Size (px)</label>
                 <input type="number" id="font-size-input" value="${config.fontSize || 16}">
-            </div>
-        `;
-        document.getElementById('font-size-input').addEventListener('input', (e) => {
+            </div>`;
+    }
+    
+    if (type === 'photo') {
+        panelContent += `
+            <div class="control-group">
+                <label>Photo Shape</label>
+                <div class="radio-group">
+                    <input type="radio" id="shape-rect" name="photoShape" value="rect" ${config.shape !== 'circle' ? 'checked' : ''}>
+                    <label for="shape-rect">Rectangle</label>
+                    <input type="radio" id="shape-circle" name="photoShape" value="circle" ${config.shape === 'circle' ? 'checked' : ''}>
+                    <label for="shape-circle">Circle</label>
+                </div>
+            </div>`;
+    }
+
+    propertiesPanel.innerHTML = panelContent;
+    
+    const fontSizeInput = document.getElementById('font-size-input');
+    if (fontSizeInput) {
+        fontSizeInput.addEventListener('input', (e) => {
             config.fontSize = e.target.value;
-            const elToUpdate = document.getElementById(activeElementId)?.querySelector('span');
-            if (elToUpdate) elToUpdate.style.fontSize = `${e.target.value}px`;
+            renderElements();
+        });
+    }
+
+    const photoShapeRadios = document.querySelectorAll('input[name="photoShape"]');
+    if (photoShapeRadios.length) {
+        photoShapeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                config.shape = e.target.value;
+                renderElements();
+            });
         });
     }
 }
@@ -260,7 +296,6 @@ function makeInteractive(element) {
     element.style.width = `${config.width}px`;
     element.style.height = `${config.height}px`;
     element.style.transform = `translate(${config.x}px, ${config.y}px)`;
-    if (config.fontSize) element.style.fontSize = `${config.fontSize}px`;
     
     if (id === activeElementId) element.classList.add('active-selection');
     
@@ -278,13 +313,9 @@ function makeInteractive(element) {
 
     interact(element).draggable({
         listeners: {
-            start (event) {
-                verticalGuide.style.display = 'block';
-                horizontalGuide.style.display = 'block';
-            },
-            move (event) {
-                config.x += event.dx;
-                config.y += event.dy;
+            start(event) { verticalGuide.style.display = 'block'; horizontalGuide.style.display = 'block'; },
+            move(event) {
+                config.x += event.dx; config.y += event.dy;
                 const elementCenterX = config.x + (config.width / 2);
                 const elementCenterY = config.y + (config.height / 2);
                 const parentCenterX = cardPreview.offsetWidth / 2;
@@ -299,20 +330,15 @@ function makeInteractive(element) {
                 } else { horizontalGuide.style.backgroundColor = '#e74c3c'; }
                 event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
             },
-            end (event) {
-                verticalGuide.style.display = 'none';
-                horizontalGuide.style.display = 'none';
-            }
+            end(event) { verticalGuide.style.display = 'none'; horizontalGuide.style.display = 'none'; }
         },
         modifiers: [interact.modifiers.restrictRect({ restriction: 'parent' })]
     }).resizable({
         edges: { left: true, right: true, bottom: true, top: true },
         listeners: {
             move(event) {
-                config.width = event.rect.width;
-                config.height = event.rect.height;
-                config.x += event.deltaRect.left;
-                config.y += event.deltaRect.top;
+                config.width = event.rect.width; config.height = event.rect.height;
+                config.x += event.deltaRect.left; config.y += event.deltaRect.top;
                 Object.assign(event.target.style, {
                     width: `${event.rect.width}px`, height: `${event.rect.height}px`,
                     transform: `translate(${config.x}px, ${config.y}px)`
@@ -340,8 +366,7 @@ async function uploadImage(file, folder) {
         showMessage('Upload successful!', 'success');
         return data.publicUrl;
     } catch (error) {
-        showMessage(`Upload failed: ${error.message}`, 'error');
-        return null;
+        showMessage(`Upload failed: ${error.message}`, 'error'); return null;
     }
 }
 
@@ -349,13 +374,9 @@ async function handleLogoUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
     logoUrl = await uploadImage(file, 'card-template-logos');
-    if (logoUrl) {
-        logoPreview.src = logoUrl;
-        renderElements();
-    }
+    if (logoUrl) { logoPreview.src = logoUrl; renderElements(); }
 }
 
-// --- NEWLY ADDED FUNCTION ---
 async function handleBackgroundUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -367,54 +388,6 @@ async function handleBackgroundUpload(event) {
     }
 }
 
-async function saveTemplate() {
-    // ... (This function remains unchanged)
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
-        const config = await response.json();
-        _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
-        const { data: { session } } = await _supabase.auth.getSession();
-        if (!session) { document.body.innerHTML = '<h1>Please log in.</h1>'; return; }
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const templateIdFromUrl = urlParams.get('template_id');
-        if (templateIdFromUrl) {
-            await loadTemplateData(templateIdFromUrl);
-        } else {
-            switchView('front');
-        }
-
-        frontViewBtn.addEventListener('click', () => switchView('front'));
-        backViewBtn.addEventListener('click', () => switchView('back'));
-        document.querySelectorAll('input[name="orientation"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                cardPreview.className = `card-preview ${e.target.value}`;
-                activeElementId = null; updatePropertiesPanel();
-            });
-        });
-        backgroundUrlInput.addEventListener('input', (e) => {
-            backgroundUrls[currentSide] = e.target.value;
-            cardPreview.style.backgroundImage = `url('${e.target.value}')`;
-        });
-        
-        // --- ATTACH EVENT LISTENERS ---
-        backgroundUploadInput.addEventListener('change', handleBackgroundUpload);
-        logoUploadInput.addEventListener('change', handleLogoUpload);
-        saveBtn.addEventListener('click', saveTemplate);
-        
-    } catch(error) {
-        showMessage('Initialization Error: ' + error.message, 'error');
-    }
-});
-
-function showMessage(msg, type) {
-    // ... (This function remains unchanged)
-}
-
-// Full unchanged functions for brevity
 async function saveTemplate() {
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';
@@ -436,8 +409,7 @@ async function saveTemplate() {
             body: JSON.stringify(payload)
         });
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message || 'Failed to save.');
+            const err = await response.json(); throw new Error(err.message || 'Failed to save.');
         }
         const savedTemplate = await response.json();
         if (!currentTemplateId) {
@@ -453,6 +425,7 @@ async function saveTemplate() {
         saveBtn.textContent = 'Save Template';
     }
 }
+
 function showMessage(msg, type) {
     const messageEl = document.getElementById('message');
     if(!messageEl) return;
@@ -464,6 +437,40 @@ function showMessage(msg, type) {
     messageEl.style.display = 'block';
     setTimeout(() => { messageEl.style.display = 'none'; }, 5000);
 }
+
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+        const config = await response.json();
+        _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (!session) { document.body.innerHTML = '<h1>Please log in.</h1>'; return; }
+        const urlParams = new URLSearchParams(window.location.search);
+        const templateIdFromUrl = urlParams.get('template_id');
+        if (templateIdFromUrl) {
+            await loadTemplateData(templateIdFromUrl);
+        } else {
+            switchView('front');
+        }
+        frontViewBtn.addEventListener('click', () => switchView('front'));
+        backViewBtn.addEventListener('click', () => switchView('back'));
+        document.querySelectorAll('input[name="orientation"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                cardPreview.className = `card-preview ${e.target.value}`;
+                activeElementId = null; updatePropertiesPanel();
+            });
+        });
+        backgroundUrlInput.addEventListener('input', (e) => {
+            backgroundUrls[currentSide] = e.target.value;
+            cardPreview.style.backgroundImage = `url('${e.target.value}')`;
+        });
+        backgroundUploadInput.addEventListener('change', handleBackgroundUpload);
+        logoUploadInput.addEventListener('change', handleLogoUpload);
+        saveBtn.addEventListener('click', saveTemplate);
+    } catch(error) {
+        showMessage('Initialization Error: ' + error.message, 'error');
+    }
+});
 </script>
 
 </body>
