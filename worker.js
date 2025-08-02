@@ -3,7 +3,7 @@
 // --- Imports ---
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
-const { PDFDocument, rgb } = require('pdf-lib');
+const { PDFDocument } = require('pdf-lib');
 const QRCode = require('qrcode');
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
@@ -22,37 +22,13 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, serviceKey);
 
 // =========================================================================
-// --- PDF GENERATION LOGIC (FINAL LAYOUT) ---
+// --- PDF GENERATION LOGIC ---
 // =========================================================================
 
 const CANVAS_DIMENSIONS = {
     portrait: { width: 255, height: 405 },
     landscape: { width: 405, height: 255 }
 };
-
-/**
- * Helper function to draw crop marks around a card.
- */
-function drawCropMarks(page, x, y, width, height) {
-    const markLength = 4; // mm
-    const markOffset = 1; // mm
-    const color = rgb(0.5, 0.5, 0.5);
-    const thickness = 0.25; // pt
-
-    // Top-left
-    page.drawLine({ start: { x: x - markOffset, y: y + height }, end: { x: x - markOffset - markLength, y: y + height }, color, thickness });
-    page.drawLine({ start: { x: x, y: y + height + markOffset }, end: { x: x, y: y + height + markOffset + markLength }, color, thickness });
-    // Top-right
-    page.drawLine({ start: { x: x + width + markOffset, y: y + height }, end: { x: x + width + markOffset + markLength, y: y + height }, color, thickness });
-    page.drawLine({ start: { x: x + width, y: y + height + markOffset }, end: { x: x + width, y: y + height + markOffset + markLength }, color, thickness });
-    // Bottom-left
-    page.drawLine({ start: { x: x - markOffset, y: y }, end: { x: x - markOffset - markLength, y: y }, color, thickness });
-    page.drawLine({ start: { x: x, y: y - markOffset }, end: { x: x, y: y - markOffset - markLength }, color, thickness });
-    // Bottom-right
-    page.drawLine({ start: { x: x + width + markOffset, y: y }, end: { x: x + width + markOffset + markLength, y: y }, color, thickness });
-    page.drawLine({ start: { x: x + width, y: y - markOffset }, end: { x: x + width, y: y - markOffset - markLength }, color, thickness });
-}
-
 
 const generateCardHtml = async (employee, template, side) => {
     const layoutConfig = side === 'front' ? template.layout_config_front : template.layout_config_back;
@@ -99,13 +75,30 @@ const generateCardHtml = async (employee, template, side) => {
         }
         if (content) elementsHtml += `<div style="${inlineStyle}">${content}</div>`;
     }
-    return `<html><head><style>body,html{margin:0;padding:0;font-family:sans-serif;width:${canvas.width}px;height:${canvas.height}px;position:relative;}</style></head><body>${elementsHtml}</body></html>`;
+    
+    // NEW: Added a border for cutting and box-sizing to keep dimensions correct.
+    return `
+        <html>
+            <head>
+                <style>
+                    body, html {
+                        margin:0; 
+                        padding:0; 
+                        font-family:sans-serif; 
+                        width:${canvas.width}px; 
+                        height:${canvas.height}px; 
+                        position:relative;
+                        border: 0.5pt solid #cccccc;
+                        box-sizing: border-box;
+                    } 
+                    span { width:100%; padding:2px; }
+                </style>
+            </head>
+            <body>${elementsHtml}</body>
+        </html>
+    `;
 };
 
-
-/**
- * Main job function - REWRITTEN for 2x3 grid layout (6 employees per page)
- */
 async function generatePdfForJob(job) {
     const { template, employees } = job.payload;
     const doc = await PDFDocument.create();
@@ -123,10 +116,10 @@ async function generatePdfForJob(job) {
         const PAIR_WIDTH = CARD_WIDTH * 2;
         
         const PAGE_WIDTH = 210; const PAGE_HEIGHT = 297;
-        const CARDS_PER_ROW = 2; const CARDS_PER_COL = 3;
-        const PAIRS_PER_PAGE = 6;
+        const CARDS_PER_ROW = 1; // Only 1 pair of front/back can fit horizontally
+        const CARDS_PER_COL = 3;
+        const PAIRS_PER_PAGE = CARDS_PER_ROW * CARDS_PER_COL;
 
-        // Center the entire grid on the page
         const MARGIN_X = (PAGE_WIDTH - (PAIR_WIDTH * CARDS_PER_ROW)) / 2;
         const MARGIN_Y = (PAGE_HEIGHT - (CARD_HEIGHT * CARDS_PER_COL)) / 2;
 
@@ -150,20 +143,16 @@ async function generatePdfForJob(job) {
             const backImageBuffer = await page.screenshot({ type: 'jpeg', quality: 95 });
 
             const indexOnPage = cardCount % PAIRS_PER_PAGE;
-            const row = Math.floor(indexOnPage / CARDS_PER_ROW);
-            const col = indexOnPage % CARDS_PER_ROW;
+            const row = indexOnPage;
             
-            const x_front = MARGIN_X + col * PAIR_WIDTH;
+            const x_front = MARGIN_X;
             const y_pos = PAGE_HEIGHT - MARGIN_Y - CARD_HEIGHT - (row * CARD_HEIGHT);
-
+            
             const frontImage = await doc.embedJpg(frontImageBuffer);
             currentPage.drawImage(frontImage, { x: x_front, y: y_pos, width: CARD_WIDTH, height: CARD_HEIGHT });
             
             const backImage = await doc.embedJpg(backImageBuffer);
             currentPage.drawImage(backImage, { x: x_front + CARD_WIDTH, y: y_pos, width: CARD_WIDTH, height: CARD_HEIGHT });
-            
-            // Draw crop marks around the pair
-            drawCropMarks(currentPage, x_front, y_pos, PAIR_WIDTH, CARD_HEIGHT);
 
             cardCount++;
         }
