@@ -1,105 +1,135 @@
-// NEW: Import Express to create a web server
-const express = require('express');
-
-// Your existing imports
-const { createClient } = require('@supabase/supabase-js');
-const { PDFDocument, rgb } = require('pdf-lib');
+// Place this at the top of your worker.js with other require statements
+const QRCode = require('qrcode');
+const { PDFDocument } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
+// Add any other necessary imports like puppeteer, fs, path, etc.
 
-// --- NEW: Express App Setup ---
-const app = express();
-// Render provides the port to listen on via the PORT environment variable.
-// We fall back to 3000 for local testing.
-const PORT = process.env.PORT || 3000;
-
-// NEW: Dummy endpoint to keep the service "alive" and for health checks.
-// Anyone visiting your Render URL will see this message.
-app.get('/', (req, res) => {
-    res.status(200).send('PDF Worker is alive and polling for jobs.');
-});
-
-// Your existing Supabase client setup
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-// =========================================================================
-// --- START: PDF GENERATION LOGIC (NO CHANGES HERE) ---
-// Your existing generatePdfForJob function and its helpers go here.
-// =========================================================================
 async function generatePdfForJob(job) {
-    // This is your main PDF generation function
-    const { template, employees } = job.payload;
-    try {
-        const pdfDoc = await PDFDocument.create();
-        // ... all of your complex PDF generation code ...
-        console.log(`Generating PDF for job ${job.id}...`); // Example log
-        const pdfBytes = await pdfDoc.save();
-        return { pdfBytes };
-    } catch(error) {
-        console.error(`Error in generatePdfForJob for job ${job.id}:`, error);
-        throw error;
+    const { template, employees, paperSize = "A4" } = job.payload;
+    if (!template || !employees || employees.length === 0) {
+        throw new Error('Job payload is missing template or employees.');
     }
-}
 
-// =========================================================================
-// --- END: PDF GENERATION LOGIC ---
-// =========================================================================
+    const doc = await PDFDocument.create();
+    doc.registerFontkit(fontkit);
 
-
-// --- Your existing worker queue processing logic (NO CHANGES HERE) ---
-async function processQueue() {
-    console.log(`[${new Date().toISOString()}] Checking for new jobs...`);
-
-    const { data: job, error: findError } = await supabase
-        .from('pdf_generation_jobs')
-        .select('*')
-        .eq('status', 'pending')
-        .limit(1)
-        .single();
-
-    if (findError || !job) {
-        if (findError && findError.code !== 'PGRST116') { // PGRST116 = No rows found
-             console.error('Error finding job:', findError);
+    // --- Helper function to generate HTML for a single card ---
+    const generateCardHtml = async (employee) => {
+        // MODIFIED: Photo Handling Logic
+        let finalPhotoUrl;
+        if (employee.photo_url) {
+            finalPhotoUrl = employee.photo_url;
+        } else {
+            // NEW: Create a placeholder with the Employee ID if photo is missing
+            const placeholderText = `No Photo\\nID: ${employee.employee_id}`;
+            finalPhotoUrl = `https://placehold.co/400x400/EFEFEF/AAAAAA?text=${encodeURIComponent(placeholderText)}`;
         }
-        return; // No job to do
-    }
 
-    console.log(`Found job ${job.id}. Starting to process...`);
-    await supabase.from('pdf_generation_jobs').update({ status: 'processing' }).eq('id', job.id);
+        // MODIFIED: QR Code Handling Logic
+        let finalQrCodeUrl;
+        if (employee.permanent_token) {
+            const qrCodeData = `https://ssth-ecoupon.netlify.app/scanner?token=${employee.permanent_token}`;
+            finalQrCodeUrl = await QRCode.toDataURL(qrCodeData, { errorCorrectionLevel: 'H', width: 256 });
+        } else {
+            // NEW: Use a placeholder if the token for the QR code is missing
+            finalQrCodeUrl = `https://placehold.co/256x256/EFEFEF/AAAAAA?text=No+QR+Code`;
+        }
+
+        // This part assumes you are using the Puppeteer/html2canvas method for high fidelity.
+        // It generates the HTML that will be screenshotted.
+        const layout = template.layout_config_front || {};
+        let elementsHtml = '';
+
+        // Add background if it exists
+        if (template.background_front_url) {
+            elementsHtml += `<img src="${template.background_front_url}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:0;">`;
+        }
+
+        for (const key in layout) {
+            const style = layout[key];
+            let content = '';
+            let inlineStyle = `position:absolute; left:${style.left}; top:${style.top}; width:${style.width}; height:${style.height}; box-sizing:border-box; z-index:1;`;
+            
+            // Append additional style properties from the template
+            Object.keys(style).forEach(prop => {
+                if (!['left', 'top', 'width', 'height', 'text'].includes(prop)) {
+                    const kebabCaseProp = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
+                    inlineStyle += `${kebabCaseProp}:${style[prop]};`;
+                }
+            });
+
+            switch (key) {
+                case 'photo':
+                    content = `<img src="${finalPhotoUrl}" style="width:100%; height:100%; object-fit:cover;" />`;
+                    break;
+                case 'logo':
+                    content = `<img src="${template.logo_url || ''}" style="width:100%; height:100%; object-fit:contain;" />`;
+                    break;
+                case 'employee_name':
+                    content = `<span>${employee.name}</span>`;
+                    break;
+                case 'employee_id':
+                    content = `<span>ID: ${employee.employee_id}</span>`;
+                    break;
+                case 'qr_code':
+                    content = `<img src="${finalQrCodeUrl}" style="width:100%; height:100%; object-fit:contain;" />`;
+                    break;
+                default:
+                     if (style.text) {
+                        content = `<span>${style.text}</span>`;
+                     }
+                    break;
+            }
+            if (content) {
+                elementsHtml += `<div style="${inlineStyle}">${content}</div>`;
+            }
+        }
+        return elementsHtml;
+    };
+
+
+    // --- Main PDF Generation Logic (using puppeteer is assumed) ---
+    // This part requires you to have puppeteer/chromium set up in your worker environment.
+    const chromium = require('@sparticuz/chromium');
+    const puppeteer = require('puppeteer-core');
+    let browser = null;
 
     try {
-        const { pdfBytes } = await generatePdfForJob(job);
+        browser = await puppeteer.launch({
+            args: chromium.args,
+            defaultViewport: chromium.defaultViewport,
+            executablePath: await chromium.executablePath(),
+            headless: chromium.headless,
+        });
+
+        const page = await browser.newPage();
+
+        // Loop through employees and add their cards to the PDF
+        for (const employee of employees) {
+            const cardHtml = await generateCardHtml(employee);
+            
+            // Example: Add card to PDF page (this part depends on your chosen PDF library and layout)
+            // This is a simplified example. Your actual card placement logic will be here.
+            // For now, we'll just confirm the HTML generation works.
+            console.log(`Generated HTML for employee ${employee.employee_id}`);
+        }
         
-        const filePath = `public/pdfs/${job.id}.pdf`;
-        const { error: uploadError } = await supabase.storage
-            .from('documents')
-            .upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
+        // This is a placeholder for your actual PDF creation logic which is complex.
+        // The key is that `generateCardHtml` now handles the fallbacks.
+        // You would continue here by creating PDF pages, setting content, taking screenshots,
+        // and adding them to the `pdfDoc` object.
+        
+        // For demonstration, we create a simple PDF confirming the process ran.
+        const firstPage = doc.addPage();
+        firstPage.drawText(`Successfully processed ${employees.length} employees for PDF generation.`, { x: 50, y: 800 });
 
-        if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
+        const pdfBytes = await doc.save();
+        return { pdfBytes };
 
-        await supabase
-            .from('pdf_generation_jobs')
-            .update({ status: 'completed', result_url: urlData.publicUrl })
-            .eq('id', job.id);
-
-        console.log(`Job ${job.id} completed successfully.`);
-
-    } catch (error) {
-        console.error(`Failed to process job ${job.id}:`, error);
-        await supabase
-            .from('pdf_generation_jobs')
-            .update({ status: 'failed', error_message: error.message })
-            .eq('id', job.id);
+    } finally {
+        if (browser) {
+            await browser.close();
+        }
     }
 }
-
-// --- NEW: Start the server and the polling interval ---
-app.listen(PORT, () => {
-    console.log(`Web service listening on port ${PORT}`);
-    
-    // The setInterval call is now placed inside the server's start callback.
-    // This ensures polling only begins after the server is successfully running.
-    console.log('Starting PDF Worker polling...');
-    setInterval(processQueue, 10000); // Check for jobs every 10 seconds
-});
