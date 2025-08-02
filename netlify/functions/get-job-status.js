@@ -1,7 +1,7 @@
 // netlify/functions/get-job-status.js
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 exports.handler = async (event) => {
     const { jobId } = event.queryStringParameters;
