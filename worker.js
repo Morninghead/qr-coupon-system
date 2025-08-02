@@ -1,196 +1,325 @@
-// worker.js
-
-// --- Imports ---
-const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
-const { PDFDocument } = require('pdf-lib');
-const QRCode = require('qrcode');
-const chromium = require('@sparticuz/chromium');
-const puppeteer = require('puppeteer-core');
-require('dotenv').config();
-
-// --- Express App Setup ---
-const app = express();
-const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => {
-    res.status(200).send('PDF Worker is alive and polling for jobs.');
-});
-
-// --- Supabase Admin Client Setup ---
-const supabaseUrl = process.env.SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, serviceKey);
-
-// =========================================================================
-// --- PDF GENERATION LOGIC ---
-// =========================================================================
-
-const CANVAS_DIMENSIONS = {
-    portrait: { width: 255, height: 405 },
-    landscape: { width: 405, height: 255 }
-};
-
-const generateCardHtml = async (employee, template, side) => {
-    // This function generates the HTML for a single card side.
-    const layoutConfig = side === 'front' ? template.layout_config_front : template.layout_config_back;
-    const backgroundUrl = side === 'front' ? template.background_front_url : template.background_back_url;
-    if (!layoutConfig || Object.keys(layoutConfig).length === 0) return `<html><body><div class="card-wrapper"></div></body></html>`;
-
-    let finalPhotoUrl = employee.photo_url || `https://placehold.co/400x400/EFEFEF/AAAAAA?text=${encodeURIComponent(`No Photo\\nID: ${employee.employee_id}`)}`;
-    let finalQrCodeUrl = employee.permanent_token 
-        ? await QRCode.toDataURL(`https://ssth-ecoupon.netlify.app/scanner?token=${employee.permanent_token}`, { errorCorrectionLevel: 'H', width: 256, margin: 1 })
-        : `https://placehold.co/256x256/EFEFEF/AAAAAA?text=No+QR+Code`;
-
-    const canvas = CANVAS_DIMENSIONS[template.orientation] || CANVAS_DIMENSIONS.landscape;
-    let elementsHtml = backgroundUrl ? `<img src="${backgroundUrl}" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index: 0;">` : '';
-
-    for (const key in layoutConfig) {
-        const style = layoutConfig[key];
-        const elementType = key.split('-')[0];
-        const inlineStyle = `
-            position: absolute; z-index: 1;
-            left: ${(style.x / canvas.width * 100).toFixed(4)}%; top: ${(style.y / canvas.height * 100).toFixed(4)}%;
-            width: ${(style.width / canvas.width * 100).toFixed(4)}%; height: ${(style.height / canvas.height * 100).toFixed(4)}%;
-            font-size: ${style.fontSize || 16}px; font-family: ${style.fontFamily || 'sans-serif'};
-            color: ${style.fill || '#000'}; box-sizing: border-box; display: flex;
-            align-items: center; justify-content: center; text-align: center; overflow: hidden;
-        `;
-        
-        let content = '';
-        switch (elementType) {
-            case 'photo': content = `<img src="${finalPhotoUrl}" style="width:100%; height:100%; object-fit:cover; display:block;" />`; break;
-            case 'logo': content = `<img src="${template.logo_url || ''}" style="width:100%; height:100%; object-fit:contain; display:block;" />`; break;
-            case 'employee_name': content = `<span>${employee.name}</span>`; break;
-            case 'employee_id': content = `<span>${employee.employee_id}</span>`; break;
-            case 'department_name': content = `<span>${employee.department_name || ''}</span>`; break;
-            case 'qr_code': content = `<img src="${finalQrCodeUrl}" style="width:100%; height:100%; object-fit:contain; display:block;" />`; break;
-            case 'text': if (style.text) content = `<span>${style.text}</span>`; break;
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bulk Card Generator (Background Job System)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --success-color: #16a34a;
+            --error-color: #dc2626;
+            --info-color: #2563eb;
+            --light-gray: #f3f4f6;
+            --gray-text: #6b7280;
         }
-        if (content) elementsHtml += `<div style="${inlineStyle}">${content}</div>`;
-    }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--light-gray);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 900px; margin: auto; background: #fff;
+            padding: 24px; border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        h1 { color: var(--primary-color); }
+        .btn {
+            padding: 12px 20px; border-radius: 8px; font-weight: 600;
+            color: white; border: none; cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-generate { background-color: var(--primary-color); }
+        .btn-generate:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        .table-container {
+            max-height: 400px; overflow-y: auto;
+            border: 1px solid #e5e7eb; border-radius: 8px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+        th { background: #f9fafb; font-size: 0.9em; text-transform: uppercase; color: var(--gray-text); }
+        .message-box {
+            margin-top: 20px; font-weight: bold; padding: 15px;
+            border-radius: 8px; text-align: center;
+        }
+        /* NEW: Styles for Progress Bar */
+        #progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            padding: 3px;
+        }
+        .progress-bar-fill {
+            height: 20px;
+            background-color: var(--info-color);
+            border-radius: 5px;
+            transition: width 0.4s ease-in-out;
+            text-align: center;
+            color: white;
+            line-height: 20px;
+        }
+        #download-link {
+            display: none; margin-top: 15px; text-align: center;
+            background: var(--success-color); color: white; padding: 15px;
+            border-radius: 8px; text-decoration: none; font-size: 1.1em;
+            font-weight: bold; transition: background-color 0.2s;
+        }
+        #download-link:hover { background-color: #15803d; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Bulk Card Generator</h1>
     
-    // NEW: Reliable border implementation on an inner wrapper div.
-    return `
-        <html>
-            <head>
-                <style>
-                    body, html { margin:0; padding:0; font-family:sans-serif; width:${canvas.width}px; height:${canvas.height}px; }
-                    .card-wrapper {
-                        width: 100%; height: 100%; position: relative; overflow: hidden;
-                        border: 1px solid #B0B0B0; box-sizing: border-box;
-                    }
-                    span { width:100%; padding:2px; }
-                </style>
-            </head>
-            <body><div class="card-wrapper">${elementsHtml}</div></body>
-        </html>
-    `;
-};
+    <div id="template-info" style="margin-bottom: 20px;">
+        <h3>Template: <span id="template-name-display">Loading...</span></h3>
+    </div>
 
-/**
- * Main job function - Corrected layout for 6 employees per page.
- */
-async function generatePdfForJob(job) {
-    const { template, employees } = job.payload;
-    const doc = await PDFDocument.create();
-    let browser = null;
+    <div id="controls" style="margin-bottom: 20px; display: flex; align-items: center; gap: 15px;">
+        <div id="selected-count" style="font-weight: 500; color: var(--gray-text);">Selected: 0</div>
+    </div>
 
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 5%;"><input type="checkbox" id="select-all-employees"/></th>
+                    <th>Employee ID</th>
+                    <th>Name</th>
+                </tr>
+            </thead>
+            <tbody id="employee-table-body"></tbody>
+        </table>
+    </div>
+
+    <br />
+    <button id="generate-pdf-btn" class="btn btn-generate" disabled>Generate PDF</button>
+    
+    <div id="progress-container">
+        <div id="pdf-message" class="message-box" style="margin-bottom: 10px;"></div>
+        <div class="progress-bar">
+            <div class="progress-bar-fill" id="progress-bar-fill">0%</div>
+        </div>
+    </div>
+    
+    <a id="download-link" href="#" target="_blank">📥 Download PDF</a>
+</div>
+
+<script>
+// --- 1. Global Variables & UI References ---
+let _supabase, selectedTemplate = null, allEmployees = [], selectedEmployeeIds = new Map();
+let pollingInterval = null;
+
+const baseUrl = window.location.origin;
+const templateNameEl = document.getElementById('template-name-display');
+const employeeTableBody = document.getElementById('employee-table-body');
+const selectAllCheckbox = document.getElementById('select-all-employees');
+const generateBtn = document.getElementById('generate-pdf-btn');
+const selectedCountSpan = document.getElementById('selected-count');
+const pdfMessageEl = document.getElementById('pdf-message');
+const downloadLink = document.getElementById('download-link');
+
+// NEW: Progress Bar References
+const progressContainer = document.getElementById('progress-container');
+const progressBarFill = document.getElementById('progress-bar-fill');
+
+
+// --- 2. Initialization ---
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+async function initializeApp() {
     try {
-        browser = await puppeteer.launch({
-            args: chromium.args, executablePath: await chromium.executablePath(), headless: chromium.headless,
-        });
-        const page = await browser.newPage();
-
-        // --- Layout Constants (in mm) ---
-        const isPortrait = template.orientation === 'portrait';
-        // Preserve standard aspect ratio
-        const CARD_ASPECT_RATIO = isPortrait ? (53.98 / 85.6) : (85.6 / 53.98);
+        const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
+        if (!response.ok) throw new Error('Failed to load configuration.');
+        const config = await response.json();
+        _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
         
-        const PAGE_WIDTH = 210; const PAGE_HEIGHT = 297; // A4
-        const MARGIN = 10;
+        const urlParams = new URLSearchParams(window.location.search);
+        const templateId = urlParams.get('template_id');
+        if (!templateId) throw new Error('No template ID provided in URL.');
         
-        // Calculate scaled dimensions to fit a 2x3 grid of pairs
-        const USABLE_WIDTH = PAGE_WIDTH - (MARGIN * 2);
-        const PAIR_WIDTH = USABLE_WIDTH / 2; // 2 pairs fit horizontally
-        const CARD_WIDTH = PAIR_WIDTH / 2; // Each pair has a front and back
-        const CARD_HEIGHT = CARD_WIDTH / CARD_ASPECT_RATIO;
-        
-        const PAIRS_PER_PAGE = 6;
-        const CARDS_PER_ROW = 2;
-
-        const canvas = CANVAS_DIMENSIONS[template.orientation] || CANVAS_DIMENSIONS.landscape;
-        await page.setViewport({ width: canvas.width, height: canvas.height });
-
-        let cardCount = 0;
-        let currentPage = null;
-
-        for (const employee of employees) {
-            if (cardCount % PAIRS_PER_PAGE === 0) {
-                currentPage = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-            }
-
-            const frontHtml = await generateCardHtml(employee, template, 'front');
-            await page.setContent(frontHtml, { waitUntil: 'networkidle0' });
-            const frontImageBuffer = await page.screenshot({ type: 'jpeg', quality: 95 });
-
-            const backHtml = await generateCardHtml(employee, template, 'back');
-            await page.setContent(backHtml, { waitUntil: 'networkidle0' });
-            const backImageBuffer = await page.screenshot({ type: 'jpeg', quality: 95 });
-
-            const indexOnPage = cardCount % PAIRS_PER_PAGE;
-            const row = Math.floor(indexOnPage / CARDS_PER_ROW); // 0, 0, 1, 1, 2, 2
-            const col = indexOnPage % CARDS_PER_ROW;           // 0, 1, 0, 1, 0, 1
-            
-            const x_front = MARGIN + col * PAIR_WIDTH;
-            const y_pos = PAGE_HEIGHT - MARGIN - CARD_HEIGHT - (row * CARD_HEIGHT);
-
-            const frontImage = await doc.embedJpg(frontImageBuffer);
-            currentPage.drawImage(frontImage, { x: x_front, y: y_pos, width: CARD_WIDTH, height: CARD_HEIGHT });
-            
-            const backImage = await doc.embedJpg(backImageBuffer);
-            currentPage.drawImage(backImage, { x: x_front + CARD_WIDTH, y: y_pos, width: CARD_WIDTH, height: CARD_HEIGHT });
-
-            cardCount++;
-        }
-        
-        const pdfBytes = await doc.save();
-        return { pdfBytes };
-
-    } finally {
-        if (browser) await browser.close();
+        await Promise.all([ loadTemplate(templateId), fetchAllEmployees() ]);
+        setupEventListeners();
+    } catch (error) {
+        handleUIError("Initialization Error", error.message);
     }
 }
 
+function setupEventListeners() {
+    selectAllCheckbox.addEventListener('change', handleSelectAll);
+    generateBtn.addEventListener('click', startPdfGenerationJob);
+    // Event listeners for individual checkboxes will be added when the table is rendered
+}
 
-// =========================================================================
-// --- WORKER QUEUE LOGIC (No changes) ---
-// =========================================================================
-async function processQueue() {
-    console.log(`[${new Date().toISOString()}] Checking for new jobs...`);
-    const { data: job, error: findError } = await supabase.from('pdf_generation_jobs').select('*').eq('status', 'pending').limit(1).single();
-    if (!job) {
-        if (findError && findError.code !== 'PGRST116') console.error('Error finding job:', findError);
+// --- 3. Data Loading & UI Rendering ---
+async function loadTemplate(templateId) {
+    const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
+    if (error) throw new Error(`Could not load template: ${error.message}`);
+    selectedTemplate = data;
+    templateNameEl.textContent = selectedTemplate.template_name;
+}
+
+async function fetchAllEmployees() {
+    const { data, error } = await _supabase.from('combined_employees_view').select('*').order('name', { ascending: true });
+    if (error) throw new Error(`Could not fetch employees: ${error.message}`);
+    allEmployees = data;
+    renderEmployeeTable(allEmployees);
+}
+
+function renderEmployeeTable(employees) {
+    employeeTableBody.innerHTML = '';
+    if (employees.length === 0) {
+        employeeTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center;">No employees found.</td></tr>';
         return;
     }
-    console.log(`Found job ${job.id}. Starting to process...`);
-    await supabase.from('pdf_generation_jobs').update({ status: 'processing', progress: 0, progress_message: 'Worker picked up job...' }).eq('id', job.id);
+    employees.forEach(emp => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td><input type="checkbox" class="employee-checkbox" data-id="${emp.id}" /></td><td>${emp.employee_id || 'N/A'}</td><td>${emp.name}</td>`;
+        row.querySelector('.employee-checkbox').addEventListener('change', (e) => handleCheckboxChange(e, emp));
+        employeeTableBody.appendChild(row);
+    });
+}
+
+function handleCheckboxChange(event, employee) {
+    if (event.target.checked) selectedEmployeeIds.set(employee.id, employee);
+    else selectedEmployeeIds.delete(employee.id);
+    updateGenerateButton();
+}
+
+function handleSelectAll(event) {
+    const isChecked = event.target.checked;
+    const checkboxes = employeeTableBody.querySelectorAll('.employee-checkbox');
+    checkboxes.forEach(cb => cb.checked = isChecked);
+    
+    selectedEmployeeIds.clear();
+    if (isChecked) {
+        allEmployees.forEach(emp => selectedEmployeeIds.set(emp.id, emp));
+    }
+    updateGenerateButton();
+}
+
+function updateGenerateButton() {
+    const count = selectedEmployeeIds.size;
+    selectedCountSpan.textContent = `Selected: ${count}`;
+    generateBtn.disabled = count === 0;
+    generateBtn.textContent = count > 0 ? `Generate PDF for ${count} Employees` : 'Generate PDF';
+}
+
+// =============================================================
+// --- 4. CORE LOGIC: Background Job System ---
+// =============================================================
+
+async function startPdfGenerationJob() {
+    if (selectedEmployeeIds.size === 0 || !selectedTemplate) return;
+
+    resetUIState();
+    updateMessage('Sending request to server...', 'info');
+
     try {
-        const { pdfBytes } = await generatePdfForJob(job);
-        const filePath = `public/pdfs/${job.id}.pdf`;
-        const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
-        if (uploadError) throw uploadError;
-        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-        await supabase.from('pdf_generation_jobs').update({ status: 'completed', result_url: urlData.publicUrl, progress: 100, progress_message: 'Completed!' }).eq('id', job.id);
-        console.log(`Job ${job.id} completed successfully.`);
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (!session) throw new Error("User not authenticated. Please log in again.");
+
+        const response = await fetch(`${baseUrl}/.netlify/functions/request-bulk-pdf`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({
+                template: selectedTemplate,
+                employees: Array.from(selectedEmployeeIds.values()),
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.message || 'Failed to create job on server.');
+        }
+
+        const { jobId } = await response.json();
+        updateMessage(`Job created. Waiting for worker...`, 'info');
+        pollingInterval = setInterval(() => checkJobStatus(jobId), 3000); // Poll every 3 seconds
+
     } catch (error) {
-        console.error(`Failed to process job ${job.id}:`, error);
-        await supabase.from('pdf_generation_jobs').update({ status: 'failed', error_message: error.message }).eq('id', job.id);
+        handleJobError(`Error starting job: ${error.message}`);
     }
 }
 
-// --- Start the server ---
-app.listen(PORT, () => {
-    console.log(`Web service listening on port ${PORT}`);
-    console.log('Starting PDF Worker polling...');
-    setInterval(processQueue, 15000);
-});
+async function checkJobStatus(jobId) {
+    try {
+        const response = await fetch(`${baseUrl}/.netlify/functions/get-job-status?jobId=${jobId}`);
+        const data = await response.json();
+
+        // --- NEW: Handle and display progress ---
+        if (data.status === 'processing' && data.progress_message) {
+            updateMessage(data.progress_message, 'info');
+            const progressPercent = data.progress || 0;
+            progressBarFill.style.width = `${progressPercent}%`;
+            progressBarFill.textContent = `${progressPercent}%`;
+        } else {
+            updateMessage(`Current status: ${data.status}...`, 'info');
+        }
+        
+        if (data.status === 'completed') {
+            handleJobSuccess(data.result_url);
+        } else if (data.status === 'failed') {
+            handleJobError(`Job failed: ${data.error_message || 'Unknown error'}`);
+        }
+
+    } catch (error) {
+        handleJobError(`Error checking status: ${error.message}`);
+    }
+}
+
+// --- 5. UI State Handlers ---
+
+function resetUIState() {
+    generateBtn.disabled = true;
+    generateBtn.textContent = '⏳ Processing...';
+    downloadLink.style.display = 'none';
+    progressContainer.style.display = 'block';
+    progressBarFill.style.width = '0%';
+    progressBarFill.textContent = '0%';
+    if (pollingInterval) clearInterval(pollingInterval);
+}
+
+function handleJobSuccess(url) {
+    clearInterval(pollingInterval);
+    updateMessage('✅ PDF generated successfully!', 'success');
+    progressBarFill.style.width = '100%';
+    progressBarFill.textContent = '100%';
+    downloadLink.href = url;
+    downloadLink.style.display = 'block';
+    generateBtn.disabled = false;
+    updateGenerateButton();
+}
+
+function handleJobError(message) {
+    clearInterval(pollingInterval);
+    updateMessage(`❌ ${message}`, 'error');
+    progressBarFill.style.backgroundColor = 'var(--error-color)';
+    generateBtn.disabled = false;
+    updateGenerateButton();
+}
+
+function handleUIError(title, message) {
+    employeeTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--error-color);"><strong>${title}</strong><br>${message}</td></tr>`;
+}
+
+function updateMessage(text, type) {
+    pdfMessageEl.style.display = 'block';
+    pdfMessageEl.textContent = text;
+    pdfMessageEl.className = 'message-box'; // Reset class
+    if (type === 'info') pdfMessageEl.style.backgroundColor = '#dbeafe';
+    if (type === 'success') pdfMessageEl.style.backgroundColor = '#dcfce7';
+    if (type === 'error') pdfMessageEl.style.backgroundColor = '#fee2e2';
+}
+
+</script>
+</body>
+</html>
