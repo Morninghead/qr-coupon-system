@@ -19,9 +19,6 @@
         .card-element img, .card-element div, .card-element span { width: 100%; height: 100%; object-fit: contain; text-align: center; pointer-events: none; }
         .card-element:hover .delete-btn { display: block; }
         .delete-btn { display: none; position: absolute; top: -10px; right: -10px; width: 20px; height: 20px; background: #e74c3c; color: white; border: none; border-radius: 50%; cursor: pointer; font-weight: bold; line-height: 20px; text-align: center; z-index: 10; }
-        .snap-guideline { position: absolute; background-color: #e74c3c; display: none; z-index: -1; }
-        .snap-guideline.vertical { width: 1px; height: 100%; top: 0; left: 50%; }
-        .snap-guideline.horizontal { height: 1px; width: 100%; left: 0; top: 50%; }
         .control-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input[type="text"], input[type="url"], input[type="file"], select, button { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
@@ -31,14 +28,14 @@
         .element-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
         #save-template-btn { background-color: #28a745; color: white; font-weight: bold; margin-top: auto; }
         .view-switcher { display: flex; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
-        .view-switcher button { width: 50%; border: none; background: #fff; cursor: pointer; border-radius: 0; }
+        .view-switcher button { width: 50%; border: none; background: #fff; cursor: pointer; border-radius: 0; padding: 10px; }
         .view-switcher button.active { background: var(--primary); color: white; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h2>Card Editor</h2>
+    <h2 id="editor-title">Create New Template</h2>
     <div class="control-group">
         <label for="template-name">Template Name</label>
         <input type="text" id="template-name" placeholder="e.g., Standard Employee Card">
@@ -89,9 +86,7 @@
 
 <div class="main-content">
     <div class="card-container">
-        <div id="card-preview" class="card-preview landscape">
-             <!-- Snap guidelines will be added here -->
-        </div>
+        <div id="card-preview" class="card-preview landscape"></div>
     </div>
 </div>
 
@@ -111,6 +106,53 @@ const frontViewBtn = document.getElementById('front-view-btn');
 const backViewBtn = document.getElementById('back-view-btn');
 const logoUploadInput = document.getElementById('logo-upload');
 const logoPreview = document.getElementById('logo-preview');
+const templateNameInput = document.getElementById('template-name');
+const editorTitle = document.getElementById('editor-title');
+
+// --- NEW: Function to load existing template data ---
+async function loadTemplateData(templateId) {
+    showMessage('Loading template data...', 'info');
+    try {
+        const { data, error } = await _supabase
+            .from('card_templates')
+            .select('*')
+            .eq('id', templateId)
+            .single();
+
+        if (error) throw error;
+        if (!data) throw new Error('Template not found.');
+
+        currentTemplateId = data.id;
+        templateNameInput.value = data.template_name;
+        editorTitle.textContent = `Editing: ${data.template_name}`;
+        
+        // Set orientation
+        if (data.orientation === 'portrait') {
+            document.getElementById('orientation-portrait').checked = true;
+        } else {
+            document.getElementById('orientation-landscape').checked = true;
+        }
+        cardPreview.className = `card-preview ${data.orientation}`;
+
+        // Set URLs and configs
+        logoUrl = data.logo_url || '';
+        logoPreview.src = logoUrl;
+        backgroundUrls.front = data.background_front_url || '';
+        backgroundUrls.back = data.background_back_url || '';
+        layoutConfigs.front = data.layout_config_front || {};
+        layoutConfigs.back = data.layout_config_back || {};
+        
+        // Render the initial view
+        switchView('front');
+        showMessage('Template loaded successfully.', 'success');
+
+    } catch (error) {
+        console.error('Error loading template:', error);
+        showMessage(`Failed to load template: ${error.message}`, 'error');
+        editorTitle.textContent = 'Error Loading Template';
+    }
+}
+
 
 function switchView(side) {
     currentSide = side;
@@ -120,9 +162,9 @@ function switchView(side) {
     cardPreview.style.backgroundImage = `url('${backgroundUrls[side]}')`;
     renderElements();
 }
+
 function renderElements() {
     cardPreview.innerHTML = '';
-    cardPreview.innerHTML += '<div id="vertical-guide" class="snap-guideline vertical"></div><div id="horizontal-guide" class="snap-guideline horizontal"></div>';
     const config = layoutConfigs[currentSide];
     for (const key in config) {
         const element = createVisualElement(key, config[key]);
@@ -130,6 +172,7 @@ function renderElements() {
         makeInteractive(element);
     }
 }
+
 function createVisualElement(id, config) {
     const el = document.createElement('div');
     el.id = id;
@@ -149,47 +192,35 @@ function createVisualElement(id, config) {
     el.innerHTML = content + '<button class="delete-btn" onclick="removeElement(this.parentElement.id)">X</button>';
     return el;
 }
+
 function addElement(type) {
     const id = `${type}-${Date.now()}`;
     layoutConfigs[currentSide][id] = { x: 10, y: 10, width: 100, height: type === 'text' ? 30 : 100, text: 'Custom Text' };
     renderElements();
 }
+
 function removeElement(id) {
     event.stopPropagation();
     delete layoutConfigs[currentSide][id];
     renderElements();
 }
+
 function updateText(span, id) { layoutConfigs[currentSide][id].text = span.textContent; }
+
 function makeInteractive(element) {
     const id = element.id;
     const config = layoutConfigs[currentSide][id];
     element.style.width = `${config.width}px`;
     element.style.height = `${config.height}px`;
     element.style.transform = `translate(${config.x}px, ${config.y}px)`;
-    const verticalGuide = document.getElementById('vertical-guide');
-    const horizontalGuide = document.getElementById('horizontal-guide');
-    const snapThreshold = 5;
+
     interact(element)
         .draggable({
             listeners: {
-                start (event) {
-                    verticalGuide.style.display = 'block';
-                    horizontalGuide.style.display = 'block';
-                },
                 move (event) {
                     config.x += event.dx;
                     config.y += event.dy;
-                    const elementCenterX = config.x + (config.width / 2);
-                    const elementCenterY = config.y + (config.height / 2);
-                    const parentCenterX = cardPreview.offsetWidth / 2;
-                    const parentCenterY = cardPreview.offsetHeight / 2;
-                    verticalGuide.style.backgroundColor = Math.abs(elementCenterX - parentCenterX) < snapThreshold ? '#28a745' : '#e74c3c';
-                    horizontalGuide.style.backgroundColor = Math.abs(elementCenterY - parentCenterY) < snapThreshold ? '#28a745' : '#e74c3c';
                     event.target.style.transform = `translate(${config.x}px, ${config.y}px)`;
-                },
-                end (event) {
-                    verticalGuide.style.display = 'none';
-                    horizontalGuide.style.display = 'none';
                 }
             },
             modifiers: [ interact.modifiers.restrictRect({ restriction: 'parent' }) ]
@@ -215,6 +246,7 @@ function makeInteractive(element) {
             ]
         });
 }
+
 async function handleLogoUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -227,7 +259,7 @@ async function handleLogoUpload(event) {
     const fileExt = file.name.split('.').pop();
     const fileName = `template-${currentTemplateId || 'new'}-${Date.now()}.${fileExt}`;
     const filePath = `card-template-logos/${fileName}`;
-    showMessage('Uploading logo to server...', 'success');
+    showMessage('Uploading logo...', 'info');
     try {
         const { error: uploadError } = await _supabase.storage
             .from('images')
@@ -243,6 +275,7 @@ async function handleLogoUpload(event) {
         showMessage('Logo upload failed: ' + error.message, 'error');
     }
 }
+
 async function saveTemplate() {
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';
@@ -250,7 +283,6 @@ async function saveTemplate() {
         const { data: { session } } = await _supabase.auth.getSession();
         if (!session) throw new Error('You must be logged in to save.');
 
-        // *** ตั้งค่าขนาด canvas (portrait/landscape) อย่างถูกต้อง ***
         const orientation = document.querySelector('input[name="orientation"]:checked').value;
         const canvasSize = orientation === 'portrait' 
             ? { width: 255, height: 405 }
@@ -258,7 +290,7 @@ async function saveTemplate() {
         
         const payload = {
             id: currentTemplateId,
-            template_name: document.getElementById('template-name').value,
+            template_name: templateNameInput.value,
             orientation,
             logo_url: logoUrl,
             background_front_url: backgroundUrls.front,
@@ -281,6 +313,7 @@ async function saveTemplate() {
         if (!currentTemplateId) {
             currentTemplateId = savedTemplate.id;
             window.history.pushState({}, '', `?template_id=${currentTemplateId}`);
+            editorTitle.textContent = `Editing: ${savedTemplate.template_name}`;
         }
         showMessage('Template saved successfully!', 'success');
     } catch (error) {
@@ -290,6 +323,7 @@ async function saveTemplate() {
         saveBtn.textContent = 'Save Template';
     }
 }
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const response = await fetch(`${baseUrl}/.netlify/functions/get-config`);
@@ -297,6 +331,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         _supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
         const { data: { session } } = await _supabase.auth.getSession();
         if (!session) { document.body.innerHTML = '<h1>Please log in.</h1>'; return; }
+        
+        // --- UPDATED: Check for template_id in URL ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const templateIdFromUrl = urlParams.get('template_id');
+
+        if (templateIdFromUrl) {
+            await loadTemplateData(templateIdFromUrl);
+        } else {
+            switchView('front'); // Start with a blank editor if no ID
+        }
+        // --- END UPDATE ---
+
         frontViewBtn.addEventListener('click', () => switchView('front'));
         backViewBtn.addEventListener('click', () => switchView('back'));
         document.querySelectorAll('input[name="orientation"]').forEach(radio => {
@@ -310,17 +356,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         logoUploadInput.addEventListener('change', handleLogoUpload);
         saveBtn.addEventListener('click', saveTemplate);
-        switchView('front');
+        
     } catch(error) {
         showMessage('Initialization Error: ' + error.message, 'error');
     }
 });
+
 function showMessage(msg, type) {
     const messageEl = document.getElementById('message');
     if(!messageEl) return;
     messageEl.textContent = msg;
     messageEl.style.color = type === 'error' ? '#721c24' : '#155724';
     messageEl.style.backgroundColor = type === 'error' ? '#f8d7da' : '#d4edda';
+    messageEl.style.padding = '10px';
+    messageEl.style.borderRadius = '4px';
     messageEl.style.display = 'block';
     setTimeout(() => { messageEl.style.display = 'none'; }, 5000);
 }
