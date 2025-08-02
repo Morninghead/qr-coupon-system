@@ -1,5 +1,4 @@
 // worker.js
-require('dotenv').config(); // ใช้เพื่อโหลด Supabase credentials จากไฟล์ .env
 const { createClient } = require('@supabase/supabase-js');
 const { PDFDocument, rgb } = require('pdf-lib'); // และ dependencies อื่นๆ ของคุณ
 const fontkit = require('@pdf-lib/fontkit');
