@@ -1,6 +1,5 @@
 // NEW: Import Express to create a web server
 const express = require('express');
-require('dotenv').config();
 
 // Your existing imports
 const { createClient } = require('@supabase/supabase-js');
