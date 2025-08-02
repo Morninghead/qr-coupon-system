@@ -1,33 +1,42 @@
-// worker.js
+// NEW: Import Express to create a web server
+const express = require('express');
+require('dotenv').config();
+
+// Your existing imports
 const { createClient } = require('@supabase/supabase-js');
-const { PDFDocument, rgb } = require('pdf-lib'); // และ dependencies อื่นๆ ของคุณ
+const { PDFDocument, rgb } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
-// ... import/require ทุกอย่างที่โค้ดสร้าง PDF ของคุณต้องการ
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY); // **ใช้ SERVICE KEY**
+// --- NEW: Express App Setup ---
+const app = express();
+// Render provides the port to listen on via the PORT environment variable.
+// We fall back to 3000 for local testing.
+const PORT = process.env.PORT || 3000;
+
+// NEW: Dummy endpoint to keep the service "alive" and for health checks.
+// Anyone visiting your Render URL will see this message.
+app.get('/', (req, res) => {
+    res.status(200).send('PDF Worker is alive and polling for jobs.');
+});
+
+// Your existing Supabase client setup
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // =========================================================================
-// --- START: PDF GENERATION LOGIC ---
-// คัดลอกโค้ด Helper Functions ทั้งหมดของคุณ (pt, drawCropMarks, fetchImage, etc.) มาวางที่นี่
+// --- START: PDF GENERATION LOGIC (NO CHANGES HERE) ---
+// Your existing generatePdfForJob function and its helpers go here.
 // =========================================================================
-
 async function generatePdfForJob(job) {
-    // นี่คือฟังก์ชันหลักในการสร้าง PDF
-    // มันจะใช้ "job.payload" เป็นข้อมูล
+    // This is your main PDF generation function
     const { template, employees } = job.payload;
-    
-    // ...
-    // คัดลอกโค้ด "try...catch" หลักจาก handler เดิมของคุณมาวางที่นี่
-    // โดยเปลี่ยนจากการ return statusCode มาเป็นการ return object ที่มี pdfBytes
-    // หรือ throw error
-    // ...
-    // ตัวอย่าง:
     try {
         const pdfDoc = await PDFDocument.create();
-        // ... โค้ดสร้าง PDF ทั้งหมดของคุณ ...
+        // ... all of your complex PDF generation code ...
+        console.log(`Generating PDF for job ${job.id}...`); // Example log
         const pdfBytes = await pdfDoc.save();
         return { pdfBytes };
     } catch(error) {
+        console.error(`Error in generatePdfForJob for job ${job.id}:`, error);
         throw error;
     }
 }
@@ -36,10 +45,11 @@ async function generatePdfForJob(job) {
 // --- END: PDF GENERATION LOGIC ---
 // =========================================================================
 
-async function processQueue() {
-    console.log('Checking for new jobs...');
 
-    // 1. ค้นหางานที่ยังค้างอยู่
+// --- Your existing worker queue processing logic (NO CHANGES HERE) ---
+async function processQueue() {
+    console.log(`[${new Date().toISOString()}] Checking for new jobs...`);
+
     const { data: job, error: findError } = await supabase
         .from('pdf_generation_jobs')
         .select('*')
@@ -51,30 +61,24 @@ async function processQueue() {
         if (findError && findError.code !== 'PGRST116') { // PGRST116 = No rows found
              console.error('Error finding job:', findError);
         }
-        return; // ไม่มีงานให้ทำ
+        return; // No job to do
     }
 
     console.log(`Found job ${job.id}. Starting to process...`);
-
-    // 2. "ล็อก" งานทันทีโดยเปลี่ยนสถานะเป็น 'processing'
     await supabase.from('pdf_generation_jobs').update({ status: 'processing' }).eq('id', job.id);
 
     try {
-        // 3. เริ่มทำงานที่หนักที่สุด คือการสร้าง PDF
         const { pdfBytes } = await generatePdfForJob(job);
         
-        // 4. อัปโหลดไฟล์ PDF ไปที่ Supabase Storage
         const filePath = `public/pdfs/${job.id}.pdf`;
         const { error: uploadError } = await supabase.storage
-            .from('documents') // 'documents' คือชื่อ Bucket ของคุณ
+            .from('documents')
             .upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
 
         if (uploadError) throw uploadError;
 
-        // 5. ดึง Public URL ของไฟล์ที่อัปโหลด
         const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
 
-        // 6. อัปเดตสถานะเป็น 'completed' พร้อมลิงก์ดาวน์โหลด
         await supabase
             .from('pdf_generation_jobs')
             .update({ status: 'completed', result_url: urlData.publicUrl })
@@ -84,7 +88,6 @@ async function processQueue() {
 
     } catch (error) {
         console.error(`Failed to process job ${job.id}:`, error);
-        // หากล้มเหลว ให้อัปเดตสถานะเป็น 'failed' พร้อมข้อความ Error
         await supabase
             .from('pdf_generation_jobs')
             .update({ status: 'failed', error_message: error.message })
@@ -92,6 +95,12 @@ async function processQueue() {
     }
 }
 
-// ตั้งให้ Worker ทำงานทุกๆ 10 วินาที
-console.log('PDF Worker started. Waiting for jobs...');
-setInterval(processQueue, 10000);
+// --- NEW: Start the server and the polling interval ---
+app.listen(PORT, () => {
+    console.log(`Web service listening on port ${PORT}`);
+    
+    // The setInterval call is now placed inside the server's start callback.
+    // This ensures polling only begins after the server is successfully running.
+    console.log('Starting PDF Worker polling...');
+    setInterval(processQueue, 10000); // Check for jobs every 10 seconds
+});
