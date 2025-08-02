@@ -1,7 +1,7 @@
 // /netlify/functions/get-job-status.js
 const { createClient } = require('@supabase/supabase-js');
 
-// IMPORTANT: Use the SERVICE_ROLE_KEY for admin-level access, just like the worker.
+// Use the Service Role Key for admin-level access to read job status
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
 
@@ -20,23 +20,23 @@ exports.handler = async (event) => {
             .from('pdf_generation_jobs')
             .select('status, result_url, error_message')
             .eq('id', jobId)
-            .maybeSingle();
+            .maybeSingle(); // Use maybeSingle() to handle "not found" gracefully
 
+        // This error now only triggers for real problems (like bad connection), not "not found".
         if (error) {
-            // This now only triggers for real database errors.
             throw error;
         }
-
+        
+        // If data is null, the job is not yet visible in the DB.
+        // This is an expected state during the first few polls.
         if (!data) {
-            // If the job isn't found yet (race condition), this is fine.
-            // The frontend will continue polling.
-            return {
-                statusCode: 200,
-                body: JSON.stringify({ status: 'pending', message: 'Job not yet found, polling continues...' })
+            return { 
+                statusCode: 200, // It's not a server error, it's an expected state
+                body: JSON.stringify({ status: 'pending', message: 'Job not yet visible, polling continues...' }) 
             };
         }
 
-        // If the job is found, return its current status.
+        // If data is found, return it as normal.
         return {
             statusCode: 200,
             body: JSON.stringify(data)
@@ -44,9 +44,9 @@ exports.handler = async (event) => {
 
     } catch (error) {
         console.error('Error fetching job status:', error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ message: 'Could not fetch job status.', error: error.message })
+        return { 
+            statusCode: 500, 
+            body: JSON.stringify({ message: 'Could not fetch job status.', error: error.message }) 
         };
     }
 };
