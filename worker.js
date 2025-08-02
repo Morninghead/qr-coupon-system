@@ -7,8 +7,8 @@ const { PDFDocument, rgb } = require('pdf-lib');
 const QRCode = require('qrcode');
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
-const fs = require('fs'); //
-const path = require('path'); //
+const fs = require('fs'); // Added for font loading
+const path = require('path'); // Added for font loading
 require('dotenv').config();
 
 // --- Express App Setup ---
@@ -24,7 +24,7 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, serviceKey);
 
 // =========================================================================
-// --- PDF GENERATION LOGIC (WITH THAI FONT FIX) ---
+// --- PDF GENERATION LOGIC (WITH THAI FONT & PHOTO SHAPE FIX) ---
 // =========================================================================
 
 const CANVAS_DIMENSIONS = {
@@ -105,7 +105,11 @@ const generateCardHtml = async (employee, template, side) => {
         
         let content = '';
         switch (elementType) {
-            case 'photo': content = `<img src="${finalPhotoUrl}" style="width:100%; height:100%; object-fit:cover; display:block;" />`; break;
+            case 'photo':
+                // *** THIS IS THE FIX for photo shape ***
+                const shapeStyle = style.shape === 'circle' ? 'border-radius: 50%;' : '';
+                content = `<img src="${finalPhotoUrl}" style="width:100%; height:100%; object-fit:cover; display:block; ${shapeStyle}" />`;
+                break;
             case 'logo': content = `<img src="${template.logo_url || ''}" style="width:100%; height:100%; object-fit:contain; display:block;" />`; break;
             case 'employee_name': content = `<span>${employee.name}</span>`; break;
             case 'employee_id': content = `<span>${employee.employee_id}</span>`; break;
@@ -116,6 +120,7 @@ const generateCardHtml = async (employee, template, side) => {
         if (content) elementsHtml += `<div style="${inlineStyle}">${content}</div>`;
     }
     
+    // ** UPDATED with @font-face and meta charset **
     return `
         <html>
             <head>
@@ -132,13 +137,18 @@ const generateCardHtml = async (employee, template, side) => {
                         width:${canvas.width}px; 
                         height:${canvas.height}px; 
                         position:relative;
-                        border: 1px solid #B0B0B0; 
-                        box-sizing: border-box;
+                    }
+                    .card-wrapper {
+                        width: 100%; height: 100%; position: relative; overflow: hidden;
+                        border: 1px solid #B0B0B0; box-sizing: border-box;
+                        background-image: url(${backgroundUrl || ''});
+                        background-size: cover;
+                        background-position: center;
                     }
                     span { width:100%; padding:2px; }
                 </style>
             </head>
-            <body>${elementsHtml}</body>
+            <body><div class="card-wrapper">${elementsHtml}</div></body>
         </html>
     `;
 };
@@ -167,7 +177,6 @@ async function generatePdfForJob(job) {
         const CARDS_PER_ROW = 2; const CARDS_PER_COL = 3;
         const PAIRS_PER_PAGE = 6;
 
-        // Center the entire grid on the page
         const MARGIN_X = (PAGE_WIDTH - (PAIR_WIDTH * CARDS_PER_ROW)) / 2;
         const MARGIN_Y = (PAGE_HEIGHT - (CARD_HEIGHT * CARDS_PER_COL)) / 2;
 
@@ -176,8 +185,18 @@ async function generatePdfForJob(job) {
 
         let cardCount = 0;
         let currentPage = null;
+        const totalEmployees = employees.length;
 
         for (const employee of employees) {
+            const progress = Math.round(((cardCount + 1) / totalEmployees) * 100);
+            const progressMessage = `Processing Card ${cardCount + 1} of ${totalEmployees} for ${employee.name}...`;
+            
+            console.log(progressMessage);
+            await supabase.from('pdf_generation_jobs').update({
+                progress: progress,
+                progress_message: progressMessage
+            }).eq('id', job.id);
+            
             if (cardCount % PAIRS_PER_PAGE === 0) {
                 currentPage = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
             }
@@ -203,7 +222,6 @@ async function generatePdfForJob(job) {
             const backImage = await doc.embedJpg(backImageBuffer);
             currentPage.drawImage(backImage, { x: x_front + CARD_WIDTH, y: y_pos, width: CARD_WIDTH, height: CARD_HEIGHT });
             
-            // Draw crop marks around the pair
             drawCropMarks(currentPage, x_front, y_pos, PAIR_WIDTH, CARD_HEIGHT);
 
             cardCount++;
@@ -228,14 +246,14 @@ async function processQueue() {
         return;
     }
     console.log(`Found job ${job.id}. Starting to process...`);
-    await supabase.from('pdf_generation_jobs').update({ status: 'processing' }).eq('id', job.id);
+    await supabase.from('pdf_generation_jobs').update({ status: 'processing', progress: 0, progress_message: 'Worker picked up job...' }).eq('id', job.id);
     try {
         const { pdfBytes } = await generatePdfForJob(job);
         const filePath = `public/pdfs/${job.id}.pdf`;
         const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
         if (uploadError) throw uploadError;
-        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-        await supabase.from('pdf_generation_jobs').update({ status: 'completed', result_url: urlData.publicUrl }).eq('id', job.id);
+        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath, { download: true });
+        await supabase.from('pdf_generation_jobs').update({ status: 'completed', result_url: urlData.publicUrl, progress: 100, progress_message: 'Completed!' }).eq('id', job.id);
         console.log(`Job ${job.id} completed successfully.`);
     } catch (error) {
         console.error(`Failed to process job ${job.id}:`, error);
