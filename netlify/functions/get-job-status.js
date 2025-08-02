@@ -1,4 +1,5 @@
-// netlify/functions/get-job-status.js
+// get-job-status.js
+
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
@@ -14,11 +15,21 @@ exports.handler = async (event) => {
             .from('pdf_generation_jobs')
             .select('status, result_url, error_message')
             .eq('id', jobId)
-            .single();
+            .maybeSingle(); // <-- FIX IS HERE
 
+        // This error now only triggers for real problems, not "not found".
         if (error) throw error;
-        if (!data) return { statusCode: 404, body: JSON.stringify({ message: 'Job not found.' }) };
+        
+        // If data is null, the job is not yet visible in the DB.
+        // This is an expected state during the first few polls.
+        if (!data) {
+            return { 
+                statusCode: 200, // Return 200 OK because this is not a server error
+                body: JSON.stringify({ status: 'pending', message: 'Job not found yet, still processing...' }) 
+            };
+        }
 
+        // If data is found, return it as normal.
         return {
             statusCode: 200,
             body: JSON.stringify(data)
