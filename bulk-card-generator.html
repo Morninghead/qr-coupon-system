@@ -22,54 +22,55 @@
             color: #333;
         }
         .container {
-            max-width: 900px;
-            margin: auto;
-            background: #fff;
-            padding: 24px;
-            border-radius: 12px;
+            max-width: 900px; margin: auto; background: #fff;
+            padding: 24px; border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
         h1 { color: var(--primary-color); }
         .btn {
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-weight: 600;
-            color: white;
-            border: none;
-            cursor: pointer;
+            padding: 12px 20px; border-radius: 8px; font-weight: 600;
+            color: white; border: none; cursor: pointer;
             transition: background-color 0.2s, transform 0.1s;
         }
         .btn:active { transform: scale(0.98); }
         .btn-generate { background-color: var(--primary-color); }
         .btn-generate:disabled { background-color: #a0a0a0; cursor: not-allowed; }
         .table-container {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
+            max-height: 400px; overflow-y: auto;
+            border: 1px solid #e5e7eb; border-radius: 8px;
         }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px 15px; border-bottom: 1px solid #e5e7eb; text-align: left; }
         th { background: #f9fafb; font-size: 0.9em; text-transform: uppercase; color: var(--gray-text); }
         .message-box {
+            margin-top: 20px; font-weight: bold; padding: 15px;
+            border-radius: 8px; text-align: center;
+        }
+        /* NEW: Styles for Progress Bar */
+        #progress-container {
+            display: none;
             margin-top: 20px;
-            font-weight: bold;
-            padding: 15px;
-            border-radius: 8px;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            padding: 3px;
+        }
+        .progress-bar-fill {
+            height: 20px;
+            background-color: var(--info-color);
+            border-radius: 5px;
+            transition: width 0.4s ease-in-out;
             text-align: center;
+            color: white;
+            line-height: 20px;
         }
         #download-link {
-            display: none;
-            margin-top: 15px;
-            text-align: center;
-            background: var(--success-color);
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-size: 1.1em;
-            font-weight: bold;
-            transition: background-color 0.2s;
+            display: none; margin-top: 15px; text-align: center;
+            background: var(--success-color); color: white; padding: 15px;
+            border-radius: 8px; text-decoration: none; font-size: 1.1em;
+            font-weight: bold; transition: background-color 0.2s;
         }
         #download-link:hover { background-color: #15803d; }
     </style>
@@ -83,7 +84,6 @@
     </div>
 
     <div id="controls" style="margin-bottom: 20px; display: flex; align-items: center; gap: 15px;">
-        <label>ขนาดกระดาษ: <select id="paper-size-select"><option value="A4" selected>A4</option><option value="A3">A3</option></select></label>
         <div id="selected-count" style="font-weight: 500; color: var(--gray-text);">Selected: 0</div>
     </div>
 
@@ -103,7 +103,13 @@
     <br />
     <button id="generate-pdf-btn" class="btn btn-generate" disabled>Generate PDF</button>
     
-    <div id="pdf-message" class="message-box" style="display: none;"></div>
+    <div id="progress-container">
+        <div id="pdf-message" class="message-box" style="margin-bottom: 10px;"></div>
+        <div class="progress-bar">
+            <div class="progress-bar-fill" id="progress-bar-fill">0%</div>
+        </div>
+    </div>
+    
     <a id="download-link" href="#" target="_blank">📥 Download PDF</a>
 </div>
 
@@ -119,8 +125,12 @@ const selectAllCheckbox = document.getElementById('select-all-employees');
 const generateBtn = document.getElementById('generate-pdf-btn');
 const selectedCountSpan = document.getElementById('selected-count');
 const pdfMessageEl = document.getElementById('pdf-message');
-const paperSizeSelect = document.getElementById('paper-size-select');
 const downloadLink = document.getElementById('download-link');
+
+// NEW: Progress Bar References
+const progressContainer = document.getElementById('progress-container');
+const progressBarFill = document.getElementById('progress-bar-fill');
+
 
 // --- 2. Initialization ---
 document.addEventListener('DOMContentLoaded', initializeApp);
@@ -146,20 +156,10 @@ async function initializeApp() {
 function setupEventListeners() {
     selectAllCheckbox.addEventListener('change', handleSelectAll);
     generateBtn.addEventListener('click', startPdfGenerationJob);
-    // Add event listener for employee list checkboxes after they are rendered
-    employeeTableBody.addEventListener('change', function(event) {
-        if (event.target.classList.contains('employee-checkbox')) {
-            const empId = event.target.dataset.id;
-            const employee = allEmployees.find(e => e.id === empId);
-            if (employee) {
-                handleCheckboxChange(event, employee);
-            }
-        }
-    });
+    // Event listeners for individual checkboxes will be added when the table is rendered
 }
 
-
-// --- 3. Data Loading & UI Rendering (Logic remains the same) ---
+// --- 3. Data Loading & UI Rendering ---
 async function loadTemplate(templateId) {
     const { data, error } = await _supabase.from('card_templates').select('*').eq('id', templateId).single();
     if (error) throw new Error(`Could not load template: ${error.message}`);
@@ -168,8 +168,7 @@ async function loadTemplate(templateId) {
 }
 
 async function fetchAllEmployees() {
-    // Fetches from the view that includes department name
-    const { data, error } = await _supabase.from('combined_employees_view').select('id, employee_id, name, photo_url, department_name');
+    const { data, error } = await _supabase.from('combined_employees_view').select('*').order('name', { ascending: true });
     if (error) throw new Error(`Could not fetch employees: ${error.message}`);
     allEmployees = data;
     renderEmployeeTable(allEmployees);
@@ -184,6 +183,7 @@ function renderEmployeeTable(employees) {
     employees.forEach(emp => {
         const row = document.createElement('tr');
         row.innerHTML = `<td><input type="checkbox" class="employee-checkbox" data-id="${emp.id}" /></td><td>${emp.employee_id || 'N/A'}</td><td>${emp.name}</td>`;
+        row.querySelector('.employee-checkbox').addEventListener('change', (e) => handleCheckboxChange(e, emp));
         employeeTableBody.appendChild(row);
     });
 }
@@ -196,12 +196,13 @@ function handleCheckboxChange(event, employee) {
 
 function handleSelectAll(event) {
     const isChecked = event.target.checked;
-    allEmployees.forEach(emp => {
-        const checkbox = employeeTableBody.querySelector(`.employee-checkbox[data-id="${emp.id}"]`);
-        if (checkbox) checkbox.checked = isChecked;
-        if (isChecked) selectedEmployeeIds.set(emp.id, emp);
-    });
-    if (!isChecked) selectedEmployeeIds.clear();
+    const checkboxes = employeeTableBody.querySelectorAll('.employee-checkbox');
+    checkboxes.forEach(cb => cb.checked = isChecked);
+    
+    selectedEmployeeIds.clear();
+    if (isChecked) {
+        allEmployees.forEach(emp => selectedEmployeeIds.set(emp.id, emp));
+    }
     updateGenerateButton();
 }
 
@@ -209,22 +210,18 @@ function updateGenerateButton() {
     const count = selectedEmployeeIds.size;
     selectedCountSpan.textContent = `Selected: ${count}`;
     generateBtn.disabled = count === 0;
-    generateBtn.textContent = count > 0 ? `Generate PDF for ${count}` : 'Generate PDF';
+    generateBtn.textContent = count > 0 ? `Generate PDF for ${count} Employees` : 'Generate PDF';
 }
 
-
 // =============================================================
-// --- 4. NEW CORE LOGIC: Background Job System ---
+// --- 4. CORE LOGIC: Background Job System ---
 // =============================================================
 
-/**
- * 1. Starts the process: Sends a request to create a job on the server.
- */
 async function startPdfGenerationJob() {
     if (selectedEmployeeIds.size === 0 || !selectedTemplate) return;
 
     resetUIState();
-    updateMessage('กำลังส่งคำขอไปยังเซิร์ฟเวอร์...', 'info');
+    updateMessage('Sending request to server...', 'info');
 
     try {
         const { data: { session } } = await _supabase.auth.getSession();
@@ -236,7 +233,6 @@ async function startPdfGenerationJob() {
             body: JSON.stringify({
                 template: selectedTemplate,
                 employees: Array.from(selectedEmployeeIds.values()),
-                paperSize: paperSizeSelect.value
             })
         });
 
@@ -246,33 +242,37 @@ async function startPdfGenerationJob() {
         }
 
         const { jobId } = await response.json();
-        updateMessage(`สร้างงานสำเร็จ (ID: ${jobId}). กำลังรอ Worker ประมวลผล...`, 'info');
-        pollingInterval = setInterval(() => checkJobStatus(jobId), 5000); // Poll every 5 seconds
+        updateMessage(`Job created. Waiting for worker...`, 'info');
+        pollingInterval = setInterval(() => checkJobStatus(jobId), 3000); // Poll every 3 seconds
 
     } catch (error) {
-        handleJobError(`เกิดข้อผิดพลาดในการเริ่มงาน: ${error.message}`);
+        handleJobError(`Error starting job: ${error.message}`);
     }
 }
 
-/**
- * 2. Checks status: Periodically asks the server if the job is done.
- */
 async function checkJobStatus(jobId) {
     try {
         const response = await fetch(`${baseUrl}/.netlify/functions/get-job-status?jobId=${jobId}`);
         const data = await response.json();
 
-        updateMessage(`สถานะปัจจุบัน: ${data.status}...`, 'info');
+        // --- NEW: Handle and display progress ---
+        if (data.status === 'processing' && data.progress_message) {
+            updateMessage(data.progress_message, 'info');
+            const progressPercent = data.progress || 0;
+            progressBarFill.style.width = `${progressPercent}%`;
+            progressBarFill.textContent = `${progressPercent}%`;
+        } else {
+            updateMessage(`Current status: ${data.status}...`, 'info');
+        }
         
         if (data.status === 'completed') {
             handleJobSuccess(data.result_url);
         } else if (data.status === 'failed') {
-            handleJobError(`การสร้างไฟล์ล้มเหลว: ${data.error_message || 'Unknown error'}`);
+            handleJobError(`Job failed: ${data.error_message || 'Unknown error'}`);
         }
-        // If status is 'pending' or 'processing', the polling continues automatically.
 
     } catch (error) {
-        handleJobError(`เกิดข้อผิดพลาดในการตรวจสอบสถานะ: ${error.message}`);
+        handleJobError(`Error checking status: ${error.message}`);
     }
 }
 
@@ -280,14 +280,19 @@ async function checkJobStatus(jobId) {
 
 function resetUIState() {
     generateBtn.disabled = true;
-    generateBtn.textContent = '⏳ กำลังประมวลผล...';
+    generateBtn.textContent = '⏳ Processing...';
     downloadLink.style.display = 'none';
+    progressContainer.style.display = 'block';
+    progressBarFill.style.width = '0%';
+    progressBarFill.textContent = '0%';
     if (pollingInterval) clearInterval(pollingInterval);
 }
 
 function handleJobSuccess(url) {
     clearInterval(pollingInterval);
-    updateMessage('✅ สร้างไฟล์ PDF สำเร็จ!', 'success');
+    updateMessage('✅ PDF generated successfully!', 'success');
+    progressBarFill.style.width = '100%';
+    progressBarFill.textContent = '100%';
     downloadLink.href = url;
     downloadLink.style.display = 'block';
     generateBtn.disabled = false;
@@ -297,6 +302,7 @@ function handleJobSuccess(url) {
 function handleJobError(message) {
     clearInterval(pollingInterval);
     updateMessage(`❌ ${message}`, 'error');
+    progressBarFill.style.backgroundColor = 'var(--error-color)';
     generateBtn.disabled = false;
     updateGenerateButton();
 }
@@ -306,13 +312,12 @@ function handleUIError(title, message) {
 }
 
 function updateMessage(text, type) {
-    pdfMessageEl.textContent = text;
     pdfMessageEl.style.display = 'block';
-    pdfMessageEl.style.backgroundColor = 
-        type === 'info' ? '#dbeafe' :
-        type === 'success' ? '#dcfce7' :
-        type === 'error' ? '#fee2e2' :
-        '#f3f4f6';
+    pdfMessageEl.textContent = text;
+    pdfMessageEl.className = 'message-box'; // Reset class
+    if (type === 'info') pdfMessageEl.style.backgroundColor = '#dbeafe';
+    if (type === 'success') pdfMessageEl.style.backgroundColor = '#dcfce7';
+    if (type === 'error') pdfMessageEl.style.backgroundColor = '#fee2e2';
 }
 
 </script>
