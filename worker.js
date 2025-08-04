@@ -28,7 +28,6 @@ const supabase = createClient(supabaseUrl, serviceKey);
 // =========================================================================
 // --- PDF GENERATION LOGIC (No changes here) ---
 // =========================================================================
-
 const CANVAS_DIMENSIONS = {
     portrait: { width: 255, height: 405 },
     landscape: { width: 405, height: 255 }
@@ -126,7 +125,6 @@ const generateCardHtml = async (employee, template, side) => {
         </html>
     `;
 };
-
 
 async function generatePdfForJob(job) {
     const { template, employees } = job.payload;
@@ -243,11 +241,10 @@ async function importEmployeesFromJob(job) {
 
             let department_id = null;
             if (empData.Department) {
-                department_id = departmentMap.get(empData.Department.toLowerCase());
+                department_id = departmentMap.get(String(empData.Department).toLowerCase());
                 if (!department_id) totalInvalidDepts.push(empData.Department);
             }
 
-            // This is the full logic from your add-employees.js function
             const permanent_token = require('crypto').randomUUID();
             const qrCodeData = `https://ssth-ecoupon.netlify.app/check-status?token=${permanent_token}`;
             const qrCodeBuffer = await QRCode.toBuffer(qrCodeData);
@@ -267,7 +264,7 @@ async function importEmployeesFromJob(job) {
             if (insertError) throw insertError;
             totalSuccess++;
             
-            await new Promise(resolve => setTimeout(resolve, 500)); // 0.5 sec delay per employee
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
         
         return { totalSuccess, totalDuplicates, totalInvalidDepts };
