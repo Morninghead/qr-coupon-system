@@ -8,40 +8,38 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
 const QR_CODE_BUCKET = 'employee-qrcodes';
-// This should be the URL for your public-facing status check page
 const BASE_URL_FOR_QR = 'https://ssth-ecoupon.netlify.app/check-status'; 
 
 export const handler = async (event) => {
-    // This function should be protected. Anyone with the link can run it.
-    // For a one-time use, this is okay.
     try {
-        // 1. Find all employees that are missing a permanent_token
+        // 1. Find ALL employees
         const { data: employeesToUpdate, error: findError } = await supabaseAdmin
             .from('employees')
-            .select('id, employee_id, name')
-            .is('permanent_token', null);
+            .select('id, employee_id, name, permanent_token');
 
         if (findError) throw findError;
 
         if (!employeesToUpdate || employeesToUpdate.length === 0) {
             return {
                 statusCode: 200,
-                body: JSON.stringify({ message: 'No employees needed a QR code update.' })
+                body: JSON.stringify({ message: 'No employees found in the database.' })
             };
         }
 
         let updatedCount = 0;
         const errors = [];
 
-        // 2. Loop through each employee and generate their token and QR code
+        // 2. Loop through each employee
         for (const employee of employeesToUpdate) {
             try {
-                const permanent_token = randomUUID();
-                const qrCodeData = `${BASE_URL_FOR_QR}?token=${permanent_token}`;
+                // If employee is missing a token, create one. Otherwise, reuse the existing one.
+                const tokenToUse = employee.permanent_token || randomUUID();
+                
+                const qrCodeData = `${BASE_URL_FOR_QR}?token=${tokenToUse}`;
                 const qrCodeBuffer = await qrcode.toBuffer(qrCodeData, { type: 'png', errorCorrectionLevel: 'H' });
-                const qrCodePath = `${employee.employee_id}.png`; // Simplified path
+                const qrCodePath = `${employee.employee_id}.png`;
 
-                // 3. Upload the QR code image to Supabase Storage
+                // 3. Upload the new QR code image, overwriting the old one
                 const { error: uploadError } = await supabaseAdmin.storage
                     .from(QR_CODE_BUCKET)
                     .upload(qrCodePath, qrCodeBuffer, {
@@ -52,11 +50,11 @@ export const handler = async (event) => {
                 
                 const { data: urlData } = supabaseAdmin.storage.from(QR_CODE_BUCKET).getPublicUrl(qrCodePath);
 
-                // 4. Update the employee record with the new token and URL
+                // 4. Update the employee record with the token and new URL
                 const { error: updateError } = await supabaseAdmin
                     .from('employees')
                     .update({
-                        permanent_token: permanent_token,
+                        permanent_token: tokenToUse,
                         qr_code_url: urlData.publicUrl
                     })
                     .eq('id', employee.id);
@@ -72,7 +70,7 @@ export const handler = async (event) => {
         return {
             statusCode: 200,
             body: JSON.stringify({
-                message: 'Backfill process completed.',
+                message: 'QR Code regeneration process completed.',
                 total_found: employeesToUpdate.length,
                 updated_successfully: updatedCount,
                 failed_count: errors.length,
