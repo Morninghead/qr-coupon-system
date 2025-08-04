@@ -14,6 +14,7 @@
             --dark-gray: #1F2937;
             --text-gray: #4B5563;
             --border-color: #E5E7EB;
+            --info-color: #3B82F6;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -21,48 +22,11 @@
             margin: 0;
         }
         .hidden { display: none !important; }
-        .unauthorized-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            width: 100%;
-            position: fixed; top: 0; left: 0;
-            background-color: var(--light-gray);
-        }
-        .unauthorized-box {
-            background: white;
-            padding: 40px 48px;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            max-width: 450px;
-        }
-        .unauthorized-box h1 {
-            color: var(--dark-gray);
-            font-size: 24px;
-            margin-bottom: 8px;
-        }
-        .unauthorized-box p {
-            color: var(--text-gray);
-            margin-bottom: 24px;
-        }
-        .unauthorized-button {
-            display: inline-block;
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            color: white;
-            background-color: var(--primary-color);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-            transition: background-color 0.2s;
-        }
-        .unauthorized-button:hover { background-color: #4F46E5; }
-
+        .unauthorized-container { display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; background-color: var(--light-gray); }
+        .unauthorized-box { background: white; padding: 40px 48px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); text-align: center; max-width: 450px; }
+        .unauthorized-box h1 { color: var(--dark-gray); font-size: 24px; margin-bottom: 8px; }
+        .unauthorized-box p { color: var(--text-gray); margin-bottom: 24px; }
+        .unauthorized-button { display: inline-block; width: 100%; padding: 12px; font-size: 16px; font-weight: 600; color: white; background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; text-decoration: none; transition: background-color 0.2s; }
         .container { max-width: 900px; margin: 0 auto; padding: 24px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
         .header h1 { color: var(--dark-gray); font-size: 28px; margin: 0; }
@@ -70,63 +34,27 @@
         .form-container { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
         .form-section { margin-bottom: 24px; }
         .form-section label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark-gray); }
-        select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-        textarea { height: 150px; resize: vertical; margin-bottom: 16px; }
-        .button-group { display: flex; gap: 12px; align-items: center; margin-top: 16px; flex-wrap: wrap;}
+        .button-group { display: flex; gap: 12px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
         .submit-btn, .import-btn, .download-template-btn, .add-row-btn { padding: 12px 24px; font-size: 16px; font-weight: 600; color: white; border: none; border-radius: 8px; cursor: pointer; }
         .submit-btn { background-color: var(--primary-color); }
         .submit-btn:disabled { background-color: #A5B4FC; cursor: not-allowed; }
         .import-btn { background-color: var(--secondary-color); }
-        .download-template-btn { background-color: #10B981; } 
-        .add-row-btn { background-color: #3B82F6; }
+        .download-template-btn { background-color: #10B981; }
+        .add-row-btn { background-color: var(--info-color); }
         input[type="file"] { display: none; }
         .file-preview { font-size: 14px; color: var(--text-gray); margin-top: 12px; font-weight: 500; min-height: 20px; }
         #result-message { margin-top: 24px; padding: 16px; border-radius: 8px; display: none; white-space: pre-wrap; }
         .result-success { background-color: #D1FAE5; color: #065F46; }
         .result-error { background-color: #FEE2E2; color: #991B1B; }
         .result-info { background-color: #E0E7FF; color: #3730A3; }
-
-        .employee-input-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .employee-input-row input {
-            flex-grow: 1;
-            padding: 10px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-            min-width: 120px;
-        }
-        .employee-input-row .remove-row-btn {
-            background-color: #EF4444;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-        .employee-input-header {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: var(--dark-gray);
-        }
-        .employee-input-header span {
-            flex-grow: 1;
-            min-width: 120px;
-            padding-left: 10px;
-        }
-        .employee-input-header span:last-child {
-             min-width: auto;
-        }
+        .employee-input-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
+        .employee-input-row input { flex-grow: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; min-width: 120px; }
+        .employee-input-row .remove-row-btn { background-color: #EF4444; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; flex-shrink: 0; }
+        .employee-input-header { display: flex; gap: 10px; margin-bottom: 5px; font-weight: 600; color: var(--dark-gray); }
+        .employee-input-header span { flex-grow: 1; min-width: 120px; padding-left: 10px; }
+        .employee-input-header span:last-child { min-width: auto; }
+        .progress-bar { width: 100%; background-color: #e0e0e0; border-radius: 5px; padding: 3px; margin-top: 10px; display: none; }
+        .progress-bar-fill { height: 20px; background-color: var(--info-color); border-radius: 5px; transition: width 0.4s ease-in-out; text-align: center; color: white; line-height: 20px; }
     </style>
 </head>
 <body>
@@ -145,7 +73,7 @@
             </div>
             <div class="form-container">
                 <div class="form-section">
-                    <h2>นำเข้าจากไฟล์ Excel / วางข้อมูล</h2>
+                    <h2>นำเข้าจากไฟล์ Excel</h2>
                     <p>ดาวน์โหลด Template เพื่อนำเข้าข้อมูลพนักงาน (แนะนำ)</p>
                     <div class="button-group">
                         <button class="import-btn" onclick="document.getElementById('file-input').click()">📁 Import File (.csv, .xlsx)</button>
@@ -157,16 +85,16 @@
 
                 <div class="form-section">
                     <h2>เพิ่มข้อมูลพนักงานรายบุคคล</h2>
-                    <p>กรอกข้อมูลพนักงานแต่ละคน (เพิ่มได้ครั้งละ 10 คน)</p>
+                    <p>กรอกข้อมูลพนักงานแต่ละคน</p>
                     <div class="employee-input-header">
                         <span style="flex-basis: 30%;">รหัสพนักงาน (บังคับ)</span>
                         <span style="flex-basis: 30%;">ชื่อ-สกุล (บังคับ)</span>
                         <span style="flex-basis: 30%;">แผนก (ไม่บังคับ)</span>
-                        <span style="flex-basis: 5%;"></span> </div>
-                    <div id="employee-inputs-container">
-                        </div>
+                        <span style="flex-basis: 5%;"></span>
+                    </div>
+                    <div id="employee-inputs-container"></div>
                     <div class="button-group" style="justify-content: flex-start;">
-                        <button id="add-row-btn" class="add-row-btn">➕ เพิ่มช่องอีก 10 แถว</button>
+                        <button id="add-row-btn" class="add-row-btn">➕ เพิ่มแถว</button>
                     </div>
                 </div>
 
@@ -174,6 +102,9 @@
                     <button id="submit-btn" class="submit-btn">เพิ่มพนักงาน</button>
                 </div>
                 <div id="result-message"></div>
+                <div class="progress-bar" id="progress-bar">
+                    <div class="progress-bar-fill" id="progress-bar-fill">0%</div>
+                </div>
             </div>
         </div>
     </div>
@@ -189,11 +120,12 @@
         const resultMessageDiv = document.getElementById('result-message');
         const employeeInputsContainer = document.getElementById('employee-inputs-container');
         const addRowBtn = document.getElementById('add-row-btn');
+        const progressBar = document.getElementById('progress-bar');
+        const progressBarFill = document.getElementById('progress-bar-fill');
 
         const baseUrl = window.location.origin;
-
-        let employeesToSubmit = [];
-        const MAX_ROWS_PER_BATCH = 50;
+        let employeesFromFile = [];
+        const BATCH_SIZE = 50; // Process 50 employees per request
 
         async function initializeApp() {
             try {
@@ -204,21 +136,16 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    addEmptyEmployeeRows(10);
+                    addEmptyEmployeeRows(1); // Start with one empty row
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
             } catch (error) {
-                console.error("Initialization Error:", error);
                 unauthorizedMessage.classList.remove('hidden');
             }
         }
 
         function addEmptyEmployeeRows(count = 1) {
-            if (employeeInputsContainer.children.length + count > MAX_ROWS_PER_BATCH) {
-                showResult(`ไม่สามารถเพิ่มเกิน ${MAX_ROWS_PER_BATCH} แถวในครั้งเดียวได้`, 'error');
-                return;
-            }
             for (let i = 0; i < count; i++) {
                 const rowDiv = document.createElement('div');
                 rowDiv.classList.add('employee-input-row');
@@ -241,21 +168,21 @@
         }
 
         function updateSubmitButtonStatus() {
-            const allRows = Array.from(employeeInputsContainer.children);
             let hasValidInput = false;
-            for (const row of allRows) {
-                const empId = row.querySelector('.employee-id-input').value.trim();
-                const empName = row.querySelector('.employee-name-input').value.trim();
-                if (empId && empName) {
-                    hasValidInput = true;
-                    break;
+            if (employeesFromFile.length > 0) {
+                hasValidInput = true;
+            } else {
+                const allRows = Array.from(employeeInputsContainer.children);
+                for (const row of allRows) {
+                    const empId = row.querySelector('.employee-id-input').value.trim();
+                    const empName = row.querySelector('.employee-name-input').value.trim();
+                    if (empId && empName) {
+                        hasValidInput = true;
+                        break;
+                    }
                 }
             }
-            if (employeesToSubmit.length > 0) {
-                submitBtn.disabled = false;
-            } else {
-                submitBtn.disabled = !hasValidInput;
-            }
+            submitBtn.disabled = !hasValidInput;
         }
 
         function parseEmployeeDataFromFile(data) {
@@ -279,7 +206,8 @@
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
+            employeesFromFile = []; // Clear previous file data
+            
             const reader = new FileReader();
             reader.onload = async (event) => {
                 try {
@@ -288,12 +216,12 @@
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-                    employeesToSubmit = parseEmployeeDataFromFile(jsonData);
+                    employeesFromFile = parseEmployeeDataFromFile(jsonData);
                     
-                    if (employeesToSubmit.length > 0) {
-                        employeeInputsContainer.innerHTML = '';
-                        filePreview.textContent = `พบ ${employeesToSubmit.length} รายการในไฟล์ "${file.name}" พร้อมสำหรับการเพิ่ม`;
-                        showResult(`เตรียมข้อมูล ${employeesToSubmit.length} รายการจากไฟล์`, 'info');
+                    if (employeesFromFile.length > 0) {
+                        employeeInputsContainer.innerHTML = ''; // Clear individual rows
+                        filePreview.textContent = `พบ ${employeesFromFile.length} รายการในไฟล์ "${file.name}" พร้อมสำหรับการเพิ่ม`;
+                        showResult(`เตรียมข้อมูล ${employeesFromFile.length} รายการจากไฟล์`, 'info');
                     } else {
                         filePreview.textContent = `ไม่พบข้อมูลที่ถูกต้องในไฟล์ "${file.name}"`;
                         showResult('ไม่พบข้อมูลที่ถูกต้องในไฟล์', 'error');
@@ -303,39 +231,33 @@
                 } catch (err) {
                     filePreview.textContent = `ผิดพลาดในการอ่านไฟล์: ${err.message}`;
                     showResult(`ผิดพลาดในการอ่านไฟล์: ${err.message}`, 'error');
-                    updateSubmitButtonStatus();
                 }
             };
             reader.readAsArrayBuffer(file);
         });
 
         downloadTemplateBtn.addEventListener('click', () => {
-            const worksheet = XLSX.utils.aoa_to_sheet([
-                ["Employee_ID", "Name", "Department"] 
-            ]);
+            const worksheet = XLSX.utils.aoa_to_sheet([["Employee_ID", "Name", "Department"]]);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Employees");
             XLSX.writeFile(workbook, "employee_template.xlsx");
         });
 
-        addRowBtn.addEventListener('click', () => addEmptyEmployeeRows(10));
+        addRowBtn.addEventListener('click', () => addEmptyEmployeeRows(1));
 
         submitBtn.addEventListener('click', async () => {
             let finalEmployeesToProcess = [];
-
-            if (employeesToSubmit.length > 0) {
-                finalEmployeesToProcess = employeesToSubmit;
+            if (employeesFromFile.length > 0) {
+                finalEmployeesToProcess = employeesFromFile;
             } else {
                 const allRows = Array.from(employeeInputsContainer.children);
                 for (const row of allRows) {
                     const empId = row.querySelector('.employee-id-input').value.trim();
                     const empName = row.querySelector('.employee-name-input').value.trim();
                     const empDepartment = row.querySelector('.employee-department-input').value.trim();
-
                     if (empId && empName) {
                         finalEmployeesToProcess.push({
-                            employee_id: empId,
-                            name: empName,
+                            employee_id: empId, name: empName,
                             department_name: empDepartment || null
                         });
                     }
@@ -349,52 +271,69 @@
 
             submitBtn.disabled = true;
             submitBtn.textContent = 'กำลังบันทึก...';
-            showResult('กำลังดำเนินการ...', 'info');
+            progressBar.style.display = 'block';
+            progressBarFill.style.width = '0%';
+            
+            let totalSuccess = 0;
+            let totalDuplicates = [];
+            let totalInvalidDepts = [];
+            const totalEmployees = finalEmployeesToProcess.length;
 
-            try {
-                const { data: { session } } = await _supabase.auth.getSession();
-                const response = await fetch(`${baseUrl}/.netlify/functions/add-employees`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${session.access_token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ employees: finalEmployeesToProcess })
-                });
+            for (let i = 0; i < totalEmployees; i += BATCH_SIZE) {
+                const batch = finalEmployeesToProcess.slice(i, i + BATCH_SIZE);
+                const progress = Math.round(((i + batch.length) / totalEmployees) * 100);
+                
+                showResult(`กำลังอัปโหลดชุดที่ ${Math.floor(i / BATCH_SIZE) + 1}... (${i + batch.length} / ${totalEmployees})`, 'info');
+                progressBarFill.style.width = `${progress}%`;
+                progressBarFill.textContent = `${progress}%`;
 
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message || 'Server error');
+                try {
+                    const { data: { session } } = await _supabase.auth.getSession();
+                    const response = await fetch(`${baseUrl}/.netlify/functions/add-employees`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${session.access_token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ employees: batch })
+                    });
 
-                let finalMessage = result.message;
-                if (result.duplicates && result.duplicates.length > 0) {
-                    finalMessage += `\nรหัสซ้ำ (ไม่ถูกเพิ่ม): ${result.duplicates.join(', ')}`;
+                    if (!response.headers.get("content-type")?.includes("application/json")){
+                       throw new Error(`Server returned an invalid response (Status: ${response.status}). The function may have timed out.`);
+                    }
+
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message || 'Server error on this batch');
+                    
+                    totalSuccess += (result.insertedCount || 0);
+                    if(result.duplicates) totalDuplicates.push(...result.duplicates);
+                    if(result.invalidDepartments) totalInvalidDepts.push(...result.invalidDepartments);
+
+                } catch (error) {
+                    showResult(`ผิดพลาดระหว่างอัปโหลด: ${error.message}`, 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'เพิ่มพนักงาน';
+                    return;
                 }
-                if (result.invalidDepartments && result.invalidDepartments.length > 0) {
-                    finalMessage += `\nแผนกไม่ถูกต้อง (ไม่ถูกผูกกับแผนก): ${result.invalidDepartments.join(', ')}`;
-                }
-                showResult(finalMessage, 'success');
-
-                setTimeout(() => {
-                    employeesToSubmit = [];
-                    employeeInputsContainer.innerHTML = '';
-                    filePreview.textContent = '';
-                    addEmptyEmployeeRows(10);
-                    resultMessageDiv.style.display = 'none'; 
-                }, 5000); 
-
-            } catch (error) {
-                showResult(`ผิดพลาด: ${error.message}`, 'error');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'เพิ่มพนักงาน';
-                updateSubmitButtonStatus();
             }
+
+            let finalMessage = `ดำเนินการเสร็จสิ้น!\nเพิ่มพนักงานใหม่สำเร็จ: ${totalSuccess} คน`;
+            if (totalDuplicates.length > 0) finalMessage += `\nรหัสซ้ำ (ไม่ถูกเพิ่ม): ${totalDuplicates.join(', ')}`;
+            if (totalInvalidDepts.length > 0) finalMessage += `\nแผนกไม่ถูกต้อง: ${totalInvalidDepts.join(', ')}`;
+            showResult(finalMessage, 'success');
+            
+            employeesFromFile = [];
+            filePreview.textContent = '';
+            employeeInputsContainer.innerHTML = '';
+            addEmptyEmployeeRows(1);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'เพิ่มพนักงาน';
         });
 
         function showResult(message, type) {
             resultMessageDiv.style.display = 'block';
             resultMessageDiv.textContent = message;
-            resultMessageDiv.className = type === 'success' ? 'result-success' : (type === 'error' ? 'result-error' : 'result-info');
+            resultMessageDiv.className = `result-${type}`;
         }
 
         initializeApp();
