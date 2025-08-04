@@ -8,19 +8,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
-            --primary-color: #6366F1;
-            --secondary-color: #F97316;
-            --light-gray: #F3F4F6;
-            --dark-gray: #1F2937;
-            --text-gray: #4B5563;
-            --border-color: #E5E7EB;
+            --primary-color: #6366F1; --secondary-color: #F97316; --light-gray: #F3F4F6;
+            --dark-gray: #1F2937; --text-gray: #4B5563; --border-color: #E5E7EB;
             --info-color: #3B82F6;
         }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--light-gray);
-            margin: 0;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: var(--light-gray); margin: 0; }
         .hidden { display: none !important; }
         .unauthorized-container { display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; position: fixed; top: 0; left: 0; background-color: var(--light-gray); }
         .unauthorized-box { background: white; padding: 40px 48px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); text-align: center; max-width: 450px; }
@@ -125,7 +117,7 @@
 
         const baseUrl = window.location.origin;
         let employeesFromFile = [];
-        const BATCH_SIZE = 20; // Process 50 employees per request
+        const BATCH_SIZE = 20; // Start with a safe batch size for testing
 
         async function initializeApp() {
             try {
@@ -136,7 +128,7 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    addEmptyEmployeeRows(1); // Start with one empty row
+                    addEmptyEmployeeRows(1);
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
@@ -206,7 +198,7 @@
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            employeesFromFile = []; // Clear previous file data
+            employeesFromFile = [];
             
             const reader = new FileReader();
             reader.onload = async (event) => {
@@ -219,7 +211,7 @@
                     employeesFromFile = parseEmployeeDataFromFile(jsonData);
                     
                     if (employeesFromFile.length > 0) {
-                        employeeInputsContainer.innerHTML = ''; // Clear individual rows
+                        employeeInputsContainer.innerHTML = '';
                         filePreview.textContent = `พบ ${employeesFromFile.length} รายการในไฟล์ "${file.name}" พร้อมสำหรับการเพิ่ม`;
                         showResult(`เตรียมข้อมูล ${employeesFromFile.length} รายการจากไฟล์`, 'info');
                     } else {
