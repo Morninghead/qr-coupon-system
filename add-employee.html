@@ -72,13 +72,13 @@
         .form-section label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark-gray); }
         select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         textarea { height: 150px; resize: vertical; margin-bottom: 16px; }
-        .button-group { display: flex; gap: 12px; align-items: center; margin-top: 16px; flex-wrap: wrap;} /* Added flex-wrap */
+        .button-group { display: flex; gap: 12px; align-items: center; margin-top: 16px; flex-wrap: wrap;}
         .submit-btn, .import-btn, .download-template-btn, .add-row-btn { padding: 12px 24px; font-size: 16px; font-weight: 600; color: white; border: none; border-radius: 8px; cursor: pointer; }
         .submit-btn { background-color: var(--primary-color); }
         .submit-btn:disabled { background-color: #A5B4FC; cursor: not-allowed; }
         .import-btn { background-color: var(--secondary-color); }
         .download-template-btn { background-color: #10B981; } 
-        .add-row-btn { background-color: #3B82F6; } /* Blue for add row */
+        .add-row-btn { background-color: #3B82F6; }
         input[type="file"] { display: none; }
         .file-preview { font-size: 14px; color: var(--text-gray); margin-top: 12px; font-weight: 500; min-height: 20px; }
         #result-message { margin-top: 24px; padding: 16px; border-radius: 8px; display: none; white-space: pre-wrap; }
@@ -86,32 +86,31 @@
         .result-error { background-color: #FEE2E2; color: #991B1B; }
         .result-info { background-color: #E0E7FF; color: #3730A3; }
 
-        /* Styles for individual employee rows */
         .employee-input-row {
             display: flex;
             gap: 10px;
             margin-bottom: 10px;
             align-items: center;
-            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            flex-wrap: wrap;
         }
         .employee-input-row input {
-            flex-grow: 1; /* Allow inputs to grow */
+            flex-grow: 1;
             padding: 10px;
             border: 1px solid var(--border-color);
             border-radius: 8px;
             font-size: 16px;
             box-sizing: border-box;
-            min-width: 120px; /* Minimum width for each input */
+            min-width: 120px;
         }
         .employee-input-row .remove-row-btn {
-            background-color: #EF4444; /* Red for remove */
+            background-color: #EF4444;
             color: white;
             border: none;
             padding: 8px 12px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
-            flex-shrink: 0; /* Prevent shrinking */
+            flex-shrink: 0;
         }
         .employee-input-header {
             display: flex;
@@ -123,10 +122,10 @@
         .employee-input-header span {
             flex-grow: 1;
             min-width: 120px;
-            padding-left: 10px; /* Align with input padding */
+            padding-left: 10px;
         }
         .employee-input-header span:last-child {
-             min-width: auto; /* For the remove button column */
+             min-width: auto;
         }
     </style>
 </head>
@@ -188,13 +187,13 @@
         const filePreview = document.getElementById('file-preview');
         const submitBtn = document.getElementById('submit-btn');
         const resultMessageDiv = document.getElementById('result-message');
-        const employeeInputsContainer = document.getElementById('employee-inputs-container'); // New
-        const addRowBtn = document.getElementById('add-row-btn'); // New
+        const employeeInputsContainer = document.getElementById('employee-inputs-container');
+        const addRowBtn = document.getElementById('add-row-btn');
 
         const baseUrl = window.location.origin;
 
-        let employeesToSubmit = []; // Array of { employee_id, name, department_name }
-        const MAX_ROWS_PER_BATCH = 50; // Limit total rows to prevent performance issues
+        let employeesToSubmit = [];
+        const MAX_ROWS_PER_BATCH = 50;
 
         async function initializeApp() {
             try {
@@ -205,7 +204,7 @@
                 const { data: { session } } = await _supabase.auth.getSession();
                 if (session) {
                     mainContent.classList.remove('hidden');
-                    addEmptyEmployeeRows(10); // Add 10 empty rows initially
+                    addEmptyEmployeeRows(10);
                 } else {
                     unauthorizedMessage.classList.remove('hidden');
                 }
@@ -215,10 +214,9 @@
             }
         }
 
-        // Function to add empty employee input rows
         function addEmptyEmployeeRows(count = 1) {
             if (employeeInputsContainer.children.length + count > MAX_ROWS_PER_BATCH) {
-                showMessage(`ไม่สามารถเพิ่มเกิน ${MAX_ROWS_PER_BATCH} แถวในครั้งเดียวได้`, 'warning');
+                showResult(`ไม่สามารถเพิ่มเกิน ${MAX_ROWS_PER_BATCH} แถวในครั้งเดียวได้`, 'error');
                 return;
             }
             for (let i = 0; i < count; i++) {
@@ -233,21 +231,18 @@
                 employeeInputsContainer.appendChild(rowDiv);
                 rowDiv.querySelector('.remove-row-btn').addEventListener('click', () => {
                     rowDiv.remove();
-                    updateSubmitButtonStatus(); // Update status after removing a row
+                    updateSubmitButtonStatus();
                 });
-                // Add event listeners to input fields for validation/button status
                 rowDiv.querySelectorAll('input').forEach(input => {
                     input.addEventListener('input', updateSubmitButtonStatus);
                 });
             }
-            updateSubmitButtonStatus(); // Update status after adding rows
+            updateSubmitButtonStatus();
         }
 
-        // Update submit button status based on form validity
         function updateSubmitButtonStatus() {
             const allRows = Array.from(employeeInputsContainer.children);
             let hasValidInput = false;
-            // Check if at least one row has valid Employee ID and Name
             for (const row of allRows) {
                 const empId = row.querySelector('.employee-id-input').value.trim();
                 const empName = row.querySelector('.employee-name-input').value.trim();
@@ -256,7 +251,6 @@
                     break;
                 }
             }
-            // If any rows from file import exist, also enable button
             if (employeesToSubmit.length > 0) {
                 submitBtn.disabled = false;
             } else {
@@ -264,8 +258,6 @@
             }
         }
 
-
-        // Function to parse employee data from imported file or textarea (still used for file import)
         function parseEmployeeDataFromFile(data) {
             if (data.length < 2) throw new Error('ไฟล์/ข้อมูลว่างเปล่าหรือมีแค่หัวข้อ');
             const header = data[0].map(h => String(h).toLowerCase().trim());
@@ -284,41 +276,39 @@
             })).filter(emp => emp.employee_id && emp.name);
         }
 
-        // Handle file import
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = async (event) => { // Made async to allow await
+            reader.onload = async (event) => {
                 try {
                     const data = new Uint8Array(event.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-                    employeesToSubmit = parseEmployeeDataFromFile(jsonData); // Data from file
+                    employeesToSubmit = parseEmployeeDataFromFile(jsonData);
                     
                     if (employeesToSubmit.length > 0) {
-                        employeeInputsContainer.innerHTML = ''; // Clear individual input rows if file imported
+                        employeeInputsContainer.innerHTML = '';
                         filePreview.textContent = `พบ ${employeesToSubmit.length} รายการในไฟล์ "${file.name}" พร้อมสำหรับการเพิ่ม`;
-                        showMessage(`เตรียมข้อมูล ${employeesToSubmit.length} รายการจากไฟล์`, 'info');
+                        showResult(`เตรียมข้อมูล ${employeesToSubmit.length} รายการจากไฟล์`, 'info');
                     } else {
                         filePreview.textContent = `ไม่พบข้อมูลที่ถูกต้องในไฟล์ "${file.name}"`;
-                        showMessage('ไม่พบข้อมูลที่ถูกต้องในไฟล์', 'error');
+                        showResult('ไม่พบข้อมูลที่ถูกต้องในไฟล์', 'error');
                     }
                     updateSubmitButtonStatus();
-                    fileInput.value = ''; // Clear file input
+                    fileInput.value = '';
                 } catch (err) {
                     filePreview.textContent = `ผิดพลาดในการอ่านไฟล์: ${err.message}`;
-                    showMessage(`ผิดพลาดในการอ่านไฟล์: ${err.message}`, 'error');
+                    showResult(`ผิดพลาดในการอ่านไฟล์: ${err.message}`, 'error');
                     updateSubmitButtonStatus();
                 }
             };
             reader.readAsArrayBuffer(file);
         });
 
-        // Download Template functionality
         downloadTemplateBtn.addEventListener('click', () => {
             const worksheet = XLSX.utils.aoa_to_sheet([
                 ["Employee_ID", "Name", "Department"] 
@@ -328,29 +318,25 @@
             XLSX.writeFile(workbook, "employee_template.xlsx");
         });
 
-        // Add Row button
         addRowBtn.addEventListener('click', () => addEmptyEmployeeRows(10));
-
 
         submitBtn.addEventListener('click', async () => {
             let finalEmployeesToProcess = [];
 
-            // Case 1: Data from file import takes precedence
             if (employeesToSubmit.length > 0) {
                 finalEmployeesToProcess = employeesToSubmit;
             } else {
-                // Case 2: Data from individual input rows
                 const allRows = Array.from(employeeInputsContainer.children);
                 for (const row of allRows) {
                     const empId = row.querySelector('.employee-id-input').value.trim();
                     const empName = row.querySelector('.employee-name-input').value.trim();
                     const empDepartment = row.querySelector('.employee-department-input').value.trim();
 
-                    if (empId && empName) { // Only process rows with both ID and Name
+                    if (empId && empName) {
                         finalEmployeesToProcess.push({
                             employee_id: empId,
                             name: empName,
-                            department_name: empDepartment || null // Use null if empty
+                            department_name: empDepartment || null
                         });
                     }
                 }
@@ -389,11 +375,10 @@
                 showResult(finalMessage, 'success');
 
                 setTimeout(() => {
-                    // Clear all data sources after successful submission
                     employeesToSubmit = [];
-                    employeeInputsContainer.innerHTML = ''; // Clear individual input rows
+                    employeeInputsContainer.innerHTML = '';
                     filePreview.textContent = '';
-                    addEmptyEmployeeRows(10); // Add initial empty rows back
+                    addEmptyEmployeeRows(10);
                     resultMessageDiv.style.display = 'none'; 
                 }, 5000); 
 
@@ -402,7 +387,7 @@
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'เพิ่มพนักงาน';
-                updateSubmitButtonStatus(); // Re-evaluate button status
+                updateSubmitButtonStatus();
             }
         });
 
