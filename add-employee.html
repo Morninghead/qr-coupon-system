@@ -117,7 +117,7 @@
 
         const baseUrl = window.location.origin;
         let employeesFromFile = [];
-        const BATCH_SIZE = 5;
+        const BATCH_SIZE = 3; // UPDATED: Batch size is now 3
 
         async function initializeApp() {
             try {
@@ -301,9 +301,10 @@
                     if(result.duplicates) totalDuplicates.push(...result.duplicates);
                     if(result.invalidDepartments) totalInvalidDepts.push(...result.invalidDepartments);
                     
-                    // --- NEW: Add a 2-second delay after each successful batch ---
-                    if (i + BATCH_SIZE < totalEmployees) { // Don't delay after the very last batch
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    // Add a 10-second delay after each successful batch
+                    if (i + BATCH_SIZE < totalEmployees) {
+                        showResult(`อัปโหลดชุดที่ ${Math.floor(i / BATCH_SIZE) + 1} สำเร็จ... หยุดรอ 10 วินาที`, 'info');
+                        await new Promise(resolve => setTimeout(resolve, 10000)); // UPDATED: Delay is now 10 seconds
                     }
 
                 } catch (error) {
